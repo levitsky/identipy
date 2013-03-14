@@ -5,6 +5,7 @@ from itertools import chain
 import re
 import os
 from math import factorial
+from temofile import gettempdir
 db = '/home/lab006/fasta/uniprot_sprot.fasta'
 MAXLEN = 30
 acc = 0.02
@@ -87,7 +88,7 @@ def neutral_masses(spectrum):
     return zip((exp_mass*ch - ch*mass.nist_mass['H+'][0][0]
             for ch in states), states)
 
-def generate_arrays(folder='/tmp'):
+def generate_arrays(folder=gettempdir()):
     if not os.path.isfile(os.path.join(folder, 'seqs.npy')):
         seqs = np.fromiter((pep for _, prot in fasta.read(db)
             for pep in parser.cleave(prot, enzyme, MC)
@@ -96,7 +97,7 @@ def generate_arrays(folder='/tmp'):
         masses = np.empty(seqs.shape, dtype=np.float32)
         for i in np.arange(seqs.size):
             masses[i] = mass.fast_mass(seqs[i])
-        idx = np.argosrt(masses)
+        idx = np.argsort(masses)
         masses = masses[idx]
         seqs = seqs[idx]
         np.save(os.path.join(folder, 'masses.npy'), masses)
@@ -119,4 +120,4 @@ if __name__ == '__main__':
                 true += 1
             else:
                 print '{} != {}'.format(result[0], spectrum['params']['title'])
-    print 'Correct:', true, 'of 3.'
+    print 'Correct:', true
