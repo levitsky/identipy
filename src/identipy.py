@@ -1,3 +1,4 @@
+from __future__ import print_function
 import numpy as np
 from scipy.spatial import cKDTree
 from pyteomics import parser, mass, fasta, auxiliary as aux, electrochem as ec, mgf
@@ -5,7 +6,7 @@ from itertools import chain
 import re
 import os
 from math import factorial
-from temofile import gettempdir
+from tempfile import gettempdir
 db = '/home/lab006/fasta/uniprot_sprot.fasta'
 MAXLEN = 30
 acc = 0.02
@@ -20,8 +21,8 @@ def theor_spectrum(peptide, types=('y', 'b'), maxcharge=None):
         maxcharge = 1 + int(ec.charge(peptide, pH=2))
     for ion_type in types:
         ms = []
-        for i in xrange(1, len(peptide)-1):
-            for charge in xrange(1, maxcharge+1):
+        for i in range(1, len(peptide)-1):
+            for charge in range(1, maxcharge+1):
                 if ion_type[0] in 'abc':
                     ms.append(mass.fast_mass(
                         peptide[:i], ion_type=ion_type, charge=charge))
@@ -66,7 +67,6 @@ def top_candidates(spectrum, score, seqs, masses, n=1):
         start = masses.searchsorted(m - acc)
         end = masses.searchsorted(m + acc)
         candidates.extend(seqs[start:end])
-    print len(candidates)
     spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape(
         (spectrum['m/z array'].size, 1)))
     return sorted(((score(spectrum, x), x) for x in candidates),
@@ -103,8 +103,8 @@ def generate_arrays(folder=gettempdir()):
         np.save(os.path.join(folder, 'masses.npy'), masses)
         np.save(os.path.join(folder, 'seqs.npy'), seqs)
     else:
-        seqs = np.load(os.path.join('seqs.npy'))
-        masses = np.load(os.path.join('masses.npy'))
+        seqs = np.load(os.path.join(folder, 'seqs.npy'))
+        masses = np.load(os.path.join(folder, 'masses.npy'))
     return masses, seqs
 
 def process_file(f, score, top=1):
@@ -113,11 +113,11 @@ def process_file(f, score, top=1):
             for s in f)
 
 if __name__ == '__main__':
-    with mgf.read(os.path.join(os.pardir, 'test.mgf')) as r:
+    with mgf.read(os.path.join(os.pardir, 'tests', 'swedcad.mgf')) as r:
         true = 0
         for spectrum, result in process_file(r, hyperscore, 1):
-            if result and (result[0] == spectrum['params']['title']):
+            if result and (result[0][1] == spectrum['params']['title']):
                 true += 1
             else:
-                print '{} != {}'.format(result[0], spectrum['params']['title'])
-    print 'Correct:', true
+                print('{} != {}'.format(result[0][1], spectrum['params']['title']))
+    print('Correct:', true)
