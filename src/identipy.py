@@ -7,7 +7,8 @@ import re
 import os
 from math import factorial
 from tempfile import gettempdir
-db = '/home/lab006/fasta/uniprot_sprot.fasta'
+import sys
+db = '/home/lev/Downloads/uniprot_sprot.fasta'
 MAXLEN = 30
 acc = 0.02
 MC = 1
@@ -15,6 +16,15 @@ enzyme = parser.expasy_rules['trypsin']
 MINMASS = 300
 MAXMASS = 1500
 
+def decode(func):
+    if sys.version_info.major == 3:
+        def f(s, *args, **kwargs):
+            if isinstance(s, bytes):
+                return func(s.decode('ascii'), *args, **kwargs)
+        return f
+    return func
+
+@decode
 def theor_spectrum(peptide, types=('y', 'b'), maxcharge=None):
     peaks = {}
     if not maxcharge:
@@ -25,10 +35,10 @@ def theor_spectrum(peptide, types=('y', 'b'), maxcharge=None):
             for charge in range(1, maxcharge+1):
                 if ion_type[0] in 'abc':
                     ms.append(mass.fast_mass(
-                        peptide[:i], ion_type=ion_type, charge=charge))
+                        str(peptide)[:i], ion_type=ion_type, charge=charge))
                 else:
                     ms.append(mass.fast_mass(
-                        peptide[i:], ion_type=ion_type, charge=charge))
+                        str(peptide)[i:], ion_type=ion_type, charge=charge))
         marr = np.array(ms)
         marr.sort()
         peaks[ion_type] = marr
