@@ -8,7 +8,8 @@ from math import factorial
 from tempfile import gettempdir
 import sys
 from . import scoring, utils 
-db = '/home/lev/Downloads/uniprot_sprot.fasta'
+from multiprocessing import Queue, Process, cpu_count
+db = 'uniprot_sprot.fasta'
 MAXLEN = 30
 acc = 0.02
 MC = 1
@@ -37,6 +38,8 @@ def generate_arrays(folder=gettempdir()):
         masses = np.empty(seqs.shape, dtype=np.float32)
         for i in np.arange(seqs.size):
             masses[i] = mass.fast_mass(seqs[i])
+        seqs, ind = np.unique(seqs, return_index=True)
+        masses = masses[ind]
         idx = np.argsort(masses)
         masses = masses[idx]
         seqs = seqs[idx]
@@ -51,4 +54,30 @@ def process_file(f, score, top=1):
     masses, seqs = generate_arrays()
     return ((s, top_candidates(s, score, seqs, masses, top))
             for s in f)
+
+def make_worker(masses, seqs, score, top):
+    def worker(qin, qout):
+        for spectrum in iter(qin.get, None):
+            result = top_candidates(spectrum, score, seqs, masses, top)
+            qout.put((spectrum, result))
+    return worker
+
+def process_parallel(f, score, top=1):
+    masses, seqs = generate_arrays()
+    qin = Queue()
+    qout = Queue()
+    N = cpu_count()
+    count = 0
+    global worker
+    worker = make_worker(masses, seqs, score, top)
+    for _ in range(N):
+        Process(target=worker, args=(qin, qout)).start()
+    for s in f:
+        qin.put(s)
+        count += 1
+    for _ in range(N):
+        qin.put(None)
+    while count:
+        yield qout.get()
+        count -= 1
 
