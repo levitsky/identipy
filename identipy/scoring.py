@@ -1,9 +1,9 @@
 from .utils import neutral_masses
 from .analysis import theor_spectrum
 import numpy as np
-acc = 0.02
 
-def simple_score(spectrum, peptide):
+def simple_score(spectrum, peptide, settings):
+    acc = settings.getfloat('search', 'product accuracy')
     charge = max(c for m, c in neutral_masses(spectrum))
     theor = theor_spectrum(peptide, maxcharge=charge)
     fragments = np.concatenate(theor.values())
@@ -11,9 +11,10 @@ def simple_score(spectrum, peptide):
             distance_upper_bound = acc)
     return spectrum['intensity array'][ind[dist != np.inf]].sum()
 
-def hyperscore(spectrum, peptide):
+def hyperscore(spectrum, peptide, settings):
     """A simple implementation of X!Tandem's Hyperscore."""
 
+    acc = settings.getfloat('search', 'product accuracy')
     charge = max(c for m, c in neutral_masses(spectrum))
     theor = theor_spectrum(peptide, maxcharge=charge)
     score = 0
