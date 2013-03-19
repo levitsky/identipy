@@ -9,30 +9,32 @@ from tempfile import gettempdir
 import sys
 from . import scoring, utils 
 from multiprocessing import Queue, Process, cpu_count
-db = 'uniprot_sprot.fasta'
-MAXLEN = 30
-acc = 0.02
-MC = 1
-enzyme = parser.expasy_rules['trypsin']
-MINMASS = 300
-MAXMASS = 1500
+from ConfigParser import ConfigParser
 
-def top_candidates(spectrum, score, seqs, masses, n=1):
+def top_candidates_from_arrays(spectrum, score, seqs, masses, acc, rel=False, n=1):
     exp_mass = utils.neutral_masses(spectrum)
     candidates = []
     for m, c in exp_mass:
-        start = masses.searchsorted(m - acc)
-        end = masses.searchsorted(m + acc)
+        dm = acc*c*m/1.0e6 if rel else acc*c
+        start = masses.searchsorted(m - dm)
+        end = masses.searchsorted(m + dm)
         candidates.extend(seqs[start:end])
     spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape(
         (spectrum['m/z array'].size, 1)))
-    return sorted(((score(spectrum, x), x) for x in candidates),
+    return sorted(((score(spectrum, x, settings), x) for x in candidates),
             reverse=True)[:n]
 
-def generate_arrays(folder=gettempdir()):
+def get_arrays(settings):
+    db = settings.get('input', 'database')
+    folder = settings.get('performance', 'folder')
+    enzyme = settings.get('search', 'enzyme')
+    enzyme = parser.expasy_rules.get(enzyme, enzyme)
+    mc = settings.getint('search', 'miscleavages')
+    minlen = settings.getint('search', 'peptide minimum length')
+    maxlen = settings.getint('search', 'peptide maximum length')
     if not os.path.isfile(os.path.join(folder, 'seqs.npy')):
         seqs = np.fromiter((pep for _, prot in fasta.read(db)
-            for pep in parser.cleave(prot, enzyme, MC)
+            for pep in parser.cleave(prot, enzyme, mc)
             if len(pep) < MAXLEN and parser.valid(pep)),
             dtype=np.dtype((np.str_, MAXLEN)))
         masses = np.empty(seqs.shape, dtype=np.float32)
@@ -50,34 +52,80 @@ def generate_arrays(folder=gettempdir()):
         masses = np.load(os.path.join(folder, 'masses.npy'))
     return masses, seqs
 
-def process_file(f, score, top=1):
-    masses, seqs = generate_arrays()
-    return ((s, top_candidates(s, score, seqs, masses, top))
-            for s in f)
+def process_file(f, settings):
+    # prepare the funtion
+    mode = settings.get('performance', 'pre-calculation')
+    score = getattr(scoring, settings.get('scoring', 'score'))
+    prec_acc = settings.getfloat('search', 'precursor accuracy value')
+    rel = settings.get('search', 'precursor accuracy unit') == 'ppm'
+    if mode == 'some': # work with numpy arrays
+        masses, seqs = get_arrays(settings)
+        func = lambda s: top_candidates_from_arrays(s, score, seqs, masses,
+                prec_acc, rel, settings.getint('output', 'candidates'))
+    else:
+        raise NotImplementedError
 
-def make_worker(masses, seqs, score, top):
-    def worker(qin, qout):
-        for spectrum in iter(qin.get, None):
-            result = top_candidates(spectrum, score, seqs, masses, top)
-            qout.put((spectrum, result))
-    return worker
+    # decide on multiprocessing
+    n = settings.getint('performance', 'processes')
+    if n == 0:
+        try:
+            n = cpu_count()
+        except NotImplementedError:
+            n = 1
+    if n == 1:
+        for s in f:
+            yield s, func(s)
+    else:
+        def worker(qin, qout):
+            for spectrum in iter(qin.get, None):
+                result = func(spectrum)
+                qout.put((spectrum, result))
+        qin = Queue()
+        qout = Queue()
+        for _ in range(n):
+            Process(target=worker, args=(qin, qout)).start()
+        for s in f:
+            qin.put(s)
+            count += 1
+        for _ in range(n):
+            qin.put(None)
+        while count:
+            yield qout.get()
+            count -= 1
 
-def process_parallel(f, score, top=1):
-    masses, seqs = generate_arrays()
-    qin = Queue()
-    qout = Queue()
-    N = cpu_count()
-    count = 0
-    global worker
-    worker = make_worker(masses, seqs, score, top)
-    for _ in range(N):
-        Process(target=worker, args=(qin, qout)).start()
-    for s in f:
-        qin.put(s)
-        count += 1
-    for _ in range(N):
-        qin.put(None)
-    while count:
-        yield qout.get()
-        count -= 1
+def settings(fname=None, default_name=os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), os.pardir, 'default.cfg')):
+    config = ConfigParser()
+    if default_name:
+        config.read(default_name)
+    if fname:
+        config.read(fname)
+    return config
+        
+
+#def make_worker(masses, seqs, score, top):
+#    def worker(qin, qout):
+#        for spectrum in iter(qin.get, None):
+#            result = top_candidates(spectrum, score, seqs, masses, top)
+#            qout.put((spectrum, result))
+#    return worker
+#
+#def process_parallel(f, settings):
+#    masses, seqs = generate_arrays()
+#    qin = Queue()
+#    qout = Queue()
+#    N = cpu_count()
+#    count = 0
+#    global worker
+#    worker = make_worker(masses, seqs, score, top)
+#    for _ in range(N):
+#        Process(target=worker, args=(qin, qout)).start()
+#    for s in f:
+#        qin.put(s)
+#        count += 1
+#    for _ in range(N):
+#        qin.put(None)
+#    while count:
+#        yield qout.get()
+#        count -= 1
 
