@@ -12,7 +12,9 @@ from multiprocessing import Queue, Process, cpu_count
 from ConfigParser import ConfigParser
 from . import scoring, utils 
 
-def top_candidates_from_arrays(spectrum, score, seqs, masses, acc, rel=False, n=1):
+def top_candidates_from_arrays(spectrum, settings,
+        score=None, seqs=None, masses=None, acc=None, rel=False, n=1):
+    # todo: handle unspecified parameters (exctract from settings)
     exp_mass = utils.neutral_masses(spectrum)
     candidates = []
     for m, c in exp_mass:
@@ -33,14 +35,14 @@ def get_arrays(settings):
     mc = settings.getint('search', 'miscleavages')
     minlen = settings.getint('search', 'peptide minimum length')
     maxlen = settings.getint('search', 'peptide maximum length')
-    index = os.path.join(folder, 'indentipy.idx')
+    index = os.path.join(folder, 'identipy.idx')
 
     profile = (db, enzyme, mc, minlen, maxlen)
     arr_name = None
     if os.path.isfile(index):
         with open(index) as ifile:
             for line in ifile:
-                t, name = line.split('\t')
+                t, name = line.strip().split('\t')
                 if ast.literal_eval(t) == profile:
                     arr_name = name
                     break
@@ -79,7 +81,8 @@ def process_file(f, settings):
     rel = settings.get('search', 'precursor accuracy unit') == 'ppm'
     if mode == 'some': # work with numpy arrays
         masses, seqs = get_arrays(settings)
-        func = lambda s: top_candidates_from_arrays(s, score, seqs, masses,
+        func = lambda s: top_candidates_from_arrays(s, settings, score,
+                seqs, masses,
                 prec_acc, rel, settings.getint('output', 'candidates'))
     else:
         raise NotImplementedError
