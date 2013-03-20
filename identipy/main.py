@@ -5,11 +5,12 @@ from itertools import chain
 import re
 import os
 from math import factorial
-from tempfile import gettempdir
+from tempfile import gettempdir, NamedTemporaryFile
+import ast
 import sys
-from . import scoring, utils 
 from multiprocessing import Queue, Process, cpu_count
 from ConfigParser import ConfigParser
+from . import scoring, utils 
 
 def top_candidates_from_arrays(spectrum, score, seqs, masses, acc, rel=False, n=1):
     exp_mass = utils.neutral_masses(spectrum)
@@ -32,11 +33,23 @@ def get_arrays(settings):
     mc = settings.getint('search', 'miscleavages')
     minlen = settings.getint('search', 'peptide minimum length')
     maxlen = settings.getint('search', 'peptide maximum length')
-    if not os.path.isfile(os.path.join(folder, 'seqs.npy')):
+    index = os.path.join(folder, 'indentipy.idx')
+
+    profile = (db, enzyme, mc, minlen, maxlen)
+    arr_name = None
+    if os.path.isfile(index):
+        with open(index) as ifile:
+            for line in ifile:
+                t, name = line.split('\t')
+                if ast.literal_eval(t) == profile:
+                    arr_name = name
+                    break
+
+    if arr_name is None:
         seqs = np.fromiter((pep for _, prot in fasta.read(db)
             for pep in parser.cleave(prot, enzyme, mc)
-            if len(pep) < MAXLEN and parser.valid(pep)),
-            dtype=np.dtype((np.str_, MAXLEN)))
+            if minlen <= len(pep) <= maxlen and parser.valid(pep)),
+            dtype=np.dtype((np.str_, maxlen)))
         masses = np.empty(seqs.shape, dtype=np.float32)
         for i in np.arange(seqs.size):
             masses[i] = mass.fast_mass(seqs[i])
@@ -45,11 +58,17 @@ def get_arrays(settings):
         idx = np.argsort(masses)
         masses = masses[idx]
         seqs = seqs[idx]
-        np.save(os.path.join(folder, 'masses.npy'), masses)
-        np.save(os.path.join(folder, 'seqs.npy'), seqs)
+        with NamedTemporaryFile(suffix='.npz', prefix='identipy_', dir=folder,
+                delete=False) as outfile:
+            np.savez_compressed(outfile, masses=masses, seqs=seqs)
+            name = outfile.name
+        with open(index, 'a') as ifile:
+            ifile.write(str(profile) + '\t' + name + '\n')
+
     else:
-        seqs = np.load(os.path.join(folder, 'seqs.npy'))
-        masses = np.load(os.path.join(folder, 'masses.npy'))
+        npz = np.load(arr_name)
+        seqs = npz['seqs']
+        masses = npz['masses']
     return masses, seqs
 
 def process_file(f, settings):
