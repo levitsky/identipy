@@ -74,11 +74,18 @@ def get_arrays(settings):
     return masses, seqs
 
 def process_file(f, settings):
-    # prepare the funtion
+    # prepare the function
     mode = settings.get('performance', 'pre-calculation')
     score = getattr(scoring, settings.get('scoring', 'score'))
     prec_acc = settings.getfloat('search', 'precursor accuracy value')
-    rel = settings.get('search', 'precursor accuracy unit') == 'ppm'
+    unit = settings.get('search', 'precursor accuracy unit')
+    if unit == 'ppm':
+        rel = True
+    elif unit in {'Th', 'Da', 'amu'}:
+        rel = False
+    else:
+        raise ValueError('Unrecognized precursor accuracy unit')
+    
     if mode == 'some': # work with numpy arrays
         masses, seqs = get_arrays(settings)
         func = lambda s: top_candidates_from_arrays(s, settings, score,
@@ -104,6 +111,7 @@ def process_file(f, settings):
                 qout.put((spectrum, result))
         qin = Queue()
         qout = Queue()
+        count = 0
         for _ in range(n):
             Process(target=worker, args=(qin, qout)).start()
         for s in f:
