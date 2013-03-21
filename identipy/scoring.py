@@ -1,6 +1,7 @@
 from .utils import neutral_masses
 from .analysis import theor_spectrum
 import numpy as np
+from math import factorial
 
 def simple_score(spectrum, peptide, settings):
     acc = settings.getfloat('search', 'product accuracy')
@@ -13,7 +14,8 @@ def simple_score(spectrum, peptide, settings):
 
 def hyperscore(spectrum, peptide, settings):
     """A simple implementation of X!Tandem's Hyperscore."""
-
+    int_array = spectrum['intensity array']
+    int_array = int_array / int_array.max()
     acc = settings.getfloat('search', 'product accuracy')
     charge = max(c for m, c in neutral_masses(spectrum))
     theor = theor_spectrum(peptide, maxcharge=charge)
@@ -24,8 +26,8 @@ def hyperscore(spectrum, peptide, settings):
         dist, ind = spectrum['__KDTree'].query(fragments.reshape((n, 1)),
             distance_upper_bound=acc, eps=acc)
         mask = (dist != np.inf)
-        mult.append(mask.sum())
-        score += spectrum['intensity array'][ind[mask]].sum()
+        mult.append(factorial(mask.sum()))
+        score += int_array[ind[mask]].sum()
     if score:
         for m in mult: score *= m
     return score
