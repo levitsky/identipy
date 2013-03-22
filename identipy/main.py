@@ -9,7 +9,10 @@ from tempfile import gettempdir, NamedTemporaryFile
 import ast
 import sys
 from multiprocessing import Queue, Process, cpu_count
-from ConfigParser import ConfigParser
+try:
+    from configparser import ConfigParser
+except ImportError:
+    from ConfigParser import ConfigParser
 from . import scoring, utils 
 
 def top_candidates_from_arrays(spectrum, settings,
@@ -24,7 +27,7 @@ def top_candidates_from_arrays(spectrum, settings,
         candidates.extend(seqs[start:end])
     spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape(
         (spectrum['m/z array'].size, 1)))
-    return sorted(((score(spectrum, x, settings), x) for x in candidates),
+    return sorted(((score(spectrum, x, settings), x.decode('ascii')) for x in candidates),
             reverse=True)[:n]
 
 def get_arrays(settings):
@@ -84,7 +87,7 @@ def process_file(f, settings):
     elif unit in {'Th', 'Da', 'amu'}:
         rel = False
     else:
-        raise ValueError('Unrecognized precursor accuracy unit')
+        raise ValueError('Unrecognized precursor accuracy unit: ' + unit)
     
     if mode == 'some': # work with numpy arrays
         masses, seqs = get_arrays(settings)
@@ -125,7 +128,9 @@ def process_file(f, settings):
 
 def settings(fname=None, default_name=os.path.join(
         os.path.dirname(os.path.abspath(__file__)), os.pardir, 'default.cfg')):
-    config = ConfigParser()
+    kw = {'inline_comment_prefixes': ('#', ';')
+            } if sys.version_info.major == 3 else {}
+    config = ConfigParser(**kw)
     if default_name:
         config.read(default_name)
     if fname:
