@@ -1,6 +1,6 @@
-from .utils import neutral_masses
-from .analysis import theor_spectrum
+from .utils import neutral_masses, theor_spectrum
 import numpy as np
+from scipy.stats import scoreatpercentile
 from math import factorial
 
 def simple_score(spectrum, peptide, settings):
@@ -32,4 +32,22 @@ def hyperscore(spectrum, peptide, settings):
         for m in mult: score *= m
     return score
 
+def bin_size_sorted(X):
+# from http://mail.scipy.org/pipermail/scipy-user/2009-March/020194.html
+    """Calculates the Freedman-Diaconis bin size for a sorted data set.
 
+    Paramters:
+    ----------
+        X:  1D data set
+    Returns:
+    --------
+        h:  F-D bin size
+    """
+#   X = np.sort(X)
+
+    upperQuartile = scoreatpercentile(X, 75)
+    lowerQuartile = scoreatpercentile(X, 25)
+    IQR = upperQuartile - lowerQuartile
+
+    h = 2. * IQR / len(X)**(1./3.)
+    return h

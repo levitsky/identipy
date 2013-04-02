@@ -1,0 +1,8 @@
+ - modifications
+ - process all existing options
+ - accept third-party scoring functions
+ - accept third-party spectrum processors
+ - calculate e-values
+ - output formatting
+ - other modes than stored numpy arrays
+ - auto-tuning of parameters
