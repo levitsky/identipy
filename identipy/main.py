@@ -76,8 +76,10 @@ def get_arrays(settings):
         masses = npz['masses']
     return masses, seqs
 
-def process_file(f, settings):
-    # prepare the function
+def spectrum_processor(settings):
+    processor = settings.get('misc', 'spectrum processor')
+    if '.' in processor:
+        raise NotImplementedError
     mode = settings.get('performance', 'pre-calculation')
     score = getattr(scoring, settings.get('scoring', 'score'))
     prec_acc = settings.getfloat('search', 'precursor accuracy value')
@@ -91,11 +93,23 @@ def process_file(f, settings):
     
     if mode == 'some': # work with numpy arrays
         masses, seqs = get_arrays(settings)
-        func = lambda s: top_candidates_from_arrays(s, settings, score,
+        candidates = lambda s: top_candidates_from_arrays(s, settings, score,
                 seqs, masses,
                 prec_acc, rel, settings.getint('output', 'candidates'))
+        if processor == 'minimal':
+            return lambda s: {'spectrum': s, 'candidates': candidates(s)}
+        elif processor == 'e-value':
+            def f(s):
+                c = candidates(s)
+                return  {'spectrum': s, 'candidates': c,
+                    'e-values': scoring.evalues(c)}
+            return f
     else:
         raise NotImplementedError
+
+def process_file(f, settings):
+    # prepare the function
+    func = spectrum_processor(settings)
 
     # decide on multiprocessing
     n = settings.getint('performance', 'processes')
@@ -106,12 +120,12 @@ def process_file(f, settings):
             n = 1
     if n == 1:
         for s in f:
-            yield s, func(s)
+            yield func(s)
     else:
         def worker(qin, qout):
             for spectrum in iter(qin.get, None):
                 result = func(spectrum)
-                qout.put((spectrum, result))
+                qout.put(result)
         qin = Queue()
         qout = Queue()
         count = 0
@@ -136,31 +150,3 @@ def settings(fname=None, default_name=os.path.join(
     if fname:
         config.read(fname)
     return config
-        
-
-#def make_worker(masses, seqs, score, top):
-#    def worker(qin, qout):
-#        for spectrum in iter(qin.get, None):
-#            result = top_candidates(spectrum, score, seqs, masses, top)
-#            qout.put((spectrum, result))
-#    return worker
-#
-#def process_parallel(f, settings):
-#    masses, seqs = generate_arrays()
-#    qin = Queue()
-#    qout = Queue()
-#    N = cpu_count()
-#    count = 0
-#    global worker
-#    worker = make_worker(masses, seqs, score, top)
-#    for _ in range(N):
-#        Process(target=worker, args=(qin, qout)).start()
-#    for s in f:
-#        qin.put(s)
-#        count += 1
-#    for _ in range(N):
-#        qin.put(None)
-#    while count:
-#        yield qout.get()
-#        count -= 1
-
