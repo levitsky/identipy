@@ -1,5 +1,5 @@
 import re
-from pyteomics import mass, electrochem as ec
+from pyteomics import mass, electrochem as ec, auxiliary as aux
 import sys
 import numpy as np
 
@@ -40,9 +40,9 @@ def neutral_masses(spectrum):
         exp_mass = spectrum['base peak']
         charge = spectrum['charge']
     if isinstance(charge, str):
-        states = re.findall(r'(\d+)(\+|-)?', charge)
-        states = [int(num)*(-1 if sign == '-' else 1)
-                for num, sign in states]
+        states = aux._parse_charge(charge)
+        if isinstance(states, int):
+            states = [states]
     else: states = [charge]
     states.sort()
     return zip((exp_mass*ch - ch*mass.nist_mass['H+'][0][0]
