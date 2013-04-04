@@ -53,13 +53,12 @@ def get_arrays(settings):
     if arr_name is None:
         seqs = np.fromiter((pep for _, prot in fasta.read(db)
             for pep in parser.cleave(prot, enzyme, mc)
-            if minlen <= len(pep) <= maxlen and parser.valid(pep)),
+            if minlen <= len(pep) <= maxlen and parser.fast_valid(pep)),
             dtype=np.dtype((np.str_, maxlen)))
+        seqs = np.unique(seqs)
         masses = np.empty(seqs.shape, dtype=np.float32)
         for i in np.arange(seqs.size):
             masses[i] = mass.fast_mass(seqs[i])
-        seqs, ind = np.unique(seqs, return_index=True)
-        masses = masses[ind]
         idx = np.argsort(masses)
         masses = masses[idx]
         seqs = seqs[idx]
