@@ -78,9 +78,13 @@ def get_arrays(settings):
 def spectrum_processor(settings):
     processor = settings.get('misc', 'spectrum processor')
     if '.' in processor:
-        raise NotImplementedError
+        return utils.import_function(processor)(settings)
     mode = settings.get('performance', 'pre-calculation')
-    score = getattr(scoring, settings.get('scoring', 'score'))
+    score_name = settings.get('scoring', 'score')
+    if '.' in score_name:
+        score = utils.import_function(score_name)
+    else:
+        score = getattr(scoring, score_name)
     prec_acc = settings.getfloat('search', 'precursor accuracy value')
     unit = settings.get('search', 'precursor accuracy unit')
     if unit == 'ppm':
