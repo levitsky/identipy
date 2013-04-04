@@ -31,7 +31,6 @@ def theor_spectrum(peptide, types=('y', 'b'), maxcharge=None):
         peaks[ion_type] = marr
     return peaks
 
-
 def neutral_masses(spectrum):
     if 'params' in spectrum:
         exp_mass = spectrum['params']['pepmass'][0]
@@ -47,3 +46,10 @@ def neutral_masses(spectrum):
     states.sort()
     return zip((exp_mass*ch - ch*mass.nist_mass['H+'][0][0]
             for ch in states), states)
+
+def import_function(name):
+    """Import a function by name: module.function or
+    module.submodule.function, etc. Return the function object."""
+
+    mod, f = name.rsplit('.', 1)
+    return getattr(__import__(mod, fromlist=[f]), f)
