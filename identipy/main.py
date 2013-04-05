@@ -21,7 +21,7 @@ def top_candidates_from_arrays(spectrum, settings,
     exp_mass = utils.neutral_masses(spectrum)
     candidates = []
     for m, c in exp_mass:
-        dm = acc*c*m/1.0e6 if rel else acc*c
+        dm = acc*m/1.0e6 if rel else acc*c
         start = masses.searchsorted(m - dm)
         end = masses.searchsorted(m + dm)
         candidates.extend(seqs[start:end])
