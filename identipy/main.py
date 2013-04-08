@@ -49,9 +49,10 @@ def get_arrays(settings):
     maxlen = settings.getint('search', 'peptide maximum length')
     fmods = settings.get('modifications', 'fixed')
     aa_mass = utils._aa_mass(fmods)
+    add_decoy = settings.getboolean('input', 'add decoy')
     index = os.path.join(folder, 'identipy.idx')
 
-    profile = (dbhash, enzyme, mc, minlen, maxlen, fmods)
+    profile = (dbhash, add_decoy, enzyme, mc, minlen, maxlen, fmods)
     arr_name = None
     if os.path.isfile(index):
         with open(index) as ifile:
