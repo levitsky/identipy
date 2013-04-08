@@ -9,6 +9,7 @@ from tempfile import gettempdir, NamedTemporaryFile
 import ast
 import sys
 from multiprocessing import Queue, Process, cpu_count
+import hashlib
 try:
     from configparser import ConfigParser
 except ImportError:
@@ -25,6 +26,9 @@ def top_candidates_from_arrays(spectrum, settings,
         start = masses.searchsorted(m - dm)
         end = masses.searchsorted(m + dm)
         candidates.extend(seqs[start:end])
+    i = np.nonzero(spectrum['intensity array'])
+    spectrum['intensity array'] = spectrum['intensity array'][i]
+    spectrum['m/z array'] = spectrum['m/z array'][i]
     spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape(
         (spectrum['m/z array'].size, 1)))
     return sorted(((score(spectrum, x, settings), x.decode('ascii')) for x in candidates),
@@ -32,15 +36,23 @@ def top_candidates_from_arrays(spectrum, settings,
 
 def get_arrays(settings):
     db = settings.get('input', 'database')
+    hasher = settings.get('misc', 'hash')
+    dbhash = hashlib.new(hasher)
+    with open(db) as f:
+        for line in f:
+            dbhash.update(line)
+    dbhash = dbhash.hexdigest()
     folder = settings.get('performance', 'folder')
     enzyme = settings.get('search', 'enzyme')
     enzyme = parser.expasy_rules.get(enzyme, enzyme)
     mc = settings.getint('search', 'miscleavages')
     minlen = settings.getint('search', 'peptide minimum length')
     maxlen = settings.getint('search', 'peptide maximum length')
+    fmods = settings.get('modifications', 'fixed')
+    aa_mass = utils._aa_mass(fmods)
     index = os.path.join(folder, 'identipy.idx')
 
-    profile = (db, enzyme, mc, minlen, maxlen)
+    profile = (dbhash, enzyme, mc, minlen, maxlen, fmods)
     arr_name = None
     if os.path.isfile(index):
         with open(index) as ifile:
@@ -58,7 +70,7 @@ def get_arrays(settings):
         seqs = np.unique(seqs)
         masses = np.empty(seqs.shape, dtype=np.float32)
         for i in np.arange(seqs.size):
-            masses[i] = mass.fast_mass(seqs[i])
+            masses[i] = mass.fast_mass(seqs[i], aa_mass=aa_mass)
         idx = np.argsort(masses)
         masses = masses[idx]
         seqs = seqs[idx]
@@ -147,6 +159,7 @@ def settings(fname=None, default_name=os.path.join(
         os.path.dirname(os.path.abspath(__file__)), os.pardir, 'default.cfg')):
     kw = {'inline_comment_prefixes': ('#', ';')
             } if sys.version_info.major == 3 else {}
+    kw['dict_type'] = dict
     config = ConfigParser(**kw)
     if default_name:
         config.read(default_name)
