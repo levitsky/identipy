@@ -12,7 +12,7 @@ def decode(func):
     return func
 
 @decode
-def theor_spectrum(peptide, types=('y', 'b'), maxcharge=None):
+def theor_spectrum(peptide, types=('y', 'b'), maxcharge=None, **kwargs):
     peaks = {}
     if not maxcharge:
         maxcharge = 1 + int(ec.charge(peptide, pH=2))
@@ -22,10 +22,12 @@ def theor_spectrum(peptide, types=('y', 'b'), maxcharge=None):
             for charge in range(1, maxcharge+1):
                 if ion_type[0] in 'abc':
                     ms.append(mass.fast_mass(
-                        str(peptide)[:i], ion_type=ion_type, charge=charge))
+                        str(peptide)[:i], ion_type=ion_type, charge=charge,
+                        **kwargs))
                 else:
                     ms.append(mass.fast_mass(
-                        str(peptide)[i:], ion_type=ion_type, charge=charge))
+                        str(peptide)[i:], ion_type=ion_type, charge=charge,
+                        **kwargs))
         marr = np.array(ms)
         marr.sort()
         peaks[ion_type] = marr
@@ -53,3 +55,17 @@ def import_function(name):
 
     mod, f = name.rsplit('.', 1)
     return getattr(__import__(mod, fromlist=[f]), f)
+
+@aux.memoize(10)
+def _aa_mass(fmods):
+    aa_mass = mass.std_aa_mass.copy()
+    if fmods:
+        for mod in re.split(r'[,;]\s*', fmods):
+            m, aa = re.match(r'(\d+(?:\.\d*)?)([A-Z])', mod).groups()
+            aa_mass[aa] += float(m)
+    return aa_mass
+
+def aa_mass(settings):
+    fmods = settings.get('modifications', 'fixed')
+    return _aa_mass(fmods)
+

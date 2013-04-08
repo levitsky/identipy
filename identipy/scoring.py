@@ -1,4 +1,4 @@
-from .utils import neutral_masses, theor_spectrum
+from .utils import neutral_masses, theor_spectrum, aa_mass
 import numpy as np
 from scipy.stats import scoreatpercentile
 from math import factorial
@@ -6,7 +6,7 @@ from math import factorial
 def simple_score(spectrum, peptide, settings):
     acc = settings.getfloat('search', 'product accuracy')
     charge = max(c for m, c in neutral_masses(spectrum))
-    theor = theor_spectrum(peptide, maxcharge=charge)
+    theor = theor_spectrum(peptide, maxcharge=charge, aa_mass=aa_mass(settings))
     fragments = np.concatenate(theor.values())
     dist, ind = spectrum['__KDTree'].query(fragments.reshape((fragments.size, 1)),
             distance_upper_bound = acc)
@@ -18,7 +18,7 @@ def hyperscore(spectrum, peptide, settings):
     int_array = int_array / int_array.max()
     acc = settings.getfloat('search', 'product accuracy')
     charge = max(c for m, c in neutral_masses(spectrum))
-    theor = theor_spectrum(peptide, maxcharge=charge)
+    theor = theor_spectrum(peptide, maxcharge=charge, aa_mass=aa_mass(settings))
     score = 0
     mult = []
     for fragments in theor.values():
