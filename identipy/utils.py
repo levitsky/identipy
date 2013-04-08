@@ -2,6 +2,7 @@ import re
 from pyteomics import mass, electrochem as ec, auxiliary as aux
 import sys
 import numpy as np
+from multiprocessing import Queue, Process, cpu_count
 
 def decode(func):
     if sys.version_info.major == 3:
@@ -68,4 +69,32 @@ def _aa_mass(fmods):
 def aa_mass(settings):
     fmods = settings.get('modifications', 'fixed')
     return _aa_mass(fmods)
+
+def multimap(n, func, it):
+    if n == 0:
+        try:
+            n = cpu_count()
+        except NotImplementedError:
+            n = 1
+    if n == 1:
+        for s in it:
+            yield func(s)
+    else:
+        def worker(qin, qout):
+            for spectrum in iter(qin.get, None):
+                result = func(spectrum)
+                qout.put(result)
+        qin = Queue()
+        qout = Queue()
+        count = 0
+        for _ in range(n):
+            Process(target=worker, args=(qin, qout)).start()
+        for s in it:
+            qin.put(s)
+            count += 1
+        for _ in range(n):
+            qin.put(None)
+        while count:
+            yield qout.get()
+            count -= 1
 
