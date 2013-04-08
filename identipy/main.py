@@ -8,7 +8,6 @@ from math import factorial
 from tempfile import gettempdir, NamedTemporaryFile
 import ast
 import sys
-from multiprocessing import Queue, Process, cpu_count
 import hashlib
 try:
     from configparser import ConfigParser
@@ -63,10 +62,19 @@ def get_arrays(settings):
                     break
 
     if arr_name is None:
-        seqs = np.fromiter((pep for _, prot in fasta.read(db)
-            for pep in parser.cleave(prot, enzyme, mc)
-            if minlen <= len(pep) <= maxlen and parser.fast_valid(pep)),
-            dtype=np.dtype((np.str_, maxlen)))
+        def peps():
+            prots = (prot for _, prot in fasta.read(db))
+            func = lambda prot: [pep for pep in parser.cleave(prot, enzyme, mc)
+                    if minlen <= len(pep) <= maxlen and parser.fast_valid(pep)]
+            n = settings.getint('performance', 'processes')
+            return chain.from_iterable(
+                    utils.multimap(n, func, prots))
+
+        seqs = np.fromiter(peps(), dtype=np.dtype((np.str_, maxlen)))
+#       seqs = np.fromiter((pep for _, prot in fasta.read(db)
+#           for pep in parser.cleave(prot, enzyme, mc)
+#           if minlen <= len(pep) <= maxlen and parser.fast_valid(pep)),
+#           dtype=np.dtype((np.str_, maxlen)))
         seqs = np.unique(seqs)
         masses = np.empty(seqs.shape, dtype=np.float32)
         for i in np.arange(seqs.size):
@@ -128,32 +136,7 @@ def process_file(f, settings):
 
     # decide on multiprocessing
     n = settings.getint('performance', 'processes')
-    if n == 0:
-        try:
-            n = cpu_count()
-        except NotImplementedError:
-            n = 1
-    if n == 1:
-        for s in f:
-            yield func(s)
-    else:
-        def worker(qin, qout):
-            for spectrum in iter(qin.get, None):
-                result = func(spectrum)
-                qout.put(result)
-        qin = Queue()
-        qout = Queue()
-        count = 0
-        for _ in range(n):
-            Process(target=worker, args=(qin, qout)).start()
-        for s in f:
-            qin.put(s)
-            count += 1
-        for _ in range(n):
-            qin.put(None)
-        while count:
-            yield qout.get()
-            count -= 1
+    return utils.multimap(n, func, f)
 
 def settings(fname=None, default_name=os.path.join(
         os.path.dirname(os.path.abspath(__file__)), os.pardir, 'default.cfg')):
