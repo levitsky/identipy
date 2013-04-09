@@ -64,7 +64,13 @@ def get_arrays(settings):
 
     if arr_name is None:
         def peps():
-            prots = (prot for _, prot in fasta.read(db))
+            if not add_decoy:
+                prots = (prot for _, prot in fasta.read(db))
+            else:
+                prefix = settings.get('input', 'decoy prefix')
+                mode = settings.get('input', 'decoy method')
+                prots = (prot for _, prot in fasta.decoy_db(db, mode=mode,
+                    prefix=prefix))
             func = lambda prot: [pep for pep in parser.cleave(prot, enzyme, mc)
                     if minlen <= len(pep) <= maxlen and parser.fast_valid(pep)]
             n = settings.getint('performance', 'processes')
