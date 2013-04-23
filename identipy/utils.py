@@ -1,8 +1,12 @@
 import re
-from pyteomics import mass, electrochem as ec, auxiliary as aux
+from pyteomics import mass, electrochem as ec, auxiliary as aux, parser
 import sys
 import numpy as np
 from multiprocessing import Queue, Process, cpu_count
+try:
+    from configparser import RawConfigParser
+except ImportError:
+    from ConfigParser import RawConfigParser
 
 def decode(func):
     if sys.version_info.major == 3:
@@ -49,7 +53,7 @@ def neutral_masses(spectrum):
     states.sort()
     return zip((exp_mass*ch - ch*mass.nist_mass['H+'][0][0]
             for ch in states), states)
-
+@aux.memoize(10)
 def import_function(name):
     """Import a function by name: module.function or
     module.submodule.function, etc. Return the function object."""
@@ -58,17 +62,14 @@ def import_function(name):
     return getattr(__import__(mod, fromlist=[f]), f)
 
 @aux.memoize(10)
-def _aa_mass(fmods):
+def aa_mass(settings):
     aa_mass = mass.std_aa_mass.copy()
+    fmods = settings.get('modifications', 'fixed')
     if fmods:
         for mod in re.split(r'[,;]\s*', fmods):
-            m, aa = re.match(r'(\d+(?:\.\d*)?)([A-Z])', mod).groups()
-            aa_mass[aa] += float(m)
+            m, aa = parser._split_label(mod)
+            aa_mass[aa] += settings.getfloat('modifications', m)
     return aa_mass
-
-def aa_mass(settings):
-    fmods = settings.get('modifications', 'fixed')
-    return _aa_mass(fmods)
 
 def multimap(n, func, it):
     if n == 0:
@@ -98,3 +99,29 @@ def multimap(n, func, it):
             yield qout.get()
             count -= 1
 
+class Config(RawConfigParser):
+    """
+    A ConfigParser with get methods short-circuited to the dict access.
+    `optionxform` is not called. `KeyError` will be raised instead of
+    `NoSectionError` and `NoOptionError`.
+    """
+    def __init__(self, *args, **kwargs):
+       RawConfigParser.__init__(self, *args, **kwargs)
+       self._update_hash()
+    def getint(self, section, option):
+        return int(self._sections[section][option])
+    def getfloat(self, section, option):
+        return float(self._sections[section][option])
+    def get(self, section, option, **kwargs):
+        return self._sections[section][option]
+    def set(self, section, option, value):
+        RawConfigParser.set(self, section, option, value)
+        self._update_hash()
+    def __hash__(self):
+        return self._hash
+    def _get_hash(self):
+        return hash(
+                frozenset((s, frozenset(opts.items()))
+                    for s, opts in self._sections.items()))
+    def _update_hash(self):
+        self._hash = self._get_hash()
