@@ -1,3 +1,4 @@
+ - enhance configparser with sane hashing and memoization
  - modifications
  - process all existing options
  - calculate e-values
