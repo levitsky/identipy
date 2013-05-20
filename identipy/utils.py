@@ -13,6 +13,8 @@ def decode(func):
         def f(s, *args, **kwargs):
             if isinstance(s, bytes):
                 return func(s.decode('ascii'), *args, **kwargs)
+            else:
+                return func(s, *args, **kwargs)
         return f
     return func
 
@@ -54,14 +56,14 @@ def neutral_masses(spectrum):
     return zip((exp_mass*ch - ch*mass.nist_mass['H+'][0][0]
             for ch in states), states)
 @aux.memoize(10)
-def import_function(name):
+def import_(name):
     """Import a function by name: module.function or
     module.submodule.function, etc. Return the function object."""
 
     mod, f = name.rsplit('.', 1)
     return getattr(__import__(mod, fromlist=[f]), f)
 
-@aux.memoize(10)
+#@aux.memoize(10)
 def aa_mass(settings):
     aa_mass = mass.std_aa_mass.copy()
     fmods = settings.get('modifications', 'fixed')
@@ -107,7 +109,7 @@ class Config(RawConfigParser):
     """
     def __init__(self, *args, **kwargs):
        RawConfigParser.__init__(self, *args, **kwargs)
-       self._update_hash()
+#      self._update_hash()
     def getint(self, section, option):
         return int(self._sections[section][option])
     def getfloat(self, section, option):
@@ -116,12 +118,12 @@ class Config(RawConfigParser):
         return self._sections[section][option]
     def set(self, section, option, value):
         RawConfigParser.set(self, section, option, value)
-        self._update_hash()
-    def __hash__(self):
-        return self._hash
-    def _get_hash(self):
-        return hash(
-                frozenset((s, frozenset(opts.items()))
-                    for s, opts in self._sections.items()))
-    def _update_hash(self):
-        self._hash = self._get_hash()
+#       self._update_hash()
+#   def __hash__(self):
+#       return self._hash
+#   def _get_hash(self):
+#       return hash(
+#               frozenset((s, frozenset(opts.items()))
+#                   for s, opts in self._sections.items()))
+#   def _update_hash(self):
+#       self._hash = self._get_hash()

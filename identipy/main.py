@@ -1,5 +1,5 @@
 import numpy as np
-from pyteomics import parser, mass, fasta, auxiliary as aux
+from pyteomics import parser, mass, fasta, auxiliary as aux, mgf, mzml
 from itertools import chain
 import re
 import os
@@ -8,6 +8,8 @@ from tempfile import gettempdir, NamedTemporaryFile
 import ast
 import sys
 import hashlib
+from copy import copy
+from string import punctuation
 from . import scoring, utils 
 
 def top_candidates_from_arrays(spectrum, settings):
@@ -29,7 +31,8 @@ def top_candidates_from_arrays(spectrum, settings):
         spectrum['intensity array'] = spectrum['intensity array'][i]
         spectrum['m/z array'] = spectrum['m/z array'][i]
 
-    masses, seqs = get_arrays(settings)
+    masses, seqs = get_arrays(settings) if not settings.has_option(
+            'performance', 'arrays') else settings.get('performance', 'arrays')
     exp_mass = utils.neutral_masses(spectrum)
     n = settings.getint('output', 'candidates')
     score = _get_score(settings)
@@ -50,10 +53,19 @@ def top_candidates_from_arrays(spectrum, settings):
         candidates.extend(seqs[start:end])
 
     threshold = settings.getfloat('scoring', 'score threshold')
-    result = [(score(spectrum, x, settings), x.decode('ascii')) for x in candidates]
-    return sorted((x for x in result if x[0] > threshold), reverse=True)[:n]
+    result = [(score(spectrum, x, settings), x) for x in candidates]
+    result = sorted((x for x in result if x[0] > threshold), reverse=True)[:n]
+    if settings.has_option('misc', 'legend'):
+        mods = list(zip(settings.get('misc', 'legend'), punctuation))
+        res = []
+        for score, cand in result:
+            for (mod, aa), char in mods:
+                cand = cand.replace(char, mod+aa)
+            res.append((score, cand))
+        result = res
+    return result
 
-@aux.memoize(10)
+#@aux.memoize(10)
 def get_arrays(settings):
     db = settings.get('input', 'database')
     hasher = settings.get('misc', 'hash')
@@ -122,7 +134,7 @@ def get_arrays(settings):
 def spectrum_processor(settings):
     processor = settings.get('misc', 'spectrum processor')
     if '.' in processor:
-        return utils.import_function(processor)(settings)
+        return utils.import_(processor)(settings)
    
     mode = settings.get('performance', 'pre-calculation')
     if mode == 'some': # work with numpy arrays
@@ -138,13 +150,73 @@ def spectrum_processor(settings):
     else:
         raise NotImplementedError
 
-def process_file(f, settings):
+def process_spectra(f, settings):
     # prepare the function
     func = spectrum_processor(settings)
 
     # decide on multiprocessing
     n = settings.getint('performance', 'processes')
     return utils.multimap(n, func, f)
+
+def process_file(fname, settings):
+    if '.' in settings.get('misc', 'first stage'):
+        stage1 = utils.import_(stage1)
+        return double_run(fname, settings, stage1)
+    if settings.get('modifications', 'variable'):
+        return double_run(fname, settings, varmod_stage1)
+    else:
+        return process_spectra({'mgf': mgf, 'mzml': mzml
+            }[fname.rsplit('.', 1)[-1].lower()].read(fname), settings)
+
+def double_run(fname, settings, stage1):
+    new_settings = stage1(fname, settings)
+    return process_file(fname, new_settings)
+
+def varmod_stage1(fname, settings):
+    """Take mods, make a function that yields new settings"""
+    mods = settings.get('modifications', 'variable')
+    mods = [parser._split_label(l) for l in re.split(r',\s*', mods)]
+    mods.sort(key=lambda x: len(x[0]), reverse=True)
+    assert all(len(m) == 2 for m in mods), 'unmodified residue given'
+    mod_dict = {}
+    for mod, aa in mods:
+        mod_dict.setdefault(mod, []).append(aa)
+
+    candidates = set()
+    settings = copy(settings)
+    settings.set('modifications', 'variable', '')
+    for s in process_file(fname, settings):
+        candidates.update(c[1] for c in s['candidates'])
+
+    n = settings.getint('modifications', 'maximum variable mods')
+    seq_iter = chain.from_iterable(
+            (parser.tostring(x, False) for x in 
+                parser.isoforms(seq, variable_mods=mod_dict, format='split')
+                if ((len(x[0]) > 2) + (len(x[-1]) > 2) + sum(
+                    len(y) > 1 for y in x[1:-1])) <= n)
+            for seq in candidates)
+    def prepare_seqs():
+        for seq in seq_iter:
+            for (mod, aa), char in zip(mods, punctuation):
+                seq = seq.replace(mod+aa, char)
+            yield seq
+    maxlen = settings.getint('search', 'peptide maximum length')
+    seqs = np.fromiter(prepare_seqs(), dtype=np.dtype((np.str_, maxlen)))
+    aa_mass = mass.std_aa_mass.copy()
+    for (mod, aa), char in zip(mods, punctuation):
+        aa_mass[char] = aa_mass[aa] + settings.getfloat('modifications', mod)
+    masses = np.empty(seqs.shape, dtype=np.float32)
+    for i in range(seqs.size):
+        masses[i] = mass.fast_mass(seqs[i], aa_mass=aa_mass)
+    i = masses.argsort()
+    masses = masses[i]
+    seqs = seqs[i]
+    new_settings = copy(settings)
+#   new_settings.set('misc', 'aa_mass', aa_mass)
+    new_settings.set('misc', 'legend', mods)
+    new_settings.set('performance', 'arrays', (masses, seqs))
+    maxlen = settings.getint('search', 'peptide maximum length')
+    return new_settings
 
 #@aux.memoize(10)
 def settings(fname=None, default_name=os.path.join(
@@ -163,7 +235,7 @@ def settings(fname=None, default_name=os.path.join(
 def _get_score(settings):
     score_name = settings.get('scoring', 'score')
     if '.' in score_name:
-        score = utils.import_function(score_name)
+        score = utils.import_(score_name)
     else:
         score = getattr(scoring, score_name)
     return score
