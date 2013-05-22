@@ -11,6 +11,10 @@ import hashlib
 from copy import copy
 from string import punctuation
 from . import scoring, utils 
+try:
+    from configparser import RawConfigParser
+except ImportError:
+    from ConfigParser import RawConfigParser
 
 def top_candidates_from_arrays(spectrum, settings):
     dynrange = settings.getfloat('scoring', 'dynamic range')
@@ -35,7 +39,7 @@ def top_candidates_from_arrays(spectrum, settings):
             'performance', 'arrays') else settings.get('performance', 'arrays')
     exp_mass = utils.neutral_masses(spectrum)
     n = settings.getint('output', 'candidates')
-    score = _get_score(settings)
+    score = utils.import_(settings.get('scoring', 'score'))
     acc = settings.getfloat('search', 'precursor accuracy value')
     unit = settings.get('search', 'precursor accuracy unit')
     if unit == 'ppm':
@@ -130,7 +134,6 @@ def get_arrays(settings):
         masses = npz['masses']
     return masses, seqs
 
-#@aux.memoize(10)
 def spectrum_processor(settings):
     processor = settings.get('misc', 'spectrum processor')
     if '.' in processor:
@@ -138,6 +141,8 @@ def spectrum_processor(settings):
    
     mode = settings.get('performance', 'pre-calculation')
     if mode == 'some': # work with numpy arrays
+        settings = copy(settings)
+        settings.set('performance', 'arrays', get_arrays(settings))
         candidates = lambda s: top_candidates_from_arrays(s, settings)
         if processor == 'minimal':
             return lambda s: {'spectrum': s, 'candidates': candidates(s)}
@@ -159,9 +164,9 @@ def process_spectra(f, settings):
     return utils.multimap(n, func, f)
 
 def process_file(fname, settings):
-    if '.' in settings.get('misc', 'first stage'):
-        stage1 = utils.import_(stage1)
-        return double_run(fname, settings, stage1)
+    stage1 = settings.get('misc', 'first stage')
+    if stage1:
+        return double_run(fname, settings, utils.import_(stage1))
     if settings.get('modifications', 'variable'):
         return double_run(fname, settings, varmod_stage1)
     else:
@@ -212,30 +217,34 @@ def varmod_stage1(fname, settings):
     masses = masses[i]
     seqs = seqs[i]
     new_settings = copy(settings)
-#   new_settings.set('misc', 'aa_mass', aa_mass)
+    new_settings.set('misc', 'aa_mass', aa_mass)
     new_settings.set('misc', 'legend', mods)
     new_settings.set('performance', 'arrays', (masses, seqs))
     maxlen = settings.getint('search', 'peptide maximum length')
     return new_settings
 
-#@aux.memoize(10)
+@aux.memoize(10)
 def settings(fname=None, default_name=os.path.join(
         os.path.dirname(os.path.abspath(__file__)), os.pardir, 'default.cfg')):
+    """Read a configuration file and return a :py:class:`utils.Config` object.
+    """
     kw = {'inline_comment_prefixes': ('#', ';')
             } if sys.version_info.major == 3 else {}
     kw['dict_type'] = dict
-    config = utils.Config(**kw)
-    if default_name:
-        config.read(default_name)
-    if fname:
-        config.read(fname)
-    return config
+    kw['allow_no_value'] = True
 
-#@aux.memoize(10)
-def _get_score(settings):
-    score_name = settings.get('scoring', 'score')
-    if '.' in score_name:
-        score = utils.import_(score_name)
-    else:
-        score = getattr(scoring, score_name)
-    return score
+    raw_config = RawConfigParser(**kw)
+    if default_name:
+        raw_config.read(default_name)
+    if fname:
+        raw_config.read(fname)
+    return raw_config
+#   config = utils.Config()
+#   conv = {True: utils.import_, False: ast.literal_eval}
+#   for section in raw_config.sections():
+#       for option in raw_config.options(section):
+#           val = raw_config.get(section, option)
+#           config[section][option] = conv[
+#                   raw_config.has_option('import', section + ', ' + option)](
+#                           raw_config.get(section, option)) if val else None
+#   return config
