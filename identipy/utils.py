@@ -1,12 +1,9 @@
 import re
+from collections import defaultdict
 from pyteomics import mass, electrochem as ec, auxiliary as aux, parser
 import sys
 import numpy as np
 from multiprocessing import Queue, Process, cpu_count
-try:
-    from configparser import RawConfigParser
-except ImportError:
-    from ConfigParser import RawConfigParser
 
 def decode(func):
     if sys.version_info.major == 3:
@@ -55,6 +52,7 @@ def neutral_masses(spectrum):
     states.sort()
     return zip((exp_mass*ch - ch*mass.nist_mass['H+'][0][0]
             for ch in states), states)
+
 @aux.memoize(10)
 def import_(name):
     """Import a function by name: module.function or
@@ -101,29 +99,32 @@ def multimap(n, func, it):
             yield qout.get()
             count -= 1
 
-class Config(RawConfigParser):
-    """
-    A ConfigParser with get methods short-circuited to the dict access.
-    `optionxform` is not called. `KeyError` will be raised instead of
-    `NoSectionError` and `NoOptionError`.
-    """
-    def __init__(self, *args, **kwargs):
-       RawConfigParser.__init__(self, *args, **kwargs)
-#      self._update_hash()
-    def getint(self, section, option):
-        return int(self._sections[section][option])
-    def getfloat(self, section, option):
-        return float(self._sections[section][option])
-    def get(self, section, option, **kwargs):
-        return self._sections[section][option]
-    def set(self, section, option, value):
-        RawConfigParser.set(self, section, option, value)
-#       self._update_hash()
-#   def __hash__(self):
-#       return self._hash
-#   def _get_hash(self):
-#       return hash(
-#               frozenset((s, frozenset(opts.items()))
-#                   for s, opts in self._sections.items()))
-#   def _update_hash(self):
-#       self._hash = self._get_hash()
+#class Config(defaultdict):
+#    """
+#    A (nested) dict that provides set and get methods to mimic
+#    ConfigParser. 
+#    """
+#    def __init__(self, *args, **kwargs):
+#        defaultdict.__init__(self, dict)
+#    def getint(self, section, option):
+#        return int(self[section][option])
+#    def getfloat(self, section, option):
+#        return float(self[section][option])
+#    def getboolean(self, section, option):
+#        val = self[section][option]
+#        if isinstance(val, (bool, int, float)):
+#            return bool(val)
+#        if isinstance(val, str):
+#            if val.lower() in {'yes', 'true', '1', 'on'}:
+#                return True
+#            if val.lower() in {'no', 'false', '0', 'off'}:
+#                return False
+#        raise TypeError('Cannot convert to boolean: {}'.format(val))
+#    def get(self, section, option):
+#        return self[section][option]
+#    def set(self, section, option, value):
+#        self[section][option] = value
+#    def has_option(self, section, option):
+#        return option in self[section]
+#    def has_section(self, section):
+#        return section in self
