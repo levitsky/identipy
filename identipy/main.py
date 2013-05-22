@@ -1,3 +1,4 @@
+from __future__ import print_function
 import numpy as np
 from pyteomics import parser, mass, fasta, auxiliary as aux, mgf, mzml
 from itertools import chain
@@ -59,6 +60,7 @@ def top_candidates_from_arrays(spectrum, settings):
     threshold = settings.getfloat('scoring', 'score threshold')
     result = [(score(spectrum, x, settings), x) for x in candidates]
     result = sorted((x for x in result if x[0] > threshold), reverse=True)[:n]
+    result = [(score, seq.decode('ascii')) for score, seq in result]
     if settings.has_option('misc', 'legend'):
         mods = list(zip(settings.get('misc', 'legend'), punctuation))
         res = []
@@ -69,8 +71,8 @@ def top_candidates_from_arrays(spectrum, settings):
         result = res
     return result
 
-#@aux.memoize(10)
 def get_arrays(settings):
+    print('Generating peptide arrays ...')
     db = settings.get('input', 'database')
     hasher = settings.get('misc', 'hash')
     dbhash = hashlib.new(hasher)
@@ -158,7 +160,7 @@ def spectrum_processor(settings):
 def process_spectra(f, settings):
     # prepare the function
     func = spectrum_processor(settings)
-
+    print('Running the search ...')
     # decide on multiprocessing
     n = settings.getint('performance', 'processes')
     return utils.multimap(n, func, f)
@@ -179,6 +181,7 @@ def double_run(fname, settings, stage1):
 
 def varmod_stage1(fname, settings):
     """Take mods, make a function that yields new settings"""
+    print('Running preliminary search (no modifications) ...')
     mods = settings.get('modifications', 'variable')
     mods = [parser._split_label(l) for l in re.split(r',\s*', mods)]
     mods.sort(key=lambda x: len(x[0]), reverse=True)
@@ -226,7 +229,7 @@ def varmod_stage1(fname, settings):
 @aux.memoize(10)
 def settings(fname=None, default_name=os.path.join(
         os.path.dirname(os.path.abspath(__file__)), os.pardir, 'default.cfg')):
-    """Read a configuration file and return a :py:class:`utils.Config` object.
+    """Read a configuration file and return a :py:class:`RawConfigParser` object.
     """
     kw = {'inline_comment_prefixes': ('#', ';')
             } if sys.version_info.major == 3 else {}
