@@ -6,10 +6,10 @@ true = total = 0
 try:
     for result in main.process_file('swedcad.mgf', settings):
         total += 1
-        if result['candidates'] and (result['candidates'][0][1].decode('ascii') == result['spectrum']['params']['title']):
+        if result['candidates'] and (result['candidates'][0][1] == result['spectrum']['params']['title']):
             true += 1
         else:
-            print('{!s} != {!s}'.format(result['candidates'][0][1].decode('ascii') if result['candidates'] else 'NOTHING', result['spectrum']['params']['title']))
+            print('{!s} != {!s}'.format(result['candidates'][0][1] if result['candidates'] else 'NOTHING', result['spectrum']['params']['title']))
 except KeyboardInterrupt:
     pass
 finally:
