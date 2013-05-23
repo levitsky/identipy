@@ -4,6 +4,7 @@ from pyteomics import mass, electrochem as ec, auxiliary as aux, parser
 import sys
 import numpy as np
 from multiprocessing import Queue, Process, cpu_count
+from string import punctuation
 
 def decode(func):
     if sys.version_info.major == 3:
@@ -37,18 +38,22 @@ def theor_spectrum(peptide, types=('y', 'b'), maxcharge=None, **kwargs):
         peaks[ion_type] = marr
     return peaks
 
-def neutral_masses(spectrum):
+def neutral_masses(spectrum, settings):
     if 'params' in spectrum:
         exp_mass = spectrum['params']['pepmass'][0]
         charge = spectrum['params'].get('charge')
     else:
-        exp_mass = spectrum['base peak']
-        charge = spectrum['charge']
+        ion = spectrum['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]
+        charge = int(ion['charge state'])
+        exp_mass = ion['selected ion m/z']
     if isinstance(charge, str):
         states = aux._parse_charge(charge)
         if isinstance(states, int):
             states = [states]
+    elif charge is None:
+        states = list(range(1, 1+settings.getint('search', 'maximum charge')))
     else: states = [charge]
+    states = [s for s in states if s <= settings.getint('search', 'maximum charge')]
     states.sort()
     return zip((exp_mass*ch - ch*mass.nist_mass['H+'][0][0]
             for ch in states), states)
@@ -61,7 +66,6 @@ def import_(name):
     mod, f = name.rsplit('.', 1)
     return getattr(__import__(mod, fromlist=[f]), f)
 
-#@aux.memoize(10)
 def aa_mass(settings):
     aa_mass = mass.std_aa_mass.copy()
     fmods = settings.get('modifications', 'fixed')
@@ -69,6 +73,13 @@ def aa_mass(settings):
         for mod in re.split(r'[,;]\s*', fmods):
             m, aa = parser._split_label(mod)
             aa_mass[aa] += settings.getfloat('modifications', m)
+    vmods = settings.get('modifications', 'variable')
+    if vmods:
+
+        mods = [parser._split_label(l) for l in re.split(r',\s*', vmods)]
+        for (mod, aa), char in zip(mods, punctuation):
+            aa_mass[char] = aa_mass[aa] + settings.getfloat('modifications', mod)
+
     return aa_mass
 
 def multimap(n, func, it):
@@ -99,6 +110,8 @@ def multimap(n, func, it):
             yield qout.get()
             count -= 1
 
+def allow_all(*args):
+    return True
 #class Config(defaultdict):
 #    """
 #    A (nested) dict that provides set and get methods to mimic
