@@ -4,7 +4,6 @@ from pyteomics import parser, mass, fasta, auxiliary as aux, mgf, mzml
 from itertools import chain
 import re
 import os
-from math import factorial
 from tempfile import gettempdir, NamedTemporaryFile
 import ast
 import sys
@@ -18,6 +17,7 @@ except ImportError:
     from ConfigParser import RawConfigParser
 
 def top_candidates_from_arrays(spectrum, settings):
+    spectrum = copy(spectrum)
     dynrange = settings.getfloat('scoring', 'dynamic range')
     if dynrange:
         i = spectrum['intensity array'] > spectrum['intensity array'].max(
@@ -33,12 +33,13 @@ def top_candidates_from_arrays(spectrum, settings):
         return []
     if maxpeaks and spectrum['intensity array'].size > maxpeaks:
         i = np.argsort(spectrum['intensity array'])[-maxpeaks:]
-        spectrum['intensity array'] = spectrum['intensity array'][i]
-        spectrum['m/z array'] = spectrum['m/z array'][i]
+        j = np.argsort(spectrum['m/z array'][i])
+        spectrum['intensity array'] = spectrum['intensity array'][i][j]
+        spectrum['m/z array'] = spectrum['m/z array'][i][j]
 
     masses, seqs = get_arrays(settings) if not settings.has_option(
             'performance', 'arrays') else settings.get('performance', 'arrays')
-    exp_mass = utils.neutral_masses(spectrum)
+    exp_mass = utils.neutral_masses(spectrum, settings)
     n = settings.getint('output', 'candidates')
     score = utils.import_(settings.get('scoring', 'score'))
     acc = settings.getfloat('search', 'precursor accuracy value')
@@ -58,7 +59,14 @@ def top_candidates_from_arrays(spectrum, settings):
         candidates.extend(seqs[start:end])
 
     threshold = settings.getfloat('scoring', 'score threshold')
-    result = [(score(spectrum, x, settings), x) for x in candidates]
+    condition = settings.get('scoring', 'condition')
+    if condition:
+        if not isinstance(condition, FunctionType):
+            condition = utils.import_(condition)
+    else:
+        condition = utils.allow_all
+    result = [(score(spectrum, x, settings), x) for x in candidates
+            if condition(spectrum, x, settings)]
     result = sorted((x for x in result if x[0] > threshold), reverse=True)[:n]
     result = [(score, seq.decode('ascii')) for score, seq in result]
     if settings.has_option('misc', 'legend'):
@@ -144,18 +152,19 @@ def spectrum_processor(settings):
     mode = settings.get('performance', 'pre-calculation')
     if mode == 'some': # work with numpy arrays
         settings = copy(settings)
-        settings.set('performance', 'arrays', get_arrays(settings))
+        if not settings.has_option('performance', 'arrays'):
+            settings.set('performance', 'arrays', get_arrays(settings))
         candidates = lambda s: top_candidates_from_arrays(s, settings)
         if processor == 'minimal':
             return lambda s: {'spectrum': s, 'candidates': candidates(s)}
         elif processor == 'e-value':
             def f(s):
                 c = candidates(s)
-                return  {'spectrum': s, 'candidates': c,
+                return {'spectrum': s, 'candidates': c,
                     'e-values': scoring.evalues(c)}
             return f
     else:
-        raise NotImplementedError
+        raise NotImplementedError('Unsupported pre-calculation mode')
 
 def process_spectra(f, settings):
     # prepare the function
@@ -172,16 +181,25 @@ def process_file(fname, settings):
     if settings.get('modifications', 'variable'):
         return double_run(fname, settings, varmod_stage1)
     else:
-        return process_spectra({'mgf': mgf, 'mzml': mzml
-            }[fname.rsplit('.', 1)[-1].lower()].read(fname), settings)
+        ftype = fname.rsplit('.', 1)[-1].lower()
+        if ftype == 'mgf':
+            spectra = mgf.read(fname)
+        elif ftype == 'mzml':
+            spectra = (x for x in mzml.read(fname) if x['ms level'] > 1)
+        else:
+            raise ValueError('Unrecognized file type: {}'.format(ftype))
+        return process_spectra(spectra, settings)
 
 def double_run(fname, settings, stage1):
+    print('[double run] stage 1 starting ...')
     new_settings = stage1(fname, settings)
+    print('[double run] stage 2 starting ...')
     return process_file(fname, new_settings)
 
 def varmod_stage1(fname, settings):
     """Take mods, make a function that yields new settings"""
     print('Running preliminary search (no modifications) ...')
+    aa_mass = utils.aa_mass(settings)
     mods = settings.get('modifications', 'variable')
     mods = [parser._split_label(l) for l in re.split(r',\s*', mods)]
     mods.sort(key=lambda x: len(x[0]), reverse=True)
@@ -210,9 +228,6 @@ def varmod_stage1(fname, settings):
             yield seq
     maxlen = settings.getint('search', 'peptide maximum length')
     seqs = np.fromiter(prepare_seqs(), dtype=np.dtype((np.str_, maxlen)))
-    aa_mass = mass.std_aa_mass.copy()
-    for (mod, aa), char in zip(mods, punctuation):
-        aa_mass[char] = aa_mass[aa] + settings.getfloat('modifications', mod)
     masses = np.empty(seqs.shape, dtype=np.float32)
     for i in range(seqs.size):
         masses[i] = mass.fast_mass(seqs[i], aa_mass=aa_mass)
