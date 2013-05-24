@@ -161,7 +161,7 @@ def spectrum_processor(settings):
             def f(s):
                 c = candidates(s)
                 return {'spectrum': s, 'candidates': c,
-                    'e-values': scoring.evalues(c)}
+                    'e-values': scoring.evalues(c, settings)}
             return f
     else:
         raise NotImplementedError('Unsupported pre-calculation mode')
