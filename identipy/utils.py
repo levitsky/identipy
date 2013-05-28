@@ -112,6 +112,13 @@ def multimap(n, func, it):
 
 def allow_all(*args):
     return True
+
+def get_RT(spectrum):
+    if 'rtinseconds' in spectrum:
+        return float(spectrum['rtinseconds'])
+    return spectrum['scanList']['scan'][0]['scan start time']
+
+
 #class Config(defaultdict):
 #    """
 #    A (nested) dict that provides set and get methods to mimic
