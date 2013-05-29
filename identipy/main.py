@@ -26,7 +26,7 @@ def top_candidates_from_arrays(spectrum, settings):
         spectrum['m/z array'] = spectrum['m/z array'][i]
     maxpeaks = settings.getint('scoring', 'maximum peaks')
     minpeaks = settings.getint('scoring', 'minimum peaks')
-    if minpeaks > maxpeaks:
+    if maxpeaks and minpeaks > maxpeaks:
         raise ValueError('minpeaks > maxpeaks: {} and {}'.format(
             minpeaks, maxpeaks))
     if minpeaks and spectrum['intensity array'].size < minpeaks:
