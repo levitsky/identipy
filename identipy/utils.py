@@ -67,6 +67,8 @@ def import_(name):
     return getattr(__import__(mod, fromlist=[f]), f)
 
 def aa_mass(settings):
+    if settings.hasoption('misc', 'aa_mass'):
+        return settings.get('misc', 'aa_mass')
     aa_mass = mass.std_aa_mass.copy()
     fmods = settings.get('modifications', 'fixed')
     if fmods:
@@ -75,7 +77,6 @@ def aa_mass(settings):
             aa_mass[aa] += settings.getfloat('modifications', m)
     vmods = settings.get('modifications', 'variable')
     if vmods:
-
         mods = [parser._split_label(l) for l in re.split(r',\s*', vmods)]
         for (mod, aa), char in zip(mods, punctuation):
             aa_mass[char] = aa_mass[aa] + settings.getfloat('modifications', mod)
