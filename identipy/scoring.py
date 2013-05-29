@@ -19,7 +19,7 @@ def simple_score(spectrum, peptide, settings):
 def hyperscore(spectrum, peptide, settings):
     """A simple implementation of X!Tandem's Hyperscore."""
     int_array = spectrum['intensity array']
-    int_array = int_array / int_array.max()
+    int_array = 100. * int_array / int_array.max()
     acc = settings.getfloat('search', 'product accuracy')
     charge = max(c for m, c in neutral_masses(spectrum, settings))
     theor = theor_spectrum(peptide, maxcharge=charge, aa_mass=aa_mass(settings))
