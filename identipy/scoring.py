@@ -1,4 +1,4 @@
-from .utils import neutral_masses, theor_spectrum, aa_mass
+from .utils import neutral_masses, theor_spectrum, aa_mass, _get_types
 from scipy.spatial import cKDTree
 import numpy as np
 from scipy.stats import scoreatpercentile
@@ -22,7 +22,10 @@ def hyperscore(spectrum, peptide, settings):
     int_array = 100. * int_array / int_array.max()
     acc = settings.getfloat('search', 'product accuracy')
     charge = max(c for m, c in neutral_masses(spectrum, settings))
-    theor = theor_spectrum(peptide, maxcharge=charge, aa_mass=aa_mass(settings))
+    typestr = settings.get('scoring', 'ion types')
+    types = _get_types(typestr)
+    theor = theor_spectrum(peptide, types=types, 
+            maxcharge=charge, aa_mass=aa_mass(settings))
     score = 0
     mult = []
     total_matched = 0
