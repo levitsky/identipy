@@ -17,7 +17,7 @@ def decode(func):
     return func
 
 @decode
-def theor_spectrum(peptide, types=('y', 'b'), maxcharge=None, **kwargs):
+def theor_spectrum(peptide, types, maxcharge=None, **kwargs):
     peaks = {}
     if not maxcharge:
         maxcharge = 1 + int(ec.charge(peptide, pH=2))
@@ -119,6 +119,9 @@ def get_RT(spectrum):
         return float(spectrum['rtinseconds'])
     return spectrum['scanList']['scan'][0]['scan start time']
 
+@aux.memoize(1)
+def _get_types(s):
+    return tuple(re.split(r'[,;] *', s))
 
 #class Config(defaultdict):
 #    """
