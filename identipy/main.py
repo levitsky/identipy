@@ -1,47 +1,52 @@
-from __future__ import print_function
+import sys
 import numpy as np
 from pyteomics import parser, mass, fasta, auxiliary as aux, mgf, mzml
 from itertools import chain
 import re
 import os
-from tempfile import gettempdir, NamedTemporaryFile
+from tempfile import NamedTemporaryFile
 import ast
-import sys
 import hashlib
 from copy import copy
 from string import punctuation
-from . import scoring, utils 
+from . import scoring, utils
+from types import FunctionType
 try:
     from configparser import RawConfigParser
 except ImportError:
     from ConfigParser import RawConfigParser
 
+
 def top_candidates_from_arrays(spectrum, settings):
     spectrum = copy(spectrum)
+    idx = np.nonzero(spectrum['m/z array'] >= 150)
+    spectrum['intensity array'] = spectrum['intensity array'][idx]
+    spectrum['m/z array'] = spectrum['m/z array'][idx]
+    maxpeaks = settings.getint('scoring', 'maximum peaks')
+    minpeaks = settings.getint('scoring', 'minimum peaks')
+    if maxpeaks and minpeaks > maxpeaks:
+        raise ValueError('minpeaks > maxpeaks: {} and {}'.format(
+            minpeaks, maxpeaks))
+    if maxpeaks and spectrum['intensity array'].size > maxpeaks:
+        i = np.argsort(spectrum['intensity array'])[-maxpeaks:]
+        j = np.argsort(spectrum['m/z array'][i])
+        spectrum['intensity array'] = spectrum['intensity array'][i][j]
+        spectrum['m/z array'] = spectrum['m/z array'][i][j]
+    if minpeaks and spectrum['intensity array'].size < minpeaks:
+        return []
     dynrange = settings.getfloat('scoring', 'dynamic range')
     if dynrange:
         i = spectrum['intensity array'] > spectrum['intensity array'].max(
                 ) / dynrange
         spectrum['intensity array'] = spectrum['intensity array'][i]
         spectrum['m/z array'] = spectrum['m/z array'][i]
-    maxpeaks = settings.getint('scoring', 'maximum peaks')
-    minpeaks = settings.getint('scoring', 'minimum peaks')
-    if maxpeaks and minpeaks > maxpeaks:
-        raise ValueError('minpeaks > maxpeaks: {} and {}'.format(
-            minpeaks, maxpeaks))
     if minpeaks and spectrum['intensity array'].size < minpeaks:
         return []
-    if maxpeaks and spectrum['intensity array'].size > maxpeaks:
-        i = np.argsort(spectrum['intensity array'])[-maxpeaks:]
-        j = np.argsort(spectrum['m/z array'][i])
-        spectrum['intensity array'] = spectrum['intensity array'][i][j]
-        spectrum['m/z array'] = spectrum['m/z array'][i][j]
 
-    masses, seqs = get_arrays(settings) if not settings.has_option(
+    masses, seqs, notes = get_arrays(settings) if not settings.has_option(
             'performance', 'arrays') else settings.get('performance', 'arrays')
     exp_mass = utils.neutral_masses(spectrum, settings)
     n = settings.getint('output', 'candidates')
-    if n <= 0: n = None
     score = utils.import_(settings.get('scoring', 'score'))
     acc = settings.getfloat('search', 'precursor accuracy value')
     unit = settings.get('search', 'precursor accuracy unit')
@@ -51,34 +56,33 @@ def top_candidates_from_arrays(spectrum, settings):
         rel = False
     else:
         raise ValueError('Unrecognized precursor accuracy unit: ' + unit)
- 
+
     candidates = []
+    candidates_notes = []
     for m, c in exp_mass:
-        dm = acc*m/1.0e6 if rel else acc*c
-        start = masses.searchsorted(m - dm)
-        end = masses.searchsorted(m + dm)
-        candidates.extend(seqs[start:end])
+        if c != 1:
+            dm = acc * m / 1.0e6 if rel else acc * c
+            start = masses.searchsorted(m - dm)
+            end = masses.searchsorted(m + dm)
+            candidates.extend(seqs[start:end])
+            candidates_notes.extend(notes[start:end])
 
     threshold = settings.getfloat('scoring', 'score threshold')
-    condition = settings.get('scoring', 'condition')
-    if condition:
-        if not isinstance(condition, FunctionType):
-            condition = utils.import_(condition)
-    else:
-        condition = utils.allow_all
-    result = [(score(spectrum, x, settings), x) for x in candidates
-            if condition(spectrum, x, settings)]
+
+    result = [(score(spectrum, x, settings), x, candidates_notes[idx]) for idx, x in enumerate(candidates)]
     result = sorted((x for x in result if x[0] > threshold), reverse=True)[:n]
-    result = [(score, seq.decode('ascii')) for score, seq in result]
+
+    result = [(score, seq.decode('ascii'), note) for score, seq, note in result]
     if settings.has_option('misc', 'legend'):
         mods = list(zip(settings.get('misc', 'legend'), punctuation))
         res = []
-        for score, cand in result:
+        for score, cand, note in result:
             for (mod, aa), char in mods:
-                cand = cand.replace(char, mod+aa)
-            res.append((score, cand))
+                cand = cand.replace(char, mod + aa)
+            res.append((score, cand, note))
         result = res
     return result
+
 
 def get_arrays(settings):
     print('Generating peptide arrays ...')
@@ -95,7 +99,7 @@ def get_arrays(settings):
     mc = settings.getint('search', 'miscleavages')
     minlen = settings.getint('search', 'peptide minimum length')
     maxlen = settings.getint('search', 'peptide maximum length')
-    aa_mass = utils.aa_mass(settings)
+    aa_mass = utils.get_aa_mass(settings)
     add_decoy = settings.getboolean('input', 'add decoy')
     index = os.path.join(folder, 'identipy.idx')
 
@@ -110,31 +114,49 @@ def get_arrays(settings):
                     break
 
     if arr_name is None:
+
+        def get_note(protein_description, label='DECOY_'):
+            if fasta.parse(protein_description)['id'].split('|')[0].startswith(label):
+                return 'd'
+            return 't'
+
+
         def peps():
             if not add_decoy:
-                prots = (prot for _, prot in fasta.read(db))
+                #prots = (prot for _, prot in fasta.read(db))
+                prots = (tuple(x) for x in fasta.read(db))
+                prefix = 'DECOY_'
             else:
                 prefix = settings.get('input', 'decoy prefix')
                 mode = settings.get('input', 'decoy method')
-                prots = (prot for _, prot in fasta.decoy_db(db, mode=mode,
-                    prefix=prefix))
-            func = lambda prot: [pep for pep in parser.cleave(prot, enzyme, mc)
+                prots = fasta.decoy_db(db, mode=mode,
+                    prefix=prefix)
+            #func = lambda prot: [pep for pep in parser.cleave(prot, enzyme, mc)
+            #        if minlen <= len(pep) <= maxlen and parser.fast_valid(pep)]
+            func = lambda prot: [(pep, get_note(prot[0], label=prefix)) for pep in parser.cleave(prot[1], enzyme, mc)
                     if minlen <= len(pep) <= maxlen and parser.fast_valid(pep)]
+
             n = settings.getint('performance', 'processes')
             return chain.from_iterable(
                     utils.multimap(n, func, prots))
 
-        seqs = np.fromiter(peps(), dtype=np.dtype((np.str_, maxlen)))
-        seqs = np.unique(seqs)
+        #seqs = np.fromiter(peps(), dtype=np.dtype((np.str_, maxlen)))
+
+        seqs, notes = zip(*peps())
+        seqs = np.array(seqs, dtype=np.dtype((np.str_, maxlen)))
+        notes = np.array(notes, dtype=np.dtype((np.str_, 1)))
+        seqs, idx = np.unique(seqs, return_index=True)
+        notes = notes[idx]
         masses = np.empty(seqs.shape, dtype=np.float32)
         for i in np.arange(seqs.size):
             masses[i] = mass.fast_mass(seqs[i], aa_mass=aa_mass)
         idx = np.argsort(masses)
         masses = masses[idx]
         seqs = seqs[idx]
+        notes = notes[idx]
         with NamedTemporaryFile(suffix='.npz', prefix='identipy_', dir=folder,
                 delete=False) as outfile:
-            np.savez_compressed(outfile, masses=masses, seqs=seqs)
+            np.savez_compressed(outfile, masses=masses, seqs=seqs, notes=notes)
             name = outfile.name
         with open(index, 'a') as ifile:
             ifile.write(str(profile) + '\t' + name + '\n')
@@ -143,15 +165,17 @@ def get_arrays(settings):
         npz = np.load(arr_name)
         seqs = npz['seqs']
         masses = npz['masses']
-    return masses, seqs
+        notes = npz['notes']
+    return masses, seqs, notes
+
 
 def spectrum_processor(settings):
     processor = settings.get('misc', 'spectrum processor')
     if '.' in processor:
         return utils.import_(processor)(settings)
-   
+
     mode = settings.get('performance', 'pre-calculation')
-    if mode == 'some': # work with numpy arrays
+    if mode == 'some':  # work with numpy arrays
         settings = copy(settings)
         if not settings.has_option('performance', 'arrays'):
             settings.set('performance', 'arrays', get_arrays(settings))
@@ -159,10 +183,22 @@ def spectrum_processor(settings):
         if processor == 'minimal':
             return lambda s: {'spectrum': s, 'candidates': candidates(s)}
         elif processor == 'e-value':
+            condition = settings.get('scoring', 'condition')
+            if condition:
+                if not isinstance(condition, FunctionType):
+                    condition = utils.import_(condition)
+            else:
+                condition = utils.allow_all
+                
             def f(s):
                 c = candidates(s)
-                return {'spectrum': s, 'candidates': c,
+                c = [x for x in c if condition(s, str(x[1]), settings)]
+                if c:
+                    return {'spectrum': s, 'candidates': c,
                     'e-values': scoring.evalues(c, settings)}
+                else:
+                    return {'spectrum': s, 'candidates': [],
+                    'e-values': []}
             return f
     else:
         raise NotImplementedError('Unsupported pre-calculation mode')
@@ -174,6 +210,7 @@ def process_spectra(f, settings):
     # decide on multiprocessing
     n = settings.getint('performance', 'processes')
     return utils.multimap(n, func, f)
+
 
 def process_file(fname, settings):
     stage1 = settings.get('misc', 'first stage')
@@ -191,16 +228,18 @@ def process_file(fname, settings):
             raise ValueError('Unrecognized file type: {}'.format(ftype))
         return process_spectra(spectra, settings)
 
+
 def double_run(fname, settings, stage1):
     print('[double run] stage 1 starting ...')
     new_settings = stage1(fname, settings)
     print('[double run] stage 2 starting ...')
     return process_file(fname, new_settings)
 
+
 def varmod_stage1(fname, settings):
     """Take mods, make a function that yields new settings"""
     print('Running preliminary search (no modifications) ...')
-    aa_mass = utils.aa_mass(settings)
+    aa_mass = utils.get_aa_mass(settings)
     mods = settings.get('modifications', 'variable')
     mods = [parser._split_label(l) for l in re.split(r',\s*', mods)]
     mods.sort(key=lambda x: len(x[0]), reverse=True)
@@ -241,6 +280,7 @@ def varmod_stage1(fname, settings):
     new_settings.set('performance', 'arrays', (masses, seqs))
     maxlen = settings.getint('search', 'peptide maximum length')
     return new_settings
+
 
 @aux.memoize(10)
 def settings(fname=None, default_name=os.path.join(
