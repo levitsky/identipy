@@ -2,10 +2,8 @@ from pyteomics import parser, fasta
 from identipy import main, utils
 
 settings = main.settings('/home/mark/workspace/IdentiPy_new_stableRT/mark.cfg')
-if settings.has_option('misc', 'aa_mass'):
-    aa_mass = settings.get('misc', 'aa_mass')
-else:
-    aa_mass = utils.get_aa_mass(settings)
+
+aa_mass = utils.get_aa_mass(settings)
 
 db = settings.get('input', 'database')
 enzyme = settings.get('search', 'enzyme')
