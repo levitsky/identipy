@@ -73,6 +73,8 @@ def import_(name):
 
 
 def get_aa_mass(settings):
+    if settings.has_option('misc', 'aa_mass'):
+        return settings.get('misc', 'aa_mass')
     aa_mass = mass.std_aa_mass.copy()
     fmods = settings.get('modifications', 'fixed')
     if fmods:
@@ -138,10 +140,7 @@ def write_pepxml(inputfile, settings, results, pept_prot):
     from time import strftime
     from os import path
 
-    if settings.has_option('misc', 'aa_mass'):
-        aa_mass = settings.get('misc', 'aa_mass')
-    else:
-        aa_mass = get_aa_mass(settings)
+    aa_mass = get_aa_mass(settings)
 
     filename = path.splitext(inputfile)[0] + path.extsep + 'pep' + path.extsep + 'xml'
     enzyme = settings.get('search', 'enzyme')
