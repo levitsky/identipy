@@ -205,6 +205,7 @@ def spectrum_processor(settings):
     else:
         raise NotImplementedError('Unsupported pre-calculation mode')
 
+
 def process_spectra(f, settings):
     # prepare the function
     func = spectrum_processor(settings)
@@ -234,6 +235,7 @@ def process_file(fname, settings):
 def double_run(fname, settings, stage1):
     print('[double run] stage 1 starting ...')
     new_settings = stage1(fname, settings)
+    new_settings.remove_option('performance', 'arrays')
     print('[double run] stage 2 starting ...')
     return process_file(fname, new_settings)
 
@@ -263,10 +265,11 @@ def varmod_stage1(fname, settings):
                 if ((len(x[0]) > 2) + (len(x[-1]) > 2) + sum(
                     len(y) > 1 for y in x[1:-1])) <= n)
             for seq in candidates)
+    
     def prepare_seqs():
         for seq in seq_iter:
             for (mod, aa), char in zip(mods, punctuation):
-                seq = seq.replace(mod+aa, char)
+                seq = seq.replace(mod + aa, char)
             yield seq
     maxlen = settings.getint('search', 'peptide maximum length')
     seqs = np.fromiter(prepare_seqs(), dtype=np.dtype((np.str_, maxlen)))

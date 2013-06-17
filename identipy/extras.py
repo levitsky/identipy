@@ -1,5 +1,5 @@
 from scipy.stats import percentileofscore, scoreatpercentile
-from pyteomics import achrom, auxiliary
+from pyteomics import achrom, auxiliary, parser
 from main import *
 from scoring import get_fragment_mass_tol
 from numpy import mean, sort
@@ -83,7 +83,7 @@ def optimization(fname, settings):
     cutoff = get_cutoff(results, FDR=1)
     print cutoff
     
-    functions = ['rt_filtering', 'precursor_mass_optimization', 'fragment_mass_optimization']
+    functions = ['rt_filtering', 'precursor_mass_optimization', 'fragment_mass_optimization', 'missed_cleavages_optimization']
     for func in functions:
         settings = eval('%s(results, settings, cutoff)' % (func, ))
     return settings
@@ -109,6 +109,28 @@ def precursor_mass_optimization(results, settings, cutoff):
     print 'NEW PARENT MASS TOLERANCE = %s:%s' % (best_par_mt_l, best_par_mt_r)
     settings.set('search', 'precursor accuracy value left', best_par_mt_l)
     settings.set('search', 'precursor accuracy value right', best_par_mt_r)
+    return settings
+
+def missed_cleavages_optimization(results, settings, cutoff):
+    settings = copy(settings)
+    enzyme = settings.get('search', 'enzyme')
+    missedcleavages = np.array([])
+    for res in results:
+        for e, (_, seq, note) in zip(res['e-values'], res['candidates']):
+            e, seq, note, _, _ = float(e), seq, note, utils.get_RT(res['spectrum']), res['spectrum']
+            if note == 'd' or float(e) > cutoff:
+                pass
+            else:
+                missedcleavages = np.append(missedcleavages, len(parser.cleave(seq, parser.expasy_rules[enzyme], 0)) - 1)
+    best_missedcleavages = max(missedcleavages[missedcleavages < scoreatpercentile(missedcleavages, 99)])
+    best_missedcleavages = max(missedcleavages)
+    for mc in sorted(set(missedcleavages)):
+        if missedcleavages[missedcleavages>mc].size / missedcleavages.size < 0.05:
+            best_missedcleavages = mc
+
+
+    print 'NEW miscleavages = %s' % (best_missedcleavages, )
+    settings.set('search', 'miscleavages', best_missedcleavages)
     return settings
 
 

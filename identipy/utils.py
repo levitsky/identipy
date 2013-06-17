@@ -232,7 +232,7 @@ def write_pepxml(inputfile, settings, results, pept_prot):
 
     child5 = etree.Element('enzymatic_search_constraint')
     child5.set('enzyme', enzyme)
-    child5.set('max_num_internal_cleavages', missed_cleavages)
+    child5.set('max_num_internal_cleavages', str(missed_cleavages))
     child5.set('min_number_termini', '2')
 
     child4.append(copy(child5))
