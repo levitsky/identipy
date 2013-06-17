@@ -101,7 +101,7 @@ def precursor_mass_optimization(results, settings, cutoff):
                 pass
             else:
                 neutral_mass, _, _ = get_info(res['spectrum'], res, settings)
-                massdif = np.append(massdif, (neutral_mass - mass.fast_mass(seq, charge=0, aa_mass=aa_mass)) / neutral_mass * 1e6)
+                massdif = np.append(massdif, (mass.fast_mass(seq, charge=0, aa_mass=aa_mass) - neutral_mass) / neutral_mass * 1e6)
                 seqs.append(str(seq))
     best_par_mt_l = min(massdif[massdif > scoreatpercentile(massdif, 0.5)])
     best_par_mt_r = max(massdif[massdif < scoreatpercentile(massdif, 99.5)])
