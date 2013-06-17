@@ -7,6 +7,39 @@ from string import punctuation
 from copy import copy
 
 
+def find_nearest(array, value):
+    return (np.abs(array - value)).argmin()
+
+
+def get_info(spectrum, result, settings, aa_mass=None):
+    'Returns neutral mass, charge state and retention time of the spectrum'
+    if not aa_mass:
+        aa_mass = get_aa_mass(settings)
+    if 'params' in spectrum:
+        exp_mass = spectrum['params']['pepmass'][0]
+        charge = spectrum['params'].get('charge')
+        RT = spectrum['params'].get('rtinseconds')
+    else:
+        ion = spectrum['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]
+        charge = int(ion['charge state'])
+        exp_mass = ion['selected ion m/z']
+        RT = spectrum['scanList']['scan'][0]['scan start time']
+    if isinstance(charge, str):
+        states = aux._parse_charge(charge)
+        if isinstance(states, int):
+            states = [states]
+    elif charge is None:
+        states = list(range(1, 1 + settings.getint('search', 'maximum charge')))
+    else:
+        states = [charge]
+    states = [s for s in states if s <= settings.getint('search', 'maximum charge')]
+    states.sort()
+    masses = np.array([exp_mass * ch - ch * mass.nist_mass['H+'][0][0]
+            for ch in states])
+    idx = find_nearest(masses, mass.fast_mass(result['candidates'][0][1], aa_mass=aa_mass))
+    return (masses[idx], states[idx], RT)
+
+
 def decode(func):
     if sys.version_info.major == 3:
         def f(s, *args, **kwargs):
@@ -140,7 +173,10 @@ def write_pepxml(inputfile, settings, results, pept_prot):
     from time import strftime
     from os import path
 
-    aa_mass = get_aa_mass(settings)
+    if settings.has_option('misc', 'aa_mass'):
+        aa_mass = settings.get('misc', 'aa_mass')
+    else:
+        aa_mass = get_aa_mass(settings)
 
     filename = path.splitext(inputfile)[0] + path.extsep + 'pep' + path.extsep + 'xml'
     enzyme = settings.get('search', 'enzyme')
@@ -210,35 +246,7 @@ def write_pepxml(inputfile, settings, results, pept_prot):
             tmp.set('end_scan', str(idx))  # ???
             tmp.set('index', str(idx))  # ???
 
-            def find_nearest(array, value):
-                return (np.abs(array - value)).argmin()
-
-            def get_info(spectrum, result, settings):
-                if 'params' in spectrum:
-                    exp_mass = spectrum['params']['pepmass'][0]
-                    charge = spectrum['params'].get('charge')
-                    RT = spectrum['params'].get('rtinseconds')
-                else:
-                    ion = spectrum['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]
-                    charge = int(ion['charge state'])
-                    exp_mass = ion['selected ion m/z']
-                    RT = spectrum['scanList']['scan'][0]['scan start time']
-                if isinstance(charge, str):
-                    states = aux._parse_charge(charge)
-                    if isinstance(states, int):
-                        states = [states]
-                elif charge is None:
-                    states = list(range(1, 1 + settings.getint('search', 'maximum charge')))
-                else:
-                    states = [charge]
-                states = [s for s in states if s <= settings.getint('search', 'maximum charge')]
-                states.sort()
-                masses = np.array([exp_mass * ch - ch * mass.nist_mass['H+'][0][0]
-                        for ch in states])
-                idx = find_nearest(masses, mass.fast_mass(result['candidates'][0][1], aa_mass=aa_mass))
-                return (masses[idx], states[idx], RT)
-
-            neutral_mass, charge_state, RT = get_info(spectrum, result, settings)
+            neutral_mass, charge_state, RT = get_info(spectrum, result, settings, aa_mass)
             tmp.set('precursor_neutral_mass', str(neutral_mass))
             tmp.set('assumed_charge', str(charge_state))
             if RT:

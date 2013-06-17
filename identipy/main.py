@@ -9,7 +9,8 @@ import ast
 import hashlib
 from copy import copy
 from string import punctuation
-from . import scoring, utils
+#from . import scoring, utils
+import scoring, utils
 from types import FunctionType
 try:
     from configparser import RawConfigParser
@@ -48,7 +49,8 @@ def top_candidates_from_arrays(spectrum, settings):
     exp_mass = utils.neutral_masses(spectrum, settings)
     n = settings.getint('output', 'candidates')
     score = utils.import_(settings.get('scoring', 'score'))
-    acc = settings.getfloat('search', 'precursor accuracy value')
+    acc_l = settings.getfloat('search', 'precursor accuracy value left')
+    acc_r = settings.getfloat('search', 'precursor accuracy value right')
     unit = settings.get('search', 'precursor accuracy unit')
     if unit == 'ppm':
         rel = True
@@ -61,9 +63,10 @@ def top_candidates_from_arrays(spectrum, settings):
     candidates_notes = []
     for m, c in exp_mass:
         if c != 1:
-            dm = acc * m / 1.0e6 if rel else acc * c
-            start = masses.searchsorted(m - dm)
-            end = masses.searchsorted(m + dm)
+            dm_l = acc_l * m / 1.0e6 if rel else acc_l * c
+            dm_r = acc_r * m / 1.0e6 if rel else acc_r * c
+            start = masses.searchsorted(m + dm_l)
+            end = masses.searchsorted(m + dm_r)
             candidates.extend(seqs[start:end])
             candidates_notes.extend(notes[start:end])
 
@@ -119,7 +122,6 @@ def get_arrays(settings):
             if fasta.parse(protein_description)['id'].split('|')[0].startswith(label):
                 return 'd'
             return 't'
-
 
         def peps():
             if not add_decoy:
