@@ -43,35 +43,6 @@ def get_cutoff(results, FDR=1):
     return best_cut_evalue
 
 
-def smart_filtering(fname, settings):
-    conditions = settings.get('smart filtering', 'conditions')
-    cutoff = settings.getfloat('smart filtering', 'initial e-value cut-off')
-    a, b = 1, 99
-    # somehow derive the proper e-value cut-off
-    # TODO
-    settings = copy(settings)
-    settings.set('misc', 'first stage', '')
-    results = []
-    for res in process_file(fname, settings):
-        for e, (_, seq, note) in zip(res['e-values'], res['candidates']):
-            results.append((float(e), seq, note, utils.get_RT(res['spectrum']), res['spectrum']))
-    cutoff = get_cutoff(results, FDR=1)
-
-    points = tuple([] for _ in conditions)
-    for res in process_file(fname, settings):
-        for e, (_, seq) in zip(res['e-values'], res['candidates']):
-            if e > cutoff:
-                break
-            for p, (func, _, _) in zip(points, conditions):
-                p.append(func(res['spectrum'], seq))
-
-    def conjunction(spectrum, cand, _):
-        return all(a <= percentileofscore(data, func(spectrum, cand)) <= b
-                for data, (func, a, b) in zip(points, conditions))
-    settings.set('scoring', 'condition', conjunction)
-    return settings
-
-
 def optimization(fname, settings):
     settings = copy(settings)
     settings.set('misc', 'first stage', '')
@@ -88,21 +59,12 @@ def optimization(fname, settings):
         settings = eval('%s(results, settings, cutoff)' % (func, ))
     return settings
 
+
 def precursor_mass_optimization(results, settings, cutoff):
     settings = copy(settings)
-    massdif, seqs = np.array([]), []
-    aa_mass = get_aa_mass(settings)
-    j = 0
-    for res in results:
-        for e, (_, seq, note) in zip(res['e-values'], res['candidates']):
-            e, seq, note, _, _ = float(e), seq, note, utils.get_RT(res['spectrum']), res['spectrum']
-            j += 1
-            if note == 'd' or float(e) > cutoff:
-                pass
-            else:
-                neutral_mass, _, _ = get_info(res['spectrum'], res, settings)
-                massdif = np.append(massdif, (mass.fast_mass(seq, charge=0, aa_mass=aa_mass) - neutral_mass) / neutral_mass * 1e6)
-                seqs.append(str(seq))
+    formula = """(mass.fast_mass(seq, charge=0, aa_mass=get_aa_mass(settings)) - get_info(res['spectrum'], res, settings)[0]) / get_info(res['spectrum'], res, settings)[0] * 1e6"""
+    massdif = get_values(formula, results, settings, cutoff)
+
     best_par_mt_l = min(massdif[massdif > scoreatpercentile(massdif, 0.5)])
     best_par_mt_r = max(massdif[massdif < scoreatpercentile(massdif, 99.5)])
 
@@ -111,24 +73,35 @@ def precursor_mass_optimization(results, settings, cutoff):
     settings.set('search', 'precursor accuracy value right', best_par_mt_r)
     return settings
 
-def missed_cleavages_optimization(results, settings, cutoff):
-    settings = copy(settings)
-    enzyme = settings.get('search', 'enzyme')
-    missedcleavages = np.array([])
+
+def get_values(formula, results, settings, cutoff):
+    values = np.array([])
     for res in results:
         for e, (_, seq, note) in zip(res['e-values'], res['candidates']):
-            e, seq, note, _, _ = float(e), seq, note, utils.get_RT(res['spectrum']), res['spectrum']
+            e, seq, note, RT, _ = float(e), seq, note, utils.get_RT(res['spectrum']), res['spectrum']
             if note == 'd' or float(e) > cutoff:
                 pass
             else:
-                missedcleavages = np.append(missedcleavages, len(parser.cleave(seq, parser.expasy_rules[enzyme], 0)) - 1)
-    best_missedcleavages = max(missedcleavages[missedcleavages < scoreatpercentile(missedcleavages, 99)])
+                toadd = eval(formula)
+                if isinstance(toadd, list):
+                    if values.size:
+                        values = np.vstack((values, toadd))
+                    else:
+                        values = np.array(toadd)
+                else:
+                    values = np.append(values, toadd)
+    return values
+
+
+def missed_cleavages_optimization(results, settings, cutoff):
+    settings = copy(settings)
+    formula = """len(parser.cleave(seq, parser.expasy_rules[str(settings.get('search', 'enzyme'))], 0)) - 1"""
+
+    missedcleavages = get_values(formula, results, settings, cutoff)
     best_missedcleavages = max(missedcleavages)
     for mc in sorted(set(missedcleavages)):
-        if missedcleavages[missedcleavages>mc].size / missedcleavages.size < 0.05:
+        if missedcleavages[missedcleavages > mc].size / missedcleavages.size < 0.05:
             best_missedcleavages = mc
-
-
     print 'NEW miscleavages = %s' % (best_missedcleavages, )
     settings.set('search', 'miscleavages', best_missedcleavages)
     return settings
@@ -136,18 +109,9 @@ def missed_cleavages_optimization(results, settings, cutoff):
 
 def fragment_mass_optimization(results, settings, cutoff):
     settings = copy(settings)
-    fragmassdif, seqs = np.array([]), []
-    j = 0
-    for res in results:
-        for e, (_, seq, note) in zip(res['e-values'], res['candidates']):
-            e, seq, note, _, _ = float(e), seq, note, utils.get_RT(res['spectrum']), res['spectrum']
-            j += 1
-            if note == 'd' or float(e) > cutoff:
-                pass
-            else:
-                new_params = get_fragment_mass_tol(res['spectrum'], seq, settings)
-                fragmassdif = np.append(fragmassdif, new_params['fmt'])
-                seqs.append(str(seq))
+    formula = """get_fragment_mass_tol(res['spectrum'], seq, settings)['fmt']"""
+    fragmassdif = get_values(formula, results, settings, cutoff)
+
     step = FDbinSize(fragmassdif)
     lside, rside = 0, 1
     mt_h, _ = np.histogram(fragmassdif, bins=np.arange(lside, rside, step))
@@ -166,71 +130,10 @@ def fragment_mass_optimization(results, settings, cutoff):
     
     
 def rt_filtering(results, settings, cutoff):
-    RTexp, seqs = [], []
-    j = 0
-    for res in results:
-        for e, (_, seq, note) in zip(res['e-values'], res['candidates']):
-            e, seq, note, RT, _ = float(e), seq, note, utils.get_RT(res['spectrum']), res['spectrum']
-            j += 1
-            if note == 'd' or float(e) > cutoff:
-                pass
-            else:
-                RTexp.append(RT)
-                seqs.append(str(seq))
-    print len(RTexp), 'top PSMs with 1% FDR'
-    RC_def = achrom.RCs_yoshida
-    xdict = {}
-    for key, val in RC_def['aa'].items():
-        xdict[key] = [val, None]
-    RC_dict = achrom.get_RCs_vary_lcp(seqs, RTexp)
-    RC_dict_new = dict()
-    for key, val in RC_dict['aa'].items():
-        xdict[key][1] = val
-    a, b, _, _ = auxiliary.linear_regression([x[0] for x in xdict.values() if x[1] != None], [x[1] for x in xdict.values() if x[1] != None])
-    for key, x in xdict.items():
-        if x[1] == None:
-            x[1] = x[0] * a + b
-        RC_dict_new[key] = x[1]
-    RC_dict['aa'] = RC_dict_new
-    deltaRT = [rtexp - achrom.calculate_RT(pep, RC_dict, raise_no_mod=False)
-            for rtexp, pep in zip([mean(x) for x in RTexp], seqs)]
-
-    def condition(spectrum, cand, _):
-        return 1 <= percentileofscore(deltaRT, utils.get_RT(spectrum)
-                        - achrom.calculate_RT(cand, RC_dict)
-                    ) <= 99
-
-    settings.set('scoring', 'condition', condition)
-    return settings
-
-def achrom_rt_filtering(fname, settings):
     settings = copy(settings)
-    settings.set('misc', 'first stage', '')
-    settings.set('scoring', 'e-values for candidates', 1)
-    RTexp, massdif, fragstd, seqs = [], np.array([]), np.array([]), []
-    results = []
-    for res in process_file(fname, settings):
-        results.append(res)
-    cutoff = get_cutoff(results, FDR=1)
-    print cutoff
-    
-    aa_mass = get_aa_mass(settings)
-
-    j = 0
-    for res in results:
-        for e, (_, seq, note) in zip(res['e-values'], res['candidates']):
-            e, seq, note, RT, spectrum = float(e), seq, note, utils.get_RT(res['spectrum']), res['spectrum']
-            j += 1
-            if note == 'd' or float(e) > cutoff:
-                pass
-            else:
-                RTexp.append(RT)
-                neutral_mass, _, _ = get_info(res['spectrum'], res, settings)
-                massdif = np.append(massdif, (neutral_mass - mass.fast_mass(seq, charge=0, aa_mass=aa_mass)) / neutral_mass * 1e6)
-                new_params = get_fragment_mass_tol(spectrum, seq, settings)
-                fragstd = np.append(fragstd, new_params['fmt'])
-                seqs.append(str(seq))
-
+    formula = "[float(RT), str(seq)]"
+    RTexp, seqs = zip(*get_values(formula, results, settings, cutoff))
+    RTexp = [float(x) for x in RTexp]
     print len(RTexp), 'top PSMs with 1% FDR'
     RC_def = achrom.RCs_yoshida
     xdict = {}
@@ -254,24 +157,5 @@ def achrom_rt_filtering(fname, settings):
                         - achrom.calculate_RT(cand, RC_dict)
                     ) <= 99
 
-    step = FDbinSize(fragstd)
-    lside, rside = 0, 1
-    mt_h, _ = np.histogram(fragstd, bins=np.arange(lside, rside, step))
-
-    for idx, mt in enumerate(mt_h):
-        if mt == 0:
-            mt_h = mt_h[:idx]
-            break
-    threshold = mt_h.size * step
-    fragstd = fragstd[fragstd <= threshold]
-    best_mt = max(fragstd[fragstd < scoreatpercentile(fragstd, 95)])
-    
-    best_par_mt = max(massdif[massdif < scoreatpercentile(massdif, 99.5)])
-
-    print massdif
-    print 'NEW FRAGMENT MASS TOLERANCE = %s' % (best_mt, )
-    print 'NEW PARENT MASS TOLERANCE = %s' % (best_par_mt, )
-    settings.set('search', 'product accuracy', best_mt)
-    settings.set('search', 'precursor accuracy value', best_par_mt)
     settings.set('scoring', 'condition', condition)
     return settings
