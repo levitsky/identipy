@@ -54,11 +54,29 @@ def optimization(fname, settings):
     cutoff = get_cutoff(results, FDR=1)
     print cutoff
     
-    functions = ['rt_filtering', 'precursor_mass_optimization', 'fragment_mass_optimization', 'missed_cleavages_optimization']
+    functions = ['rt_filtering', 'precursor_mass_optimization',
+                  'fragment_mass_optimization', 'missed_cleavages_optimization', 'charge_optimization']
     for func in functions:
         settings = eval('%s(results, settings, cutoff)' % (func, ))
     return settings
 
+
+def charge_optimization(results, settings, cutoff):
+    settings = copy(settings)
+    formula = "get_info(res['spectrum'], res, settings)[1]"
+    chargestates = get_values(formula, results, settings, cutoff)
+    mincharge = min(chargestates)
+    maxcharge = max(chargestates)
+    for ch in sorted(set(chargestates)):
+        if float(chargestates[chargestates < ch].size) / chargestates.size < 0.05:
+            mincharge = ch
+    for ch in sorted(set(chargestates))[::-1]:
+        if float(chargestates[chargestates > ch].size) / chargestates.size < 0.05:
+            maxcharge = ch
+    print 'NEW charges = %s:%s' % (mincharge, maxcharge)
+    settings.set('search', 'maximum charge', maxcharge)
+    settings.set('search', 'minimum charge', mincharge)
+    return settings
 
 def precursor_mass_optimization(results, settings, cutoff):
     settings = copy(settings)
@@ -99,8 +117,8 @@ def missed_cleavages_optimization(results, settings, cutoff):
 
     missedcleavages = get_values(formula, results, settings, cutoff)
     best_missedcleavages = max(missedcleavages)
-    for mc in sorted(set(missedcleavages)):
-        if missedcleavages[missedcleavages > mc].size / missedcleavages.size < 0.05:
+    for mc in sorted(set(missedcleavages))[::-1]:
+        if float(missedcleavages[missedcleavages > mc].size) / missedcleavages.size < 0.05:
             best_missedcleavages = mc
     print 'NEW miscleavages = %s' % (best_missedcleavages, )
     settings.set('search', 'miscleavages', best_missedcleavages)

@@ -29,10 +29,10 @@ def get_info(spectrum, result, settings, aa_mass=None):
         if isinstance(states, int):
             states = [states]
     elif charge is None:
-        states = list(range(1, 1 + settings.getint('search', 'maximum charge')))
+        states = list(range(settings.getint('search', 'minimum charge'), 1 + settings.getint('search', 'maximum charge')))
     else:
         states = [charge]
-    states = [s for s in states if s <= settings.getint('search', 'maximum charge')]
+    states = [s for s in states if settings.getint('search', 'minimum charge') <= s <= settings.getint('search', 'maximum charge')]
     states.sort()
     masses = np.array([exp_mass * ch - ch * mass.nist_mass['H+'][0][0]
             for ch in states])
@@ -87,7 +87,7 @@ def neutral_masses(spectrum, settings):
         if isinstance(states, int):
             states = [states]
     elif charge is None:
-        states = list(range(1, 1 + settings.getint('search', 'maximum charge')))
+        states = list(range(settings.getint('search', 'minimum charge'), 1 + settings.getint('search', 'maximum charge')))
     else:
         states = [charge]
     states = [s for s in states if s <= settings.getint('search', 'maximum charge')]
