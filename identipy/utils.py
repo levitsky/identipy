@@ -256,7 +256,7 @@ def write_pepxml(inputfile, settings, results, pept_prot):
             result['candidates'] = result['candidates'][:len(result['e-values'])]
             for i, candidate in enumerate(result['candidates']):
                 tmp3 = etree.Element('search_hit')
-                tmp3.set('hit_rank', str(idx + 1))
+                tmp3.set('hit_rank', str(i + 1))
                 sequence = candidate[1]
                 tmp3.set('peptide', sequence)
                 tmp3.set('peptide_prev_aa', 'K')  # ???
