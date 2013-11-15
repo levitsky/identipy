@@ -4,7 +4,6 @@ from pyteomics.auxiliary import linear_regression
 from pyteomics import achrom
 import SSRCalc
 import numpy as np
-from freedman_diaconis import FDbinSize
 from scipy.stats import scoreatpercentile
 
 modifications = {160: 'cam', 147: 'ox', 181: 'p', 167: 'p', 243: 'p'}
@@ -35,7 +34,7 @@ def FDbinSize(X):
 def get_descriptors(dictonary):
     descriptors = []
     for descr in dictonary.values():
-        descriptors.append(Descriptor(name=descr['name'], ))
+        descriptors.append(Descriptor(name=descr['name'], )) # FAILS
 
 
 class Descriptor():
@@ -46,6 +45,7 @@ class Descriptor():
         self.binsize = binsize
 
     def get_array(self, peptides):
+        # TODO rewrite without eval
         code = """[%s for peptide in peptides.peptideslist]""" % (self.formula)
         return eval(code)
 
@@ -76,7 +76,9 @@ class PeptideList:
             rank = 1
             pcharge = 100
             mass_exp = 10000000
-            pept = Peptide(sequence=sequence, modified_code=modified_code, evalue=evalue, massdiff=massdiff, spectrum=spectrum, rank=rank, pcharge=pcharge, mass_exp=mass_exp)
+            pept = Peptide(sequence=sequence, modified_code=modified_code,
+                    evalue=evalue, massdiff=massdiff, spectrum=spectrum,
+                    rank=rank, pcharge=pcharge, mass_exp=mass_exp)
             pept.RT_exp = float(line.split('\t')[3])
             pept.note = 'decoy'
             j = len(line.split('\t')) - 1
@@ -90,9 +92,11 @@ class PeptideList:
                 j -= 1
             self.peptideslist.append(pept)
 
-    def get_from_pepxmlfile(self, pepxmlfile, min_charge=1, max_charge=10, max_rank=1):
+    def get_from_pepxmlfile(self, pepxmlfile, min_charge=1, max_charge=10,
+            max_rank=1):
         for line in open(pepxmlfile, 'r').readlines():
-            if line.startswith('<search_summary') or line.startswith('    <search_summary'):
+            if line.startswith('<search_summary') or line.startswith(
+                    '    <search_summary'):
                 if "X! Tandem" in line:
                     self.pepxml_type = 'tandem'
                 elif "OMSSA" in line:
@@ -131,18 +135,32 @@ class PeptideList:
                             pcharge = record['assumed_charge']
                             mass_exp = record['precursor_neutral_mass']
 
-                            pept = Peptide(sequence=sequence, modified_code=modified_code, evalue=evalue, massdiff=massdiff, spectrum=spectrum, rank=rank, pcharge=pcharge, mass_exp=mass_exp, hyperscore=hyperscore, nextscore=nextscore, prev_aa=prev_aa, next_aa=next_aa)
+                            pept = Peptide(sequence=sequence,
+                                    modified_code=modified_code, evalue=evalue,
+                                    massdiff=massdiff, spectrum=spectrum,
+                                    rank=rank, pcharge=pcharge, mass_exp=mass_exp,
+                                    hyperscore=hyperscore, nextscore=nextscore,
+                                    prev_aa=prev_aa, next_aa=next_aa)
                             try:
                                 pept.RT_exp = float(record['retention_time_sec']) / 60
                             except:
                                 try:
-                                    pept.RT_exp = float(record['spectrum'].split(',')[2].split()[0])
+                                    pept.RT_exp = float(
+                                            record['spectrum'].split(
+                                                ',')[2].split()[0])
                                 except:
                                     pept.RT_exp = 0
                                     print 'RT_exp read error'
 
-                            decoy_tags = [':reversed', 'DECOY_', 'rev_', 'Random sequence.']
-                            if any([all([all([key in protein.keys() and isinstance(protein[key], str) and not protein[key].startswith(tag) and not protein[key].endswith(tag) for key in ['protein', 'protein_descr']]) for tag in decoy_tags]) for protein in record['search_hit'][k]['proteins']]):
+                            decoy_tags = [':reversed', 'DECOY_', 'rev_',
+                                    'Random sequence.']
+                            if any(all(all(key in protein.keys() and isinstance(
+                                protein[key], str) and
+                                not protein[key].startswith(tag) and
+                                not protein[key].endswith(tag)
+                                    for key in ('protein', 'protein_descr'))
+                                    for tag in decoy_tags)
+                                    for protein in record['search_hit'][k]['proteins']):
                                 pept.note = 'target'
                             else:
                                 pept.note = 'decoy'
@@ -157,8 +175,10 @@ class PeptideList:
                                     return prot['protein_descr'].split('|')[1]
 
                             for prot in record['search_hit'][k]['proteins']:
-                                if get_dbname(prot, self.pepxml_type) not in [protein.dbname for protein in pept.parentproteins]:
-                                    pept.parentproteins.append(Protein(dbname=get_dbname(prot, self.pepxml_type)))
+                                if get_dbname(prot, self.pepxml_type) not in [
+                                        protein.dbname for protein in pept.parentproteins]:
+                                    pept.parentproteins.append(Protein(
+                                        dbname=get_dbname(prot, self.pepxml_type)))
 
                             if len(pept.parentproteins):
                                 self.peptideslist.append(pept)
@@ -177,7 +197,9 @@ class PeptideList:
         RC_dict = achrom.get_RCs_vary_lcp(seqs, RTexp)
         for key, val in RC_dict['aa'].items():
             xdict[key][1] = val
-        a, b, _, _ = linear_regression([x[0] for x in xdict.values() if x[1] != None], [x[1] for x in xdict.values() if x[1] != None])
+        a, b, _, _ = linear_regression(
+                [x[0] for x in xdict.values() if x[1] is not None],
+                [x[1] for x in xdict.values() if x[1] is not None])
         for key, x in xdict.items():
             if x[1] == None:
                 x[1] = x[0] * a + b
@@ -187,7 +209,8 @@ class PeptideList:
     def calc_RT(self, calibrate_coeff=(1, 0, 0, 0), RTtype='biolccc'):
         if RTtype == 'ssrcalc':
             ps = list(set([peptide.sequence for peptide in self.peptideslist]))
-            SSRCalc_RTs = SSRCalc.calculate_RH(ps[:], pore_size=100, ion_pairing_agent='FA')
+            SSRCalc_RTs = SSRCalc.calculate_RH(ps[:], pore_size=100,
+                    ion_pairing_agent='FA')
 
         for peptide in self.peptideslist:
             if RTtype == 'biolccc':
@@ -195,7 +218,8 @@ class PeptideList:
             elif RTtype == 'ssrcalc':
                 SSRCalc_RT = SSRCalc_RTs[peptide.sequence]
                 if SSRCalc_RT is not None:
-                    peptide.RT_predicted = float(SSRCalc_RT) * calibrate_coeff[0] + calibrate_coeff[1]
+                    peptide.RT_predicted = float(
+                            SSRCalc_RT) * calibrate_coeff[0] + calibrate_coeff[1]
                 else:
                     peptide.RT_predicted = 0
                     print 'SSRCalc error'
@@ -205,7 +229,8 @@ class PeptideList:
     def filter_RT(self, RT_tolerance):
         j = len(self.peptideslist) - 1
         while j >= 0:
-            if abs(float(self.peptideslist[j].RT_predicted) - float(self.peptideslist[j].RT_exp)) > float(RT_tolerance):
+            if abs(float(self.peptideslist[j].RT_predicted) -
+                    float(self.peptideslist[j].RT_exp)) > float(RT_tolerance):
                 self.peptideslist.pop(j)
             j -= 1
 
@@ -236,7 +261,8 @@ class PeptideList:
     def filter_modifications(self):
         j = len(self.peptideslist) - 1
         while j >= 0:
-            if (self.peptideslist[j].modified_code.count('[') - self.peptideslist[j].modified_code.count('[160]')) != 0:
+            if (self.peptideslist[j].modified_code.count('[')
+                    - self.peptideslist[j].modified_code.count('[160]')) != 0:
                 self.peptideslist.pop(j)
             j -= 1
 
@@ -250,7 +276,8 @@ class PeptideList:
     def filter_titin(self):
         j = len(self.peptideslist) - 1
         while j >= 0:
-            if any([prot.dbname == 'Q8WZ42' for prot in self.peptideslist[j].parentproteins]):
+            if any(prot.dbname == 'Q8WZ42'
+                    for prot in self.peptideslist[j].parentproteins):
                 self.peptideslist.pop(j)
             j -= 1
 
@@ -280,7 +307,8 @@ class PeptideList:
         for cut_evalue in target_evalues:
             counter_target = target_evalues[target_evalues <= cut_evalue].size
             counter_decoy = decoy_evalues[decoy_evalues <= cut_evalue].size
-            if counter_target and (float(counter_decoy) / float(counter_target)) * 100 <= float(FDR):
+            if counter_target and (float(counter_decoy) / float(counter_target)
+                    ) * 100 <= float(FDR):
                 best_cut_evalue = cut_evalue
                 real_FDR = round(float(counter_decoy) / float(counter_target) * 100, 1)
         if not best_cut_evalue:
@@ -316,7 +344,8 @@ class PeptideList:
 
 
 class Protein:
-    def __init__(self, dbname, pcharge=0, description='Unknown', sequence='Unknown', note=''):
+    def __init__(self, dbname, pcharge=0, description='Unknown',
+            sequence='Unknown', note=''):
         self.dbname = dbname
         self.pcharge = pcharge
         self.description = description
@@ -335,14 +364,18 @@ class Protein:
                 for aminoacid in self.sequence):
                     self.pmass = 0
             else:
-                self.pmass = float(mass.calculate_mass(sequence=self.sequence, charge=self.pcharge))
+                self.pmass = float(mass.calculate_mass(sequence=self.sequence,
+                    charge=self.pcharge))
 
         else:
             print 'Unknown sequence'
 
 
 class Peptide:
-    def __init__(self, sequence, modified_code='', pcharge=0, RT_exp=False, evalue=0, protein='Unkonwn', massdiff=0, note='unknown', spectrum='', rank=1, mass_exp=0, hyperscore=0, nextscore=0, prev_aa='X', next_aa='X'):
+    def __init__(self, sequence, modified_code='', pcharge=0, RT_exp=False,
+            evalue=0, protein='Unkonwn', massdiff=0, note='unknown', spectrum='',
+            rank=1, mass_exp=0, hyperscore=0, nextscore=0, prev_aa='X',
+            next_aa='X'):
         self.sequence = sequence
         self.modified_code = modified_code
         self.modified_sequence = sequence
@@ -379,8 +412,10 @@ class Peptide:
         self.pI = electrochem.pI(self.sequence)
 
     def mass_diff(self):
-        """Calculates a difference between theoretical and experimental masses. Takes into account an isotope mass difference error"""
-        return (self.massdiff - round(self.massdiff, 0) * 1.0033548378) / (self.pmass - round(self.massdiff, 0) * 1.0033548378) * 1e6
+        """Calculates a difference between theoretical and experimental masses.
+        Takes into account an isotope mass difference error"""
+        return (self.massdiff - round(self.massdiff, 0) * 1.0033548378
+                ) / (self.pmass - round(self.massdiff, 0) * 1.0033548378) * 1e6
 
     def modified_peptide(self):
         i = 0
@@ -392,10 +427,12 @@ class Peptide:
                 start = i
             elif self.modified_sequence[i] == ']':
                 end = i
-                if float(self.modified_sequence[start + 1:end]) not in modifications.keys():
+                if float(self.modified_sequence[start + 1:end]) not in modifications:
                     label = ''
                 else:
                     label = modifications[float(self.modified_sequence[start + 1:end])]
-                self.modified_sequence = self.modified_sequence[:start - 1] + label + self.modified_sequence[start - 1] + self.modified_sequence[end + 1:]
+                self.modified_sequence = (self.modified_sequence[:start - 1] +
+                        label + self.modified_sequence[start - 1] +
+                        self.modified_sequence[end + 1:])
                 i = 0
             i += 1

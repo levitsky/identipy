@@ -48,6 +48,7 @@ def top_candidates_from_arrays(spectrum, settings):
             'performance', 'arrays') else settings.get('performance', 'arrays')
     exp_mass = utils.neutral_masses(spectrum, settings)
     n = settings.getint('output', 'candidates')
+    if n < 1: n = None
     score = utils.import_(settings.get('scoring', 'score'))
     acc_l = settings.getfloat('search', 'precursor accuracy value left')
     acc_r = settings.getfloat('search', 'precursor accuracy value right')
