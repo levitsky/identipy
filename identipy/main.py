@@ -89,7 +89,6 @@ def top_candidates_from_arrays(spectrum, settings):
 
 
 def get_arrays(settings):
-    print('Generating peptide arrays ...')
     db = settings.get('input', 'database')
     hasher = settings.get('misc', 'hash')
     dbhash = hashlib.new(hasher)
@@ -98,6 +97,8 @@ def get_arrays(settings):
             dbhash.update(line.encode('ascii'))
     dbhash = dbhash.hexdigest()
     folder = settings.get('performance', 'folder')
+    if not os.path.isdir(folder):
+        os.makedirs(folder)
     enzyme = settings.get('search', 'enzyme')
     enzyme = parser.expasy_rules.get(enzyme, enzyme)
     mc = settings.getint('search', 'miscleavages')
@@ -119,10 +120,9 @@ def get_arrays(settings):
 
     if arr_name is None:
 
+        print('Generating peptide arrays ...')
         def get_note(protein_description, label='DECOY_'):
-            if fasta.parse(protein_description)['id'].split('|')[0].startswith(label):
-                return 'd'
-            return 't'
+            return 'd' if protein_description.startswith(label) else 't'
 
         def peps():
             if not add_decoy:
