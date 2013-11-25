@@ -66,11 +66,10 @@ def top_candidates_from_arrays(spectrum, settings):
         if c != 1:
             dm_l = acc_l * m / 1.0e6 if rel else acc_l * c
             dm_r = acc_r * m / 1.0e6 if rel else acc_r * c
-            start = masses.searchsorted(m + dm_l)
+            start = masses.searchsorted(m - dm_l)
             end = masses.searchsorted(m + dm_r)
             candidates.extend(seqs[start:end])
             candidates_notes.extend(notes[start:end])
-
     threshold = settings.getfloat('scoring', 'score threshold')
 
     result = [(score(spectrum, x, settings), x, candidates_notes[idx]) for idx, x in enumerate(candidates)]
@@ -189,7 +188,7 @@ def spectrum_processor(settings):
                     condition = utils.import_(condition)
             else:
                 condition = utils.allow_all
-                
+
             def f(s):
                 c = candidates(s)
                 c = [x for x in c if condition(s, str(x[1]), settings)]
@@ -263,7 +262,7 @@ def varmod_stage1(fname, settings):
                 if ((len(x[0]) > 2) + (len(x[-1]) > 2) + sum(
                     len(y) > 1 for y in x[1:-1])) <= n)
             for seq in candidates)
-    
+
     def prepare_seqs():
         for seq in seq_iter:
             for (mod, aa), char in zip(mods, punctuation):
