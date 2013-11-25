@@ -93,9 +93,11 @@ def get_arrays(settings):
     hasher = settings.get('misc', 'hash')
     dbhash = hashlib.new(hasher)
     with open(db) as f:
+        print "Scanning database contents..."
         for line in f:
             dbhash.update(line.encode('ascii'))
     dbhash = dbhash.hexdigest()
+    print "Done."
     folder = settings.get('performance', 'folder')
     if not os.path.isdir(folder):
         os.makedirs(folder)
@@ -107,6 +109,7 @@ def get_arrays(settings):
     aa_mass = utils.get_aa_mass(settings)
     add_decoy = settings.getboolean('input', 'add decoy')
     index = os.path.join(folder, 'identipy.idx')
+    prefix = settings.get('input', 'decoy prefix')
 
     profile = (dbhash, add_decoy, enzyme, mc, minlen, maxlen, aa_mass)
     arr_name = None
@@ -126,30 +129,23 @@ def get_arrays(settings):
 
         def peps():
             if not add_decoy:
-                #prots = (prot for _, prot in fasta.read(db))
-                prots = (tuple(x) for x in fasta.read(db))
-                prefix = 'DECOY_'
+                prots = fasta.read(db)
             else:
-                prefix = settings.get('input', 'decoy prefix')
                 mode = settings.get('input', 'decoy method')
-                prots = fasta.decoy_db(db, mode=mode,
-                    prefix=prefix)
-            #func = lambda prot: [pep for pep in parser.cleave(prot, enzyme, mc)
-            #        if minlen <= len(pep) <= maxlen and parser.fast_valid(pep)]
-            func = lambda prot: [(pep, get_note(prot[0], label=prefix)) for pep in parser.cleave(prot[1], enzyme, mc)
+                prots = fasta.decoy_db(db, mode=mode, prefix=prefix)
+            func = lambda prot: [(pep, get_note(prot[0], label=prefix))
+                    for pep in parser.cleave(prot[1], enzyme, mc)
                     if minlen <= len(pep) <= maxlen and parser.fast_valid(pep)]
 
             n = settings.getint('performance', 'processes')
             return chain.from_iterable(
                     utils.multimap(n, func, prots))
 
-        #seqs = np.fromiter(peps(), dtype=np.dtype((np.str_, maxlen)))
+        seqs_and_notes = np.fromiter(peps(), dtype=np.dtype(
+            [('seq', np.str_, maxlen), ('note', np.str_, 1)]))
 
-        seqs, notes = zip(*peps())
-        seqs = np.array(seqs, dtype=np.dtype((np.str_, maxlen)))
-        notes = np.array(notes, dtype=np.dtype((np.str_, 1)))
-        seqs, idx = np.unique(seqs, return_index=True)
-        notes = notes[idx]
+        seqs, idx = np.unique(seqs_and_notes['seq'], return_index=True)
+        notes = seqs_and_notes['note'][idx]
         masses = np.empty(seqs.shape, dtype=np.float32)
         for i in np.arange(seqs.size):
             masses[i] = mass.fast_mass(seqs[i], aa_mass=aa_mass)
@@ -163,6 +159,7 @@ def get_arrays(settings):
             name = outfile.name
         with open(index, 'a') as ifile:
             ifile.write(str(profile) + '\t' + name + '\n')
+        print "Arrays saved."
 
     else:
         npz = np.load(arr_name)
