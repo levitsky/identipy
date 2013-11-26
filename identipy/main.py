@@ -43,7 +43,7 @@ def top_candidates_from_arrays(spectrum, settings):
         spectrum['m/z array'] = spectrum['m/z array'][i]
     if minpeaks and spectrum['intensity array'].size < minpeaks:
         return []
-
+    
     masses, seqs, notes = get_arrays(settings) if not settings.has_option(
             'performance', 'arrays') else settings.get('performance', 'arrays')
     exp_mass = utils.neutral_masses(spectrum, settings)
@@ -143,7 +143,7 @@ def get_arrays(settings):
                     utils.multimap(n, func, prots))
 
         #seqs = np.fromiter(peps(), dtype=np.dtype((np.str_, maxlen)))
-
+#        seqs, notes = np.array(peps()).T
         seqs, notes = zip(*peps())
         seqs = np.array(seqs, dtype=np.dtype((np.str_, maxlen)))
         notes = np.array(notes, dtype=np.dtype((np.str_, 1)))

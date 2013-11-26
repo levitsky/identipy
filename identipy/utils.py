@@ -1,5 +1,5 @@
 import re
-from pyteomics import mass, electrochem as ec, auxiliary as aux, parser
+from pyteomics import mass, electrochem as ec, auxiliary as aux, parser, fasta
 import sys
 import numpy as np
 from multiprocessing import Queue, Process, cpu_count
@@ -168,7 +168,7 @@ def get_RT(spectrum):
     return spectrum['scanList']['scan'][0]['scan start time']
 
 
-def write_pepxml(inputfile, settings, results, pept_prot):
+def write_pepxml(inputfile, settings, results):
     from lxml import etree
     from time import strftime
     from os import path
@@ -183,6 +183,7 @@ def write_pepxml(inputfile, settings, results, pept_prot):
     search_engine = 'IdentiPy'
     database = settings.get('input', 'database')
     missed_cleavages = settings.get('search', 'miscleavages')
+
 
     output = open(filename, 'w')
     line1 = '<?xml version="1.0" encoding="UTF-8"?>\n\
@@ -237,6 +238,19 @@ def write_pepxml(inputfile, settings, results, pept_prot):
 
     child4.append(copy(child5))
 
+    results = [x for x in results if x['candidates']]
+    pept_prot = dict()
+    prots = dict()
+    for desc, prot in fasta.read(database):
+        prots[desc.split(' ')[0]] = desc
+        for pep in parser.cleave(prot, parser.expasy_rules.get(enzyme, enzyme), missed_cleavages):
+            if pep in set([x['candidates'][0][1] for x in results]):
+                dbinfo = desc
+                try:
+                    pept_prot[pep] = np.append(pept_prot[pep], dbinfo.split(' ')[0])
+                except:
+                    pept_prot[pep] = np.array([dbinfo.split(' ')[0]], dtype = '|S50')
+
     for idx, result in enumerate(results):
         if result['candidates']:
             tmp = etree.Element('spectrum_query')
@@ -254,6 +268,7 @@ def write_pepxml(inputfile, settings, results, pept_prot):
 
             tmp2 = etree.Element('search_result')
             result['candidates'] = result['candidates'][:len(result['e-values'])]
+            
             for i, candidate in enumerate(result['candidates']):
                 tmp3 = etree.Element('search_hit')
                 tmp3.set('hit_rank', str(i + 1))
@@ -262,9 +277,9 @@ def write_pepxml(inputfile, settings, results, pept_prot):
                 tmp3.set('peptide_prev_aa', 'K')  # ???
                 tmp3.set('peptide_next_aa', 'K')  # ???
                 proteins = pept_prot[sequence]
-
-                tmp3.set('protein', proteins[0][0].split(' ', 1)[0])
-                tmp3.set('protein_descr', proteins[0][0].split(' ', 1)[1])
+                
+                tmp3.set('protein', prots[proteins[0]].split(' ', 1)[0])
+                tmp3.set('protein_descr', prots[proteins[0]].split(' ', 1)[1])
 
                 num_tot_proteins = len(proteins)
                 tmp3.set('num_tot_proteins', str(num_tot_proteins))
@@ -281,8 +296,8 @@ def write_pepxml(inputfile, settings, results, pept_prot):
                     for idx in range(len(proteins)):
                         if idx != 0:
                             tmp4 = etree.Element('alternative_protein')
-                            tmp4.set('protein', proteins[idx][0].split(' ', 1)[0])
-                            tmp4.set('protein_descr', proteins[idx][0].split(' ', 1)[1])
+                            tmp4.set('protein', prots[proteins[idx]].split(' ', 1)[0])
+                            tmp4.set('protein_descr', prots[proteins[idx]].split(' ', 1)[1])
                             tmp3.append(copy(tmp4))
 
                 tmp4 = etree.Element('search_score')
