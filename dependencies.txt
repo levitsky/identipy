@@ -2,4 +2,3 @@ numpy
 scipy
 lxml
 pyteomics
-jinja2

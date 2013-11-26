@@ -1,4 +1,3 @@
-import sys
 import numpy as np
 from pyteomics import parser, mass, fasta, auxiliary as aux, mgf, mzml
 from itertools import chain
@@ -9,18 +8,14 @@ import ast
 import hashlib
 from copy import copy
 from string import punctuation
-#from . import scoring, utils
 import scoring, utils
 from types import FunctionType
-try:
-    from configparser import RawConfigParser
-except ImportError:
-    from ConfigParser import RawConfigParser
-
+from ConfigParser import RawConfigParser
 
 def top_candidates_from_arrays(spectrum, settings):
     spectrum = copy(spectrum)
-    idx = np.nonzero(spectrum['m/z array'] >= 150)
+    idx = np.nonzero(spectrum['m/z array'] >=
+            settings.getfloat('search', 'product minimum m/z'))
     spectrum['intensity array'] = spectrum['intensity array'][idx]
     spectrum['m/z array'] = spectrum['m/z array'][idx]
     maxpeaks = settings.getint('scoring', 'maximum peaks')
@@ -72,10 +67,11 @@ def top_candidates_from_arrays(spectrum, settings):
             candidates_notes.extend(notes[start:end])
     threshold = settings.getfloat('scoring', 'score threshold')
 
-    result = [(score(spectrum, x, settings), x, candidates_notes[idx]) for idx, x in enumerate(candidates)]
+    result = [(score(spectrum, x, settings), x, candidates_notes[idx])
+            for idx, x in enumerate(candidates)]
     result = sorted((x for x in result if x[0] > threshold), reverse=True)[:n]
 
-    result = [(score, seq.decode('ascii'), note) for score, seq, note in result]
+    result = [(score, seq, note) for score, seq, note in result]
     if settings.has_option('misc', 'legend'):
         mods = list(zip(settings.get('misc', 'legend'), punctuation))
         res = []
@@ -94,7 +90,7 @@ def get_arrays(settings):
     with open(db) as f:
         print "Scanning database contents..."
         for line in f:
-            dbhash.update(line.encode('ascii'))
+            dbhash.update(line)
     dbhash = dbhash.hexdigest()
     print "Done."
     folder = settings.get('performance', 'folder')
@@ -289,12 +285,8 @@ def settings(fname=None, default_name=os.path.join(
         os.path.dirname(os.path.abspath(__file__)), os.pardir, 'default.cfg')):
     """Read a configuration file and return a :py:class:`RawConfigParser` object.
     """
-    kw = {'inline_comment_prefixes': ('#', ';')
-            } if sys.version_info.major == 3 else {}
-    kw['dict_type'] = dict
-    kw['allow_no_value'] = True
 
-    raw_config = RawConfigParser(**kw)
+    raw_config = RawConfigParser(dict_type=dict, allow_no_value=True)
     if default_name:
         raw_config.read(default_name)
     if fname:
