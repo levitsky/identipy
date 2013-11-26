@@ -2,10 +2,10 @@ from pyteomics.parser import cleave, expasy_rules
 from pyteomics import pepxml, electrochem, mass
 from pyteomics.auxiliary import linear_regression
 from pyteomics import achrom
-import SSRCalc
 import numpy as np
-from freedman_diaconis import FDbinSize
 from scipy.stats import scoreatpercentile
+from copy import copy
+from scipy.spatial import cKDTree
 
 modifications = {160: 'cam', 147: 'ox', 181: 'p', 167: 'p', 243: 'p'}
 constant_modifications = {'cam': ['C']}
@@ -15,6 +15,27 @@ mass.std_aa_comp['p'] = mass.Composition('HPO3')
 mass.std_aa_comp['ox'] = mass.Composition('O')
 mass.std_aa_comp['cam'] = mass.Composition('H3C2NO')
 
+def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, **kwargs):
+    peaks = {}
+#    if not maxcharge:
+#        maxcharge = 1 + int(ec.charge(peptide, pH=2))
+    maxcharge = 2
+    for ion_type in types:
+        ms = []
+        for i in range(1, len(peptide) - 1):
+            for charge in range(1, maxcharge + 1):
+                if ion_type[0] in 'abc':
+                    ms.append(mass.fast_mass(
+                        str(peptide)[:i], ion_type=ion_type, charge=charge,
+                        **kwargs))
+                else:
+                    ms.append(mass.fast_mass(
+                        str(peptide)[i:], ion_type=ion_type, charge=charge,
+                        **kwargs))
+        marr = np.array(ms)
+        marr.sort()
+        peaks[ion_type] = marr
+    return peaks
 
 def FDbinSize(X):
     """Calculates the Freedman-Diaconis bin size for
@@ -108,8 +129,10 @@ class PeptideList:
                 if int(min_charge) <= int(record['assumed_charge']) <= int(max_charge):
                     for k in range(min(len(record['search_hit']), max_rank)):
                         sequence = record['search_hit'][k]['peptide']
-                        if all(aminoacid not in ['B', 'X', 'J', 'Z', 'U', 'O'] for aminoacid in sequence):
+                        if all(aminoacid not in ['B', 'X', 'J', 'Z', 'U', 'O', '.'] for aminoacid in sequence):
+                            start_scan = record['start_scan']
                             modified_code = record['search_hit'][k]['modified_peptide']
+                            modifications = record['search_hit'][k]['modifications']
                             prev_aa = record['search_hit'][k]['proteins'][0]['peptide_prev_aa']
                             next_aa = record['search_hit'][k]['proteins'][0]['peptide_next_aa']
                             try:
@@ -131,7 +154,7 @@ class PeptideList:
                             pcharge = record['assumed_charge']
                             mass_exp = record['precursor_neutral_mass']
 
-                            pept = Peptide(sequence=sequence, modified_code=modified_code, evalue=evalue, massdiff=massdiff, spectrum=spectrum, rank=rank, pcharge=pcharge, mass_exp=mass_exp, hyperscore=hyperscore, nextscore=nextscore, prev_aa=prev_aa, next_aa=next_aa)
+                            pept = Peptide(sequence=sequence, modified_code=modified_code, evalue=evalue, massdiff=massdiff, spectrum=spectrum, rank=rank, pcharge=pcharge, mass_exp=mass_exp, hyperscore=hyperscore, nextscore=nextscore, prev_aa=prev_aa, next_aa=next_aa, start_scan=start_scan, modifications=modifications)
                             try:
                                 pept.RT_exp = float(record['retention_time_sec']) / 60
                             except:
@@ -150,7 +173,15 @@ class PeptideList:
                             def get_dbname(prot, pepxml_type='tandem'):
                                 if pepxml_type != 'omssa':
                                     try:
-                                        return prot['protein'].split('|')[1]
+                                        if not any(prot['protein'].startswith(tag) for tag in ['sp', 'tr', 'DECOY_sp', 'DECOY_tr']):
+                                            if any(prot['protein_descr'].startswith(tag) for tag in ['SWISS-PROT:', 'TREMBL:']):
+                                                return prot['protein']
+                                            if '|' not in prot['protein']:
+                                                return prot['protein']+' '+prot['protein_descr']
+                                            else:
+                                                return prot['protein']+'>'+prot['protein_descr']
+                                        else:
+                                            return prot['protein'].split('|')[1]
                                     except:
                                         return prot['protein'].split('_')[0]
                                 else:
@@ -168,7 +199,8 @@ class PeptideList:
             peptide.modified_peptide()
 
     def get_RC(self):
-        seqs = [pept.sequence for pept in self.peptideslist]
+#        seqs = [pept.sequence for pept in self.peptideslist]
+        seqs = [pept.modified_sequence for pept in self.peptideslist]
         RTexp = [pept.RT_exp for pept in self.peptideslist]
         RC_def = achrom.RCs_yoshida
         xdict = {}
@@ -176,8 +208,11 @@ class PeptideList:
             xdict[key] = [val, None]
         RC_dict = achrom.get_RCs_vary_lcp(seqs, RTexp)
         for key, val in RC_dict['aa'].items():
-            xdict[key][1] = val
-        a, b, _, _ = linear_regression([x[0] for x in xdict.values() if x[1] != None], [x[1] for x in xdict.values() if x[1] != None])
+            try:
+                xdict[key][1] = val
+            except:
+                xdict[key] = [None, val]
+        a, b, _, _ = linear_regression([x[0] for x in xdict.values() if all(v != None for v in x)], [x[1] for x in xdict.values() if all(v != None for v in x)])
         for key, x in xdict.items():
             if x[1] == None:
                 x[1] = x[0] * a + b
@@ -191,7 +226,8 @@ class PeptideList:
 
         for peptide in self.peptideslist:
             if RTtype == 'biolccc':
-                peptide.RT_predicted = achrom.calculate_RT(peptide.sequence, self.RC)
+#                peptide.RT_predicted = achrom.calculate_RT(peptide.sequence, self.RC)
+                peptide.RT_predicted = achrom.calculate_RT(peptide.modified_sequence, self.RC, raise_no_mod=False)
             elif RTtype == 'ssrcalc':
                 SSRCalc_RT = SSRCalc_RTs[peptide.sequence]
                 if SSRCalc_RT is not None:
@@ -228,7 +264,7 @@ class PeptideList:
     def filter_unknown_aminoacids(self):
         j = len(self.peptideslist) - 1
         while j >= 0:
-            if any(aminoacid in ['B', 'X', 'J', 'Z', 'U', 'O']
+            if any(aminoacid in ['B', 'X', 'J', 'Z', 'U', 'O', '.']
                 for aminoacid in self.peptideslist[j].sequence):
                     self.peptideslist.pop(j)
             j -= 1
@@ -237,6 +273,13 @@ class PeptideList:
         j = len(self.peptideslist) - 1
         while j >= 0:
             if (self.peptideslist[j].modified_code.count('[') - self.peptideslist[j].modified_code.count('[160]')) != 0:
+                self.peptideslist.pop(j)
+            j -= 1
+
+    def filter_modifications_test(self):
+        j = len(self.peptideslist) - 1
+        while j >= 0:
+            if self.peptideslist[j].modified_code.count('[') != 0:
                 self.peptideslist.pop(j)
             j -= 1
 
@@ -285,7 +328,7 @@ class PeptideList:
                 real_FDR = round(float(counter_decoy) / float(counter_target) * 100, 1)
         if not best_cut_evalue:
             best_cut_evalue = 0
-        print real_FDR, best_cut_evalue
+        print real_FDR, best_cut_evalue, 'e-value'
 
         best_cut_peptscore = 1
         if useMP:
@@ -299,19 +342,19 @@ class PeptideList:
             target_peptscores = np.sort(target_peptscores)[::-1]
             real_FDR = 0
             for cut_peptscore in target_peptscores:
-                counter_target = target_peptscores[target_peptscores > cut_peptscore].size
-                counter_decoy = decoy_peptscores[decoy_peptscores > cut_peptscore].size
+                counter_target = target_peptscores[target_peptscores >= cut_peptscore].size
+                counter_decoy = decoy_peptscores[decoy_peptscores >= cut_peptscore].size
                 if counter_target and (float(counter_decoy) / float(counter_target)) * 100 <= float(FDR):
                     best_cut_peptscore = cut_peptscore
                     real_FDR = round(float(counter_decoy) / float(counter_target) * 100, 1)
-            print real_FDR, best_cut_peptscore
+            print real_FDR, best_cut_peptscore, 'MP score'
         j = len(self.peptideslist) - 1
         while j >= 0:
             if not useMP or self.peptideslist[j].peptscore < best_cut_peptscore:
                 if self.peptideslist[j].evalue > best_cut_evalue:
                     self.peptideslist.pop(j)
             j -= 1
-        self.filter_decoy()
+#        self.filter_decoy()
         return (best_cut_evalue, best_cut_peptscore)
 
 
@@ -331,7 +374,7 @@ class Protein:
 
     def get_mass(self):
         if self.sequence != 'Unknown':
-            if any(aminoacid in ['B', 'X', 'J', 'Z', 'U']
+            if any(aminoacid in ['B', 'X', 'J', 'Z', 'U', 'O', '.']
                 for aminoacid in self.sequence):
                     self.pmass = 0
             else:
@@ -342,24 +385,46 @@ class Protein:
 
 
 class Peptide:
-    def __init__(self, sequence, modified_code='', pcharge=0, RT_exp=False, evalue=0, protein='Unkonwn', massdiff=0, note='unknown', spectrum='', rank=1, mass_exp=0, hyperscore=0, nextscore=0, prev_aa='X', next_aa='X'):
+    def __init__(self, sequence, modified_code='', pcharge=0, RT_exp=False, evalue=0, protein='Unkonwn', massdiff=0, note='unknown', spectrum='', rank=1, mass_exp=0, hyperscore=0, nextscore=0, prev_aa='X', next_aa='X', start_scan=0, modifications=[]):
         self.sequence = sequence
         self.modified_code = modified_code
         self.modified_sequence = sequence
+        self.modifications = modifications
         self.pcharge = int(pcharge)
         self.nomodifications = 0
+
         self.pmass = float(mass.calculate_mass(sequence=self.sequence, charge=0))
+        for modif in self.modifications:
+            self.pmass += modif['mass']
+            if modif['position'] not in [0, len(self.sequence) + 1]:
+                aminoacid = self.sequence[modif['position'] - 1]
+                self.pmass -= mass.std_aa_mass[aminoacid]
+            else:
+                if modif['position'] == 0:
+                    self.pmass -= 1.00782503207
+                else:
+                    self.pmass -= 17.002739651629998
         self.mz = (mass_exp + pcharge * 1.007276) / pcharge
-#        self.modified_peptide()
+        self.mass_exp = mass_exp
+        self.modified_peptide()
         self.RT_exp = RT_exp
         self.RT_predicted = False
         self.evalue = float(evalue)
+        self.start_scan = int(start_scan)
         self.parentprotein = protein
         self.parentproteins = []
+        self.massdiff = float(mass_exp) - float(self.pmass)
+        """
         if float(massdiff) != 0:
             self.massdiff = float(massdiff)
         else:
-            self.massdiff = float(mass_exp) - float(self.pmass)
+            if float(mass_exp) - float(self.pmass) < 0.01:
+                self.massdiff = float(mass_exp) - float(self.pmass)
+            else:
+                self.massdiff = float(mass_exp) - float(self.pmass)
+
+#                self.massdiff = 0
+        """
         self.num_missed_cleavages = len(cleave(sequence, expasy_rules['trypsin'], 0)) - 1
         self.note = note
         self.note2 = ''
@@ -369,6 +434,8 @@ class Peptide:
         self.peptscore = 1
         self.peptscore2 = 1
         self.spectrum = spectrum
+        self.spectrum_mz = None
+        self.fragment_mt = None
         self.rank = rank
         self.concentration = 1
         self.solubility = 0
@@ -378,9 +445,43 @@ class Peptide:
         self.next_aa = next_aa
         self.pI = electrochem.pI(self.sequence)
 
+    def get_aa_mass(self):
+        aa_mass = mass.std_aa_mass.copy()
+        fmods = settings.get('modifications', 'fixed')
+        if fmods:
+            for mod in re.split(r'[,;]\s*', fmods):
+                m, aa = parser._split_label(mod)
+                aa_mass[aa] += settings.getfloat('modifications', m)
+        vmods = settings.get('modifications', 'variable')
+        if vmods:
+            mods = [parser._split_label(l) for l in re.split(r',\s*', vmods)]
+            for (mod, aa), char in zip(mods, punctuation):
+                aa_mass[char] = aa_mass[aa] + settings.getfloat('modifications', mod)
+
+    def get_fragment_mt(self):
+        if self.fragment_mt:
+            return self.fragment_mt
+        else:
+            acc = 0.5
+            spectrum_mz = copy(self.spectrum_mz)
+            idx = np.nonzero(spectrum_mz >= 150)
+            spectrum_mz = spectrum_mz[idx]
+            theor = theor_spectrum(self.sequence)
+            spectrum_KDTree = cKDTree(spectrum_mz.reshape((spectrum_mz.size, 1)))
+
+            dist_total = np.array([])
+            for fragments in theor.values():
+                n = fragments.size
+                dist, ind = spectrum_KDTree.query(fragments.reshape((n, 1)),
+                    distance_upper_bound=acc)
+                mask = (dist != np.inf)
+                dist_total = np.append(dist_total, dist[dist != np.inf])
+            return np.median(dist_total)
+
     def mass_diff(self):
         """Calculates a difference between theoretical and experimental masses. Takes into account an isotope mass difference error"""
         return (self.massdiff - round(self.massdiff, 0) * 1.0033548378) / (self.pmass - round(self.massdiff, 0) * 1.0033548378) * 1e6
+        #return self.massdiff / self.pmass * 1e6
 
     def modified_peptide(self):
         i = 0

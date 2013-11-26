@@ -20,7 +20,7 @@ def simple_score(spectrum, peptide, settings):
 
 def get_fragment_mass_tol(spectrum, peptide, settings):
     """A function for obtaining optimal fragment mass tolerance, dynamic range"""
-    acc = 1  # maximum product accuracy
+    acc = 1.0  # maximum product accuracy
     spectrum = copy(spectrum)
     idx = np.nonzero(spectrum['m/z array'] >= 150)
     spectrum['intensity array'] = spectrum['intensity array'][idx]
