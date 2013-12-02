@@ -8,7 +8,10 @@ if len(sys.argv) > 1:
 else:
     num = 3
 settings = ip.settings('test.cfg')
+if settings.getint('performance', 'processes') != 1:
+    settings.set('performance', 'processes', 1)
+    print "Setting the number of processes to 1."
 cProfile.run(
-    '''for _, (s, res) in zip(range(num), ip.process_file('swedcad.mgf', settings)):
+    '''for _, res in zip(range(num), ip.process_file('test.mgf', settings)):
         pass
     ''')
