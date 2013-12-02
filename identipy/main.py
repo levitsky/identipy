@@ -118,7 +118,7 @@ def get_arrays(settings):
 
     if arr_name is None:
 
-        print('Generating peptide arrays ...')
+        print 'Generating peptide arrays ...'
         def get_note(protein_description, label='DECOY_'):
             return 'd' if protein_description.startswith(label) else 't'
 
@@ -202,7 +202,7 @@ def spectrum_processor(settings):
 def process_spectra(f, settings):
     # prepare the function
     func = spectrum_processor(settings)
-    print('Running the search ...')
+    print 'Running the search ...'
     # decide on multiprocessing
     n = settings.getint('performance', 'processes')
     return utils.multimap(n, func, f)
@@ -226,16 +226,16 @@ def process_file(fname, settings):
 
 
 def double_run(fname, settings, stage1):
-    print('[double run] stage 1 starting ...')
+    print '[double run] stage 1 starting ...'
     new_settings = stage1(fname, settings)
     new_settings.remove_option('performance', 'arrays')
-    print('[double run] stage 2 starting ...')
+    print '[double run] stage 2 starting ...'
     return process_file(fname, new_settings)
 
 
 def varmod_stage1(fname, settings):
     """Take mods, make a function that yields new settings"""
-    print('Running preliminary search (no modifications) ...')
+    print 'Running preliminary search (no modifications) ...'
     aa_mass = utils.get_aa_mass(settings)
     mods = settings.get('modifications', 'variable')
     mods = [parser._split_label(l) for l in re.split(r',\s*', mods)]
@@ -253,7 +253,7 @@ def varmod_stage1(fname, settings):
 
     n = settings.getint('modifications', 'maximum variable mods')
     seq_iter = chain.from_iterable(
-            (parser.tostring(x, False) for x in 
+            (parser.tostring(x, False) for x in
                 parser.isoforms(seq, variable_mods=mod_dict, format='split')
                 if ((len(x[0]) > 2) + (len(x[-1]) > 2) + sum(
                     len(y) > 1 for y in x[1:-1])) <= n)
