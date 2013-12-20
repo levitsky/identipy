@@ -1,4 +1,3 @@
-import sys
 import numpy as np
 from pyteomics import parser, mass, fasta, auxiliary as aux, mgf, mzml
 from itertools import chain
@@ -9,18 +8,14 @@ import ast
 import hashlib
 from copy import copy
 from string import punctuation
-#from . import scoring, utils
 import scoring, utils
 from types import FunctionType
-try:
-    from configparser import RawConfigParser
-except ImportError:
-    from ConfigParser import RawConfigParser
-
+from ConfigParser import RawConfigParser
 
 def top_candidates_from_arrays(spectrum, settings):
     spectrum = copy(spectrum)
-    idx = np.nonzero(spectrum['m/z array'] >= 150)
+    idx = np.nonzero(spectrum['m/z array'] >=
+            settings.getfloat('search', 'product minimum m/z'))
     spectrum['intensity array'] = spectrum['intensity array'][idx]
     spectrum['m/z array'] = spectrum['m/z array'][idx]
     maxpeaks = settings.getint('scoring', 'maximum peaks')
@@ -43,11 +38,12 @@ def top_candidates_from_arrays(spectrum, settings):
         spectrum['m/z array'] = spectrum['m/z array'][i]
     if minpeaks and spectrum['intensity array'].size < minpeaks:
         return []
-    
+
     masses, seqs, notes = get_arrays(settings) if not settings.has_option(
             'performance', 'arrays') else settings.get('performance', 'arrays')
     exp_mass = utils.neutral_masses(spectrum, settings)
     n = settings.getint('output', 'candidates')
+    if n < 1: n = None
     score = utils.import_(settings.get('scoring', 'score'))
     acc_l = settings.getfloat('search', 'precursor accuracy value left')
     acc_r = settings.getfloat('search', 'precursor accuracy value right')
@@ -65,17 +61,17 @@ def top_candidates_from_arrays(spectrum, settings):
         if c != 1:
             dm_l = acc_l * m / 1.0e6 if rel else acc_l * c
             dm_r = acc_r * m / 1.0e6 if rel else acc_r * c
-            start = masses.searchsorted(m + dm_l)
+            start = masses.searchsorted(m - dm_l)
             end = masses.searchsorted(m + dm_r)
             candidates.extend(seqs[start:end])
             candidates_notes.extend(notes[start:end])
-
     threshold = settings.getfloat('scoring', 'score threshold')
 
-    result = [(score(spectrum, x, settings), x, candidates_notes[idx]) for idx, x in enumerate(candidates)]
+    result = [(score(spectrum, x, settings), x, candidates_notes[idx])
+            for idx, x in enumerate(candidates)]
     result = sorted((x for x in result if x[0] > threshold), reverse=True)[:n]
 
-    result = [(score, seq.decode('ascii'), note) for score, seq, note in result]
+    result = [(score, seq, note) for score, seq, note in result]
     if settings.has_option('misc', 'legend'):
         mods = list(zip(settings.get('misc', 'legend'), punctuation))
         res = []
@@ -88,15 +84,18 @@ def top_candidates_from_arrays(spectrum, settings):
 
 
 def get_arrays(settings):
-    print('Generating peptide arrays ...')
     db = settings.get('input', 'database')
     hasher = settings.get('misc', 'hash')
     dbhash = hashlib.new(hasher)
     with open(db) as f:
+        print "Scanning database contents..."
         for line in f:
-            dbhash.update(line.encode('ascii'))
+            dbhash.update(line)
     dbhash = dbhash.hexdigest()
+    print "Done."
     folder = settings.get('performance', 'folder')
+    if not os.path.isdir(folder):
+        os.makedirs(folder)
     enzyme = settings.get('search', 'enzyme')
     enzyme = parser.expasy_rules.get(enzyme, enzyme)
     mc = settings.getint('search', 'miscleavages')
@@ -105,6 +104,7 @@ def get_arrays(settings):
     aa_mass = utils.get_aa_mass(settings)
     add_decoy = settings.getboolean('input', 'add decoy')
     index = os.path.join(folder, 'identipy.idx')
+    prefix = settings.get('input', 'decoy prefix')
 
     profile = (dbhash, add_decoy, enzyme, mc, minlen, maxlen, aa_mass)
     arr_name = None
@@ -118,37 +118,29 @@ def get_arrays(settings):
 
     if arr_name is None:
 
+        print 'Generating peptide arrays ...'
         def get_note(protein_description, label='DECOY_'):
-            if fasta.parse(protein_description)['id'].split('|')[0].startswith(label):
-                return 'd'
-            return 't'
+            return 'd' if protein_description.startswith(label) else 't'
 
         def peps():
             if not add_decoy:
-                #prots = (prot for _, prot in fasta.read(db))
-                prots = (tuple(x) for x in fasta.read(db))
-                prefix = 'DECOY_'
+                prots = fasta.read(db)
             else:
-                prefix = settings.get('input', 'decoy prefix')
                 mode = settings.get('input', 'decoy method')
-                prots = fasta.decoy_db(db, mode=mode,
-                    prefix=prefix)
-            #func = lambda prot: [pep for pep in parser.cleave(prot, enzyme, mc)
-            #        if minlen <= len(pep) <= maxlen and parser.fast_valid(pep)]
-            func = lambda prot: [(pep, get_note(prot[0], label=prefix)) for pep in parser.cleave(prot[1], enzyme, mc)
+                prots = fasta.decoy_db(db, mode=mode, prefix=prefix)
+            func = lambda prot: [(pep, get_note(prot[0], label=prefix))
+                    for pep in parser.cleave(prot[1], enzyme, mc)
                     if minlen <= len(pep) <= maxlen and parser.fast_valid(pep)]
 
             n = settings.getint('performance', 'processes')
             return chain.from_iterable(
                     utils.multimap(n, func, prots))
 
-        #seqs = np.fromiter(peps(), dtype=np.dtype((np.str_, maxlen)))
-#        seqs, notes = np.array(peps()).T
-        seqs, notes = zip(*peps())
-        seqs = np.array(seqs, dtype=np.dtype((np.str_, maxlen)))
-        notes = np.array(notes, dtype=np.dtype((np.str_, 1)))
-        seqs, idx = np.unique(seqs, return_index=True)
-        notes = notes[idx]
+        seqs_and_notes = np.fromiter(peps(), dtype=np.dtype(
+            [('seq', np.str_, maxlen), ('note', np.str_, 1)]))
+
+        seqs, idx = np.unique(seqs_and_notes['seq'], return_index=True)
+        notes = seqs_and_notes['note'][idx]
         masses = np.empty(seqs.shape, dtype=np.float32)
         for i in np.arange(seqs.size):
             masses[i] = mass.fast_mass(seqs[i], aa_mass=aa_mass)
@@ -162,6 +154,7 @@ def get_arrays(settings):
             name = outfile.name
         with open(index, 'a') as ifile:
             ifile.write(str(profile) + '\t' + name + '\n')
+        print "Arrays saved."
 
     else:
         npz = np.load(arr_name)
@@ -191,7 +184,7 @@ def spectrum_processor(settings):
                     condition = utils.import_(condition)
             else:
                 condition = utils.allow_all
-                
+
             def f(s):
                 c = candidates(s)
                 c = [x for x in c if condition(s, str(x[1]), settings)]
@@ -209,7 +202,7 @@ def spectrum_processor(settings):
 def process_spectra(f, settings):
     # prepare the function
     func = spectrum_processor(settings)
-    print('Running the search ...')
+    print 'Running the search ...'
     # decide on multiprocessing
     n = settings.getint('performance', 'processes')
     return utils.multimap(n, func, f)
@@ -233,16 +226,16 @@ def process_file(fname, settings):
 
 
 def double_run(fname, settings, stage1):
-    print('[double run] stage 1 starting ...')
+    print '[double run] stage 1 starting ...'
     new_settings = stage1(fname, settings)
     new_settings.remove_option('performance', 'arrays')
-    print('[double run] stage 2 starting ...')
+    print '[double run] stage 2 starting ...'
     return process_file(fname, new_settings)
 
 
 def varmod_stage1(fname, settings):
     """Take mods, make a function that yields new settings"""
-    print('Running preliminary search (no modifications) ...')
+    print 'Running preliminary search (no modifications) ...'
     aa_mass = utils.get_aa_mass(settings)
     mods = settings.get('modifications', 'variable')
     mods = [parser._split_label(l) for l in re.split(r',\s*', mods)]
@@ -260,12 +253,12 @@ def varmod_stage1(fname, settings):
 
     n = settings.getint('modifications', 'maximum variable mods')
     seq_iter = chain.from_iterable(
-            (parser.tostring(x, False) for x in 
+            (parser.tostring(x, False) for x in
                 parser.isoforms(seq, variable_mods=mod_dict, format='split')
                 if ((len(x[0]) > 2) + (len(x[-1]) > 2) + sum(
                     len(y) > 1 for y in x[1:-1])) <= n)
             for seq in candidates)
-    
+
     def prepare_seqs():
         for seq in seq_iter:
             for (mod, aa), char in zip(mods, punctuation):
@@ -292,12 +285,8 @@ def settings(fname=None, default_name=os.path.join(
         os.path.dirname(os.path.abspath(__file__)), os.pardir, 'default.cfg')):
     """Read a configuration file and return a :py:class:`RawConfigParser` object.
     """
-    kw = {'inline_comment_prefixes': ('#', ';')
-            } if sys.version_info.major == 3 else {}
-    kw['dict_type'] = dict
-    kw['allow_no_value'] = True
 
-    raw_config = RawConfigParser(**kw)
+    raw_config = RawConfigParser(dict_type=dict, allow_no_value=True)
     if default_name:
         raw_config.read(default_name)
     if fname:
