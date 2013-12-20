@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import shelve
-import ClientForm
+import mechanize
 import urllib2
 import re
 import commands
@@ -56,7 +56,7 @@ def calculate_RH(seq_list, pore_size=100, ion_pairing_agent='TFA', pH=2,
         urllib2.install_opener(opener)
     request = urllib2.Request('http://hs2.proteome.ca/SSRCalc/SSRCalcX.html')
     response = urllib2.urlopen(request)
-    forms = ClientForm.ParseResponse(response, backwards_compat=False)
+    forms = mechanize.ParseResponse(response, backwards_compat=False)
     response.close()
     form = forms[0]
     if ion_pairing_agent == 'FA':

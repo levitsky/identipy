@@ -53,7 +53,7 @@ def optimization(fname, settings):
         results.append(res)
     cutoff = get_cutoff(results, FDR=1)
     print cutoff
-    
+
     functions = ['rt_filtering', 'precursor_mass_optimization',
                   'fragment_mass_optimization', 'missed_cleavages_optimization', 'charge_optimization']
     for func in functions:
@@ -145,8 +145,8 @@ def fragment_mass_optimization(results, settings, cutoff):
     print 'NEW FRAGMENT MASS TOLERANCE = %s' % (best_frag_mt, )
     settings.set('search', 'product accuracy', best_frag_mt)
     return settings
-    
-    
+
+
 def rt_filtering(results, settings, cutoff):
     settings = copy(settings)
     formula = "[float(RT), str(seq)]"

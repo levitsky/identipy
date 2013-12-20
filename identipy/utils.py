@@ -182,7 +182,7 @@ def write_pepxml(inputfile, settings, results):
     enzyme = settings.get('search', 'enzyme')
     search_engine = 'IdentiPy'
     database = settings.get('input', 'database')
-    missed_cleavages = settings.get('search', 'miscleavages')
+    missed_cleavages = settings.getint('search', 'miscleavages')
 
 
     output = open(filename, 'w')
@@ -241,10 +241,12 @@ def write_pepxml(inputfile, settings, results):
     results = [x for x in results if x['candidates']]
     pept_prot = dict()
     prots = dict()
+    peptides = set(x['candidates'][i][1] for x in results for i in range(
+                settings.getint('output', 'candidates') or len(x['candidates'])))
     for desc, prot in fasta.read(database):
         prots[desc.split(' ')[0]] = desc
         for pep in parser.cleave(prot, parser.expasy_rules.get(enzyme, enzyme), missed_cleavages):
-            if pep in set([x['candidates'][0][1] for x in results]):
+            if pep in peptides:
                 dbinfo = desc
                 try:
                     pept_prot[pep] = np.append(pept_prot[pep], dbinfo.split(' ')[0])
