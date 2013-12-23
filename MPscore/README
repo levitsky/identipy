@@ -1,0 +1,21 @@
+MPscore is available as a standalone script, MP.py. Requirements:
+ - Python 2.7
+ - numpy
+ - scipy
+ - matplotlib
+ - pyteomics
+ - pyteomics.biolccc
+
+The pepXML, FASTA and .cfg files are required for basic operation of the script.
+Cfg file contains settings for the algorithm. For some descriptors, MGF or
+mzML files are needed. For quantitation through sum of matched fragment ion
+intensities, an X!Tandem output XML file is needed.
+
+Algorithm can be run with following command:
+
+    python MP.py path_to_pepxml path_to_fasta path_to_cfg *path_to_txml *path_to_mzml *path_to_mgf.
+
+Output contains pictures with descriptor distributions, a CSV table with
+identified protein groups (only best protein from the group in terms of number
+of identified peptides, at least 2 peptides) and a CSV table with identified
+peptides (only best match for peptide in terms of e-value).
