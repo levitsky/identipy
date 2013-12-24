@@ -98,7 +98,7 @@ def get_arrays(settings):
         os.makedirs(folder)
     enzyme = settings.get('search', 'enzyme')
     enzyme = parser.expasy_rules.get(enzyme, enzyme)
-    mc = settings.getint('search', 'miscleavages')
+    mc = settings.getint('search', 'missed cleavages')
     minlen = settings.getint('search', 'peptide minimum length')
     maxlen = settings.getint('search', 'peptide maximum length')
     aa_mass = utils.get_aa_mass(settings)
@@ -141,6 +141,7 @@ def get_arrays(settings):
 
         seqs, idx = np.unique(seqs_and_notes['seq'], return_index=True)
         notes = seqs_and_notes['note'][idx]
+        del seqs_and_notes
         masses = np.empty(seqs.shape, dtype=np.float32)
         for i in np.arange(seqs.size):
             masses[i] = mass.fast_mass(seqs[i], aa_mass=aa_mass)
