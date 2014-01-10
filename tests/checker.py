@@ -7,6 +7,7 @@ if inputfile == 'swedcad.mgf':
     tot, wro, leu = 0, 0, 0
     try:
         for res in main.process_file(inputfile, settings):
+            print len(res['candidates'])
             tot += 1
             pep = res['spectrum']['params']['title']
             match = res['candidates'][0][1] if res['candidates'] else '<NOTHING>'

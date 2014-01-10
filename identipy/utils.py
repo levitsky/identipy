@@ -194,7 +194,7 @@ def write_pepxml(inputfile, settings, results):
     root.set("date", strftime("%Y:%m:%d:%H:%M:%S"))
     root.set("summary_xml", '')
     root.set("xmlns", 'http://regis-web.systemsbiology.net/pepXML')
-    # TO ADD!
+    # TODO
     #root.set("xmlns:xsi", 'http://www.w3.org/2001/XMLSchema-instance')
     #root.set("xsi:schemaLocation", 'http://sashimi.sourceforge.net/schema_revision/pepXML/pepXML_v117.xsd')
 
@@ -270,7 +270,7 @@ def write_pepxml(inputfile, settings, results):
 
             tmp2 = etree.Element('search_result')
             result['candidates'] = result['candidates'][:len(result['e-values'])]
-            
+
             for i, candidate in enumerate(result['candidates']):
                 tmp3 = etree.Element('search_hit')
                 tmp3.set('hit_rank', str(i + 1))
@@ -279,7 +279,7 @@ def write_pepxml(inputfile, settings, results):
                 tmp3.set('peptide_prev_aa', 'K')  # ???
                 tmp3.set('peptide_next_aa', 'K')  # ???
                 proteins = pept_prot[sequence]
-                
+
                 tmp3.set('protein', prots[proteins[0]].split(' ', 1)[0])
                 tmp3.set('protein_descr', prots[proteins[0]].split(' ', 1)[1])
 

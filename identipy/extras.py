@@ -87,8 +87,8 @@ def precursor_mass_optimization(results, settings, cutoff):
     best_par_mt_r = max(massdif[massdif < scoreatpercentile(massdif, 99.5)])
 
     print 'NEW PARENT MASS TOLERANCE = %s:%s' % (best_par_mt_l, best_par_mt_r)
-    settings.set('search', 'precursor accuracy value left', best_par_mt_l)
-    settings.set('search', 'precursor accuracy value right', best_par_mt_r)
+    settings.set('search', 'precursor accuracy left', best_par_mt_l)
+    settings.set('search', 'precursor accuracy right', best_par_mt_r)
     return settings
 
 

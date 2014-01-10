@@ -12,7 +12,7 @@ import scoring, utils
 from types import FunctionType
 from ConfigParser import RawConfigParser
 
-def top_candidates_from_arrays(spectrum, settings):
+def candidates_from_arrays(spectrum, settings):
     spectrum = copy(spectrum)
     idx = np.nonzero(spectrum['m/z array'] >=
             settings.getfloat('search', 'product minimum m/z'))
@@ -42,11 +42,9 @@ def top_candidates_from_arrays(spectrum, settings):
     masses, seqs, notes = get_arrays(settings) if not settings.has_option(
             'performance', 'arrays') else settings.get('performance', 'arrays')
     exp_mass = utils.neutral_masses(spectrum, settings)
-    n = settings.getint('output', 'candidates')
-    if n < 1: n = None
     score = utils.import_(settings.get('scoring', 'score'))
-    acc_l = settings.getfloat('search', 'precursor accuracy value left')
-    acc_r = settings.getfloat('search', 'precursor accuracy value right')
+    acc_l = settings.getfloat('search', 'precursor accuracy left')
+    acc_r = settings.getfloat('search', 'precursor accuracy right')
     unit = settings.get('search', 'precursor accuracy unit')
     if unit == 'ppm':
         rel = True
@@ -67,11 +65,13 @@ def top_candidates_from_arrays(spectrum, settings):
             candidates_notes.extend(notes[start:end])
     threshold = settings.getfloat('scoring', 'score threshold')
 
-    result = [(score(spectrum, x, settings), x, candidates_notes[idx])
-            for idx, x in enumerate(candidates)]
-    result = sorted((x for x in result if x[0] > threshold), reverse=True)[:n]
+    result = []
+    for idx, x in enumerate(candidates):
+        s = score(spectrum, x, settings)
+        if s > threshold:
+            result.append((s, x, candidates_notes[idx]))
+    result.sort(reverse=True)
 
-    result = [(score, seq, note) for score, seq, note in result]
     if settings.has_option('misc', 'legend'):
         mods = list(zip(settings.get('misc', 'legend'), punctuation))
         res = []
@@ -175,7 +175,7 @@ def spectrum_processor(settings):
         settings = copy(settings)
         if not settings.has_option('performance', 'arrays'):
             settings.set('performance', 'arrays', get_arrays(settings))
-        candidates = lambda s: top_candidates_from_arrays(s, settings)
+        candidates = lambda s: candidates_from_arrays(s, settings)
         if processor == 'minimal':
             return lambda s: {'spectrum': s, 'candidates': candidates(s)}
         elif processor == 'e-value':
