@@ -112,36 +112,35 @@ def hyperscore(spectrum, peptide, settings):
 
 
 def survival_hist(scores):
-    hyperscore_h, _ = np.histogram(scores, bins=np.arange(0, round(scores[0]) + 1.5))
-    survival_h = hyperscore_h.sum() - np.hstack(([0], hyperscore_h[:-1].cumsum()))
-    surv_left = survival_h[0] / 5.
-    decr = 0
-    j = len(survival_h) - 1
     X_axis = Y_axis = None
-    while j > 0:
-        if survival_h[j] == survival_h[j - 1] and survival_h[j] <= surv_left:
-            decr = survival_h[j]
-            j -= 1
-            while (survival_h[j] == decr and survival_h[j] <= surv_left):
-                survival_h[j] -= decr
-                j -= 1
-        else:
-            survival_h[j] -= decr
-            j -= 1
-    survival_h[0] -= decr
+    calib_coeff = (-0.18, 3.5)
+    print scores.size
+    if scores.size:
+        hyperscore_h, _ = np.histogram(scores, bins=np.arange(0, round(scores[0]) + 1.5))
+        j = hyperscore_h.size - 1
+        if j > 20:
+            survival_h = hyperscore_h.sum() - np.hstack(([0], hyperscore_h[:-1].cumsum()))
+            surv_left = survival_h[0] / 5.
+            decr = 0
+            while j > 0:
+                if survival_h[j] == survival_h[j - 1] and survival_h[j] <= surv_left:
+                    decr = survival_h[j]
+                    j -= 1
+                    while (survival_h[j] == decr and survival_h[j] <= surv_left):
+                        survival_h[j] -= decr
+                        j -= 1
+                else:
+                    survival_h[j] -= decr
+                    j -= 1
+            survival_h[0] -= decr
 
-    if len(survival_h) > 20:
-        max_surv = survival_h[0] / 2. + 1.
-        min_surv = 10
-        proper_surv = (min_surv <= survival_h) * (survival_h <= max_surv)
-        if proper_surv.sum() < 2:
-            calib_coeff = (-0.18, 3.5)
-        else:
-            X_axis = proper_surv.nonzero()[0]
-            Y_axis = np.log10(survival_h[proper_surv])
-            calib_coeff = np.polyfit(X_axis, Y_axis, 1)
-    else:
-        calib_coeff = (-0.18, 3.5)
+            max_surv = survival_h[0] / 2. + 1.
+            min_surv = 10
+            proper_surv = (min_surv <= survival_h) * (survival_h <= max_surv)
+            if proper_surv.sum() > 2:
+                X_axis = proper_surv.nonzero()[0]
+                Y_axis = np.log10(survival_h[proper_surv])
+                calib_coeff = np.polyfit(X_axis, Y_axis, 1)
 
     return (X_axis, Y_axis), calib_coeff
 
