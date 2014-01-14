@@ -114,10 +114,11 @@ def hyperscore(spectrum, peptide, settings):
 def survival_hist(scores):
     X_axis = Y_axis = None
     calib_coeff = (-0.18, 3.5)
-    print scores.size
+    print 'size:', scores.size
     if scores.size:
         hyperscore_h, _ = np.histogram(scores, bins=np.arange(0, round(scores[0]) + 1.5))
         j = hyperscore_h.size - 1
+        print 'Initial histogram size: {}'.format(j+1)
         if j > 20:
             survival_h = hyperscore_h.sum() - np.hstack(([0], hyperscore_h[:-1].cumsum()))
             surv_left = survival_h[0] / 5.
@@ -132,12 +133,14 @@ def survival_hist(scores):
                 else:
                     survival_h[j] -= decr
                     j -= 1
+#               print 'j = {}, last decr = {}, non-zero bins: {}'.format(j, decr, np.count_nonzero(survival_h))
             survival_h[0] -= decr
-
+            print 'Non-zero bins in the end:', np.count_nonzero(survival_h)
             max_surv = survival_h[0] / 2. + 1.
-            min_surv = 10
+            min_surv = 1
             proper_surv = (min_surv <= survival_h) * (survival_h <= max_surv)
             if proper_surv.sum() > 2:
+                print '{} bins left in the end.'.format(proper_surv.sum())
                 X_axis = proper_surv.nonzero()[0]
                 Y_axis = np.log10(survival_h[proper_surv])
                 calib_coeff = np.polyfit(X_axis, Y_axis, 1)
