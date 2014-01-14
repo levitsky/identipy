@@ -63,13 +63,9 @@ def candidates_from_arrays(spectrum, settings):
             end = masses.searchsorted(m + dm_r)
             candidates.extend(seqs[start:end])
             candidates_notes.extend(notes[start:end])
-    threshold = settings.getfloat('scoring', 'score threshold')
 
-    result = []
-    for idx, x in enumerate(candidates):
-        s = score(spectrum, x, settings)
-        if s > threshold:
-            result.append((s, x, candidates_notes[idx]))
+    result = [(score(spectrum, x, settings), x, candidates_notes[idx])
+        for idx, x in enumerate(candidates)]
     result.sort(reverse=True)
 
     if settings.has_option('misc', 'legend'):

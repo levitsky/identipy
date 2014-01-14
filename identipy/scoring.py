@@ -136,7 +136,7 @@ def survival_hist(scores):
 #               print 'j = {}, last decr = {}, non-zero bins: {}'.format(j, decr, np.count_nonzero(survival_h))
             survival_h[0] -= decr
             print 'Non-zero bins in the end:', np.count_nonzero(survival_h)
-            max_surv = survival_h[0] / 2. + 1.
+            max_surv = survival_h[0] * 0.6 + 1.
             min_surv = 1
             proper_surv = (min_surv <= survival_h) * (survival_h <= max_surv)
             if proper_surv.sum() > 2:

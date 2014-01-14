@@ -7,8 +7,9 @@ settings = main.settings(inputfile.replace('.mgf', '.cfg'))
 
 for res in main.process_file(inputfile, settings):
     scores = 8 * np.log10(np.array([c[0] for c in res['candidates']]))
-    if scores.size: print scores[0]
+    if scores.size: print 'Top score:', scores[0]
     coeffs = scoring.survival_hist(scores)[1]
     print coeffs
+    print '----'
 
 
