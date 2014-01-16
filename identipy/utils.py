@@ -238,7 +238,7 @@ def write_pepxml(inputfile, settings, results):
 
     child4.append(copy(child5))
 
-    results = [x for x in results if x['candidates']]
+    results = [x for x in results if x['candidates'].size]
     pept_prot = dict()
     prots = dict()
     peptides = set(x['candidates'][i][1] for x in results for i in range(
@@ -254,7 +254,7 @@ def write_pepxml(inputfile, settings, results):
                     pept_prot[pep] = np.array([dbinfo.split(' ')[0]], dtype = '|S50')
 
     for idx, result in enumerate(results):
-        if result['candidates']:
+        if result['candidates'].size:
             tmp = etree.Element('spectrum_query')
             spectrum = result['spectrum']
             tmp.set('spectrum', spectrum['params']['title'])

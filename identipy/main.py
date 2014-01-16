@@ -20,6 +20,10 @@ def candidates_from_arrays(spectrum, settings):
     spectrum['m/z array'] = spectrum['m/z array'][idx]
     maxpeaks = settings.getint('scoring', 'maximum peaks')
     minpeaks = settings.getint('scoring', 'minimum peaks')
+    maxlen = settings.getint('search', 'peptide maximum length')
+
+    dtype = np.dtype([('score', np.float32),
+                ('seq', np.str_, maxlen), ('note', np.str_, 1)])
     if maxpeaks and minpeaks > maxpeaks:
         raise ValueError('minpeaks > maxpeaks: {} and {}'.format(
             minpeaks, maxpeaks))
@@ -29,7 +33,7 @@ def candidates_from_arrays(spectrum, settings):
         spectrum['intensity array'] = spectrum['intensity array'][i][j]
         spectrum['m/z array'] = spectrum['m/z array'][i][j]
     if minpeaks and spectrum['intensity array'].size < minpeaks:
-        return []
+        return np.array([], dtype=dtype)
     dynrange = settings.getfloat('scoring', 'dynamic range')
     if dynrange:
         i = spectrum['intensity array'] > spectrum['intensity array'].max(
@@ -37,7 +41,7 @@ def candidates_from_arrays(spectrum, settings):
         spectrum['intensity array'] = spectrum['intensity array'][i]
         spectrum['m/z array'] = spectrum['m/z array'][i]
     if minpeaks and spectrum['intensity array'].size < minpeaks:
-        return []
+        return np.array([], dtype=dtype)
 
     masses, seqs, notes = get_arrays(settings) if not settings.has_option(
             'performance', 'arrays') else settings.get('performance', 'arrays')
@@ -64,8 +68,11 @@ def candidates_from_arrays(spectrum, settings):
             candidates.extend(seqs[start:end])
             candidates_notes.extend(notes[start:end])
 
-    result = [(score(spectrum, x, settings), x, candidates_notes[idx])
-        for idx, x in enumerate(candidates)]
+    result = []
+    for idx, x in enumerate(candidates):
+        s = score(spectrum, x, settings)
+        if s > 0:
+            result.append((s, x, candidates_notes[idx]))
     result.sort(reverse=True)
 
     if settings.has_option('misc', 'legend'):
@@ -74,9 +81,11 @@ def candidates_from_arrays(spectrum, settings):
         for score, cand, note in result:
             for (mod, aa), char in mods:
                 cand = cand.replace(char, mod + aa)
+            if len(cand) > maxlen:
+                maxlen = len(cand)
             res.append((score, cand, note))
         result = res
-    return result
+    return np.array(result, dtype=dtype)
 
 
 def get_arrays(settings):
@@ -179,18 +188,14 @@ def spectrum_processor(settings):
             if condition:
                 if not isinstance(condition, FunctionType):
                     condition = utils.import_(condition)
-            else:
-                condition = utils.allow_all
 
             def f(s):
                 c = candidates(s)
-                c = [x for x in c if condition(s, str(x[1]), settings)]
-                if c:
-                    return {'spectrum': s, 'candidates': c,
+                if condition:
+                    c = np.array([x for x in c if condition(s, x[1], settings)],
+                            dtype=c.dtype)
+                return {'spectrum': s, 'candidates': c,
                     'e-values': scoring.evalues(c, settings)}
-                else:
-                    return {'spectrum': s, 'candidates': [],
-                    'e-values': []}
             return f
     else:
         raise NotImplementedError('Unsupported pre-calculation mode')
