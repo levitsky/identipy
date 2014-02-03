@@ -93,7 +93,7 @@ def get_arrays(settings):
     hasher = settings.get('misc', 'hash')
     dbhash = hashlib.new(hasher)
     with open(db) as f:
-        print "Scanning database contents..."
+        print "Scanning database contents ..."
         for line in f:
             dbhash.update(line)
     dbhash = dbhash.hexdigest()

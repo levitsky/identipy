@@ -7,9 +7,14 @@ from copy import copy
 
 def simple_score(spectrum, peptide, settings):
     acc = settings.getfloat('search', 'product accuracy')
+    int_array = spectrum['intensity array']
+    int_array = int_array / int_array.max() * 100
     charge = max(c for _, c in neutral_masses(spectrum, settings))
     theor = theor_spectrum(peptide, maxcharge=charge, aa_mass=get_aa_mass(settings))
     fragments = np.concatenate(theor.values())
+    if '__KDTree' not in spectrum:
+        spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape(
+            (spectrum['m/z array'].size, 1)))
     dist, ind = spectrum['__KDTree'].query(fragments.reshape((fragments.size, 1)),
             distance_upper_bound=acc)
     mask = dist != np.inf
@@ -115,15 +120,9 @@ def hyperscore(spectrum, peptide, settings):
 def survival_hist(scores):
     X_axis = Y_axis = None
     calib_coeff = (-0.18, 3.5)
-#   print 'size:', scores.size
-    if scores.size:
-        try:
-            hyperscore_h, _ = np.histogram(scores, bins=np.arange(0, round(scores[0]) + 1.5))
-        except ValueError:
-            print scores
-            raise
+    if scores.shape[0] > 20:
+        hyperscore_h, _ = np.histogram(scores, bins=np.arange(0, round(scores[0]) + 1.5))
         j = hyperscore_h.size - 1
-#       print 'Initial histogram size: {}'.format(j+1)
         if j > 20:
             survival_h = hyperscore_h.sum() - np.hstack(([0], hyperscore_h[:-1].cumsum()))
             surv_left = survival_h[0] / 5.
@@ -138,14 +137,11 @@ def survival_hist(scores):
                 else:
                     survival_h[j] -= decr
                     j -= 1
-#               print 'j = {}, last decr = {}, non-zero bins: {}'.format(j, decr, np.count_nonzero(survival_h))
             survival_h[0] -= decr
-#           print 'Non-zero bins in the end:', np.count_nonzero(survival_h)
-            max_surv = survival_h[0] * 0.6 + 1.
-            min_surv = 1
+            max_surv = survival_h[0] * 0.5 + 1.
+            min_surv = 10
             proper_surv = (min_surv <= survival_h) * (survival_h <= max_surv)
             if proper_surv.sum() > 2:
-#               print '{} bins left in the end.'.format(proper_surv.sum())
                 X_axis = proper_surv.nonzero()[0]
                 Y_axis = np.log10(survival_h[proper_surv])
                 calib_coeff = np.polyfit(X_axis, Y_axis, 1)
@@ -156,8 +152,5 @@ def survival_hist(scores):
 def evalues(candidates, settings):
     n = settings.getint('scoring', 'e-values for candidates')
     scores = 4. * np.log10(candidates['score'])
-    if candidates.shape[0] < 20:
-        calib_coeff = (-0.18, 3.5)
-    else:
-        calib_coeff = survival_hist(scores)[1]
+    calib_coeff = survival_hist(scores)[1]
     return 10 ** (scores[:n] * calib_coeff[0] + calib_coeff[1])
