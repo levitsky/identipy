@@ -60,13 +60,12 @@ def candidates_from_arrays(spectrum, settings):
     candidates = []
     candidates_notes = []
     for m, c in exp_mass:
-        if c != 1:
-            dm_l = acc_l * m / 1.0e6 if rel else acc_l * c
-            dm_r = acc_r * m / 1.0e6 if rel else acc_r * c
-            start = masses.searchsorted(m - dm_l)
-            end = masses.searchsorted(m + dm_r)
-            candidates.extend(seqs[start:end])
-            candidates_notes.extend(notes[start:end])
+        dm_l = acc_l * m / 1.0e6 if rel else acc_l * c
+        dm_r = acc_r * m / 1.0e6 if rel else acc_r * c
+        start = masses.searchsorted(m - dm_l)
+        end = masses.searchsorted(m + dm_r)
+        candidates.extend(seqs[start:end])
+        candidates_notes.extend(notes[start:end])
 
     result = []
     for idx, x in enumerate(candidates):
