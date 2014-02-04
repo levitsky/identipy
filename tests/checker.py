@@ -2,7 +2,7 @@ from identipy import main, utils
 from sys import argv
 
 inputfile = argv[1] if len(argv) > 1 else 'test.mgf'
-if inputfile == 'swedcad.mgf':
+if 'swedcad' in inputfile:
     settings = main.settings('swedcad.cfg')
     tot, wro, leu = 0, 0, 0
     try:
