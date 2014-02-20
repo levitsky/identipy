@@ -24,7 +24,7 @@ def find_optimal_xy(descriptors):
             x += 1
     return x, y
 
-def PSMs_info(peptides, valid_proteins, printresults=True, tofile=False):
+def PSMs_info(peptides, valid_proteins, prots_dict=None, printresults=True, tofile=False):
     proteins_groups = []
     full_sequences = set()
     tostay = set()
@@ -160,8 +160,9 @@ def PSMs_info(peptides, valid_proteins, printresults=True, tofile=False):
         output_proteins.close()
     if printresults:
         print 'True PSMs: %s' % (len([1 for x in peptides.peptideslist if x.note2 == 'tr']), )
+        print 'True2 PSMs: %s' % (len([1 for x in peptides.peptideslist if x.note3]), )
         print 'Peptides: %d' % (len(set(p.sequence for p in peptides.peptideslist)))
-#        print 'Wrong PSMs= %s' % (len([1 for x in peptides.peptideslist if x.note2 == 'wr']), )
+#        print 'Wrong Peptides= %s' % (len(set([x.sequence for x in peptides.peptideslist if not x.note3])), )
         print 'Protein groups: %s' % (len(prots.values()))
         print 'Protein groups with >= 2 peptides: %s' % (len([v for v in prots.values() if v['Peptides'] >= 2]))
     #    print 'Total_prots >=2 = %s' % (len(Total_prots_2), )
@@ -177,7 +178,7 @@ def plot_histograms(descriptors, peptides, FDR):
     copy_peptides = PeptideList()
     copy_peptides.peptideslist = list(peptides.peptideslist)
     copy_peptides.pepxml_type = peptides.pepxml_type
-    copy_peptides.filter_evalue_new(FDR=FDR, useMP=False)
+    copy_peptides.filter_evalue_new(FDR1=FDR, useMP=False)
     for idx, descriptor in enumerate(descriptors):
         ax = fig.add_subplot(ox, oy, idx + 1)
         array_wrong = [eval(descriptor.formula) for peptide in peptides.peptideslist if peptide.note2 == 'wr']# and peptide.note == 'decoy']
@@ -226,12 +227,12 @@ def plot_histograms(descriptors, peptides, FDR):
     return fig
 
 
-def plot_MP(descriptors, peptides, fig, FDR, valid_proteins, k=0, threshold0=False):
+def plot_MP(descriptors, peptides, fig, FDR, FDR_new, prots_dict, valid_proteins, threshold0=False):
     ox, oy = find_optimal_xy(descriptors)
     copy_peptides = PeptideList()
     copy_peptides.peptideslist = list(peptides.peptideslist)
     copy_peptides.pepxml_type = peptides.pepxml_type
-    threshold1, threshold2 = copy_peptides.filter_evalue_new(FDR=FDR, useMP=True, k=k)
+    threshold1, threshold2 = copy_peptides.filter_evalue_new(FDR1=FDR, FDR2=FDR_new, useMP=True)
     threshold1 = -log(threshold1)
     try:
         threshold2 = log(threshold2)
@@ -244,7 +245,7 @@ def plot_MP(descriptors, peptides, fig, FDR, valid_proteins, k=0, threshold0=Fal
     PSMs_true = [[(-log(pept.evalue) if pept.evalue != 0 else zero_evalue), (log(pept.peptscore) if pept.peptscore != 0 else zero_peptscore)] for pept in peptides.peptideslist if pept.note2 == 'tr']
 
     print 'MP filtering:'
-    PSMs_info(copy_peptides, valid_proteins, tofile=True)
+    PSMs_info(copy_peptides, valid_proteins, prots_dict=prots_dict, tofile=True)
     print 'Without filtering, after removing outliers:'
     PSMs_info(peptides, valid_proteins)
 
@@ -369,11 +370,12 @@ def main(inputfile):
 
 
     line = inputfile
+    search_space_peptides, decoy_PSMs_all = set(), 0.
     numprots, numpeptides, numprots_true, numpeptides_true = 0, 0, 0, 0
     FDR = settings.getfloat('options', 'FDR')
 
     proteases = [x.strip() for x in settings.get('missed cleavages', 'protease1').split(',')]
-    proteases.extend([x.strip() for x in settings.get('missed cleavages', 'protease2').split(',')])
+    proteases.extend([x.strip() for x in settings.get('missed cleavages', 'protease2').split(',') if x.strip()])
     expasy = '|'.join((parser.expasy_rules[protease] if protease in parser.expasy_rules.keys() else protease for protease in proteases))
 
     RT_type = settings.get('retention time', 'model')
@@ -407,8 +409,8 @@ def main(inputfile):
             numprots += 1
 #            for peptide in parser.cleave(x[1], expasy, 2):
 #                numpeptides += 1
-            numpeptides += len(parser.cleave(x[1], expasy, 2))
-
+            search_space_peptides.update(parser.cleave(x[1], expasy, 2))
+        numpeptides = len(search_space_peptides)
 
     if txmlfile:
         for x in open(txmlfile, 'r').readlines():
@@ -479,6 +481,8 @@ def main(inputfile):
                 peptide.note2 = 'tr'
 
     for peptide in peptides.peptideslist:
+        if peptide.note == 'decoy':
+            decoy_PSMs_all += 1
         try:
             peptide.sumI = Fragment_intensities[peptide.start_scan]
         except:
@@ -527,7 +531,7 @@ def main(inputfile):
     copy_peptides = PeptideList()
     copy_peptides.peptideslist = list(peptides.peptideslist)
     copy_peptides.pepxml_type = peptides.pepxml_type
-    threshold0, _ = copy_peptides.filter_evalue_new(FDR=FDR, useMP=False)
+    threshold0, _ = copy_peptides.filter_evalue_new(FDR1=FDR, useMP=False)
 
     print 'Default filtering:'
     PSMs_info(copy_peptides, valid_proteins)
@@ -602,7 +606,7 @@ def main(inputfile):
             print calibrate_coeff
             peptides.calc_RT(calibrate_coeff=calibrate_coeff, RTtype=RT_type)
             copy_peptides.peptideslist = list(peptides.peptideslist)
-            copy_peptides.filter_evalue_new(FDR=FDR, useMP=False)
+            copy_peptides.filter_evalue_new(FDR1=FDR, useMP=False)
             copy_peptides.calc_RT(calibrate_coeff=calibrate_coeff, RTtype=RT_type)
 
 
@@ -624,16 +628,34 @@ def main(inputfile):
     copy_peptides = PeptideList()
     copy_peptides.peptideslist = list(peptides.peptideslist)
     copy_peptides.pepxml_type = peptides.pepxml_type
-    copy_peptides.filter_evalue_new(FDR=FDR, useMP=False)
-    _, numpeptides_true, numprots_true = PSMs_info(copy_peptides, valid_proteins, printresults=False)
+    copy_peptides.filter_evalue_new(FDR1=FDR, useMP=False)
     descriptors = prepare_hist(descriptors, copy_peptides)
     jk = dict()
     for peptide in peptides.peptideslist:
         jk = calc_peptscore(peptide, descriptors, jk)
 #    print jk
 #    plot_histograms(descriptors, copy_peptides)
-    k = float(numprots_true) / numprots * float(numpeptides_true) / numpeptides
+    k_temp = []
+    while len(k_temp) < 3 or k_temp[-1] != k_temp[-3]:
+        copy_peptides = PeptideList()
+        copy_peptides.peptideslist = list(peptides.peptideslist)
+        copy_peptides.pepxml_type = peptides.pepxml_type
+        if not k_temp:
+            copy_peptides.filter_evalue_new(FDR1=FDR, useMP=False)
+        else:
+            FDR_new = (((FDR / 100 - float(decoy_PSMs_all) / numPSMs_true * k)) / (1 - k) ) * 100
+            copy_peptides.filter_evalue_new(FDR1=FDR, FDR2=FDR_new, useMP=True)
+
+        numpeptides_true = set()
+        numPSMs_true = 0.
+        for peptide in copy_peptides.peptideslist:
+            numpeptides_true.add(peptide.sequence)
+            numPSMs_true += 1
+        k = float(len(numpeptides_true)) / numpeptides
+        FDR_new = (((FDR / 100 - float(decoy_PSMs_all) / numPSMs_true * k)) / (1 - k) ) * 100
+        k_temp.append(float(k))
     print k, 'k factor'
-    plot_MP(descriptors, peptides, fig, FDR, valid_proteins, k, threshold0)
+    print FDR_new, 'FDR_new'
+    plot_MP(descriptors, peptides, fig, FDR, FDR_new, prots_dict, valid_proteins, threshold0)
 
 main(inputfile)

@@ -300,7 +300,7 @@ class PeptideList:
 #            for prot in peptide.parentproteins:
 #                prot.score = float(prots[prot.dbname]) / len(prot.sequence)
 
-    def filter_evalue_new(self, FDR=1, useMP=True, k=0):
+    def filter_evalue_new(self, FDR1=1, useMP=True, FDR2=None):
         "A function for filtering PSMs by e-value and MP-score with some FDR"
         target_evalues, decoy_evalues = np.array([]), np.array([])
         for peptide in self.peptideslist:
@@ -314,7 +314,7 @@ class PeptideList:
         for cut_evalue in target_evalues:
             counter_target = target_evalues[target_evalues <= cut_evalue].size
             counter_decoy = decoy_evalues[decoy_evalues <= cut_evalue].size
-            if counter_target and (float(counter_decoy) / float(counter_target)) * 100 <= float(FDR):
+            if counter_target and (float(counter_decoy) / float(counter_target)) * 100 <= float(FDR1):
                 best_cut_evalue = cut_evalue
                 real_FDR = round(float(counter_decoy) / float(counter_target) * 100, 1)
         if not best_cut_evalue:
@@ -335,7 +335,7 @@ class PeptideList:
             for cut_peptscore in target_peptscores:
                 counter_target = target_peptscores[target_peptscores >= cut_peptscore].size
                 counter_decoy = decoy_peptscores[decoy_peptscores >= cut_peptscore].size
-                if counter_target and (float(counter_decoy) / float(counter_target)) * 100 <= float(FDR) / (1 + k):
+                if counter_target and (float(counter_decoy) / float(counter_target)) * 100 <= float(FDR2):
                     best_cut_peptscore = cut_peptscore
                     real_FDR = round(float(counter_decoy) / float(counter_target) * 100, 1)
             print real_FDR, best_cut_peptscore, 'MP score'
@@ -508,11 +508,9 @@ class Peptide:
                 dist, ind = spectrum_KDTree.query(fragments.reshape((n, 1)),
                     distance_upper_bound=acc)
                 mask = (dist != np.inf)
-                dist_total = np.append(dist_total, dist[dist != np.inf])
+                dist_total = np.append(dist_total, dist[mask])
             if dist_total.size:
                 self.fragment_mt = np.median(dist_total)
-#                self.fragment_mt = float(scoreatpercentile(dist_total, 75) - scoreatpercentile(dist_total, 25))
-#                 self.fragment_mt = scoreatpercentile(dist_total, 80)
             else:
                 self.fragment_mt = acc
         return self.fragment_mt
