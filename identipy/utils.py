@@ -182,7 +182,7 @@ def write_pepxml(inputfile, settings, results):
     enzyme = settings.get('search', 'enzyme')
     search_engine = 'IdentiPy'
     database = settings.get('input', 'database')
-    missed_cleavages = settings.getint('search', 'miscleavages')
+    missed_cleavages = settings.getint('search', 'missed cleavages')
 
 
     output = open(filename, 'w')
