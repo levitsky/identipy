@@ -2,14 +2,15 @@ from identipy import main, utils
 from sys import argv
 
 inputfile = argv[1] if len(argv) > 1 else 'test.mgf'
-if inputfile == 'swedcad.mgf':
+if 'swedcad' in inputfile:
     settings = main.settings('swedcad.cfg')
     tot, wro, leu = 0, 0, 0
     try:
         for res in main.process_file(inputfile, settings):
+#           print len(res['candidates'])
             tot += 1
             pep = res['spectrum']['params']['title']
-            match = res['candidates'][0][1] if res['candidates'] else '<NOTHING>'
+            match = res['candidates'][0][1] if res['candidates'].size else '<NOTHING>'
             if pep != match:
                 wro += 1
                 if pep.replace('I', 'L') == match.replace('I', 'L'):

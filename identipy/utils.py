@@ -8,50 +8,21 @@ from copy import copy
 
 
 def find_nearest(array, value):
-    return (np.abs(array - value)).argmin()
+    return (np.abs(np.array(array) - value)).argmin()
 
 
 def get_info(spectrum, result, settings, aa_mass=None):
-    'Returns neutral mass, charge state and retention time of the spectrum'
+    'Returns neutral mass, charge state and retention time of the top candidate'
     if not aa_mass:
         aa_mass = get_aa_mass(settings)
     if 'params' in spectrum:
-        exp_mass = spectrum['params']['pepmass'][0]
-        charge = spectrum['params'].get('charge')
         RT = spectrum['params'].get('rtinseconds')
     else:
-        ion = spectrum['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]
-        charge = int(ion['charge state'])
-        exp_mass = ion['selected ion m/z']
         RT = spectrum['scanList']['scan'][0]['scan start time']
-    if isinstance(charge, str):
-        states = aux._parse_charge(charge)
-        if isinstance(states, int):
-            states = [states]
-    elif charge is None:
-        states = list(range(settings.getint('search', 'minimum charge'), 1 + settings.getint('search', 'maximum charge')))
-    else:
-        states = [charge]
-    states = [s for s in states if settings.getint('search', 'minimum charge') <= s <= settings.getint('search', 'maximum charge')]
-    states.sort()
-    masses = np.array([exp_mass * ch - ch * mass.nist_mass['H+'][0][0]
-            for ch in states])
+    masses, states = zip(*neutral_masses(spectrum, settings))
     idx = find_nearest(masses, mass.fast_mass(result['candidates'][0][1], aa_mass=aa_mass))
     return (masses[idx], states[idx], RT)
 
-
-def decode(func):
-    if sys.version_info.major == 3:
-        def f(s, *args, **kwargs):
-            if isinstance(s, bytes):
-                return func(s.decode('ascii'), *args, **kwargs)
-            else:
-                return func(s, *args, **kwargs)
-        return f
-    return func
-
-
-@decode
 def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, **kwargs):
     peaks = {}
     if not maxcharge:
@@ -79,21 +50,23 @@ def neutral_masses(spectrum, settings):
         exp_mass = spectrum['params']['pepmass'][0]
         charge = spectrum['params'].get('charge')
     else:
-        ion = spectrum['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]
-        charge = int(ion['charge state'])
+        ion = spectrum['precursorList']['precursor'][
+                0]['selectedIonList']['selectedIon'][0]
+        charge = ion.get('charge state')
+        if charge is not None: charge = [int(charge)]
         exp_mass = ion['selected ion m/z']
     if isinstance(charge, str):
-        states = aux._parse_charge(charge)
-        if isinstance(states, int):
-            states = [states]
+        states = [s for s in aux._parse_charge(charge, True)
+                if settings.getint('search', 'minimum charge'
+                    ) <= s <= settings.getint('search', 'maximum charge')]
     elif charge is None:
-        states = list(range(settings.getint('search', 'minimum charge'), 1 + settings.getint('search', 'maximum charge')))
+        states = range(settings.getint('search', 'minimum charge'),
+            1 + settings.getint('search', 'maximum charge'))
     else:
-        states = [charge]
-    states = [s for s in states if settings.getint('search', 'minimum charge') <= s <= settings.getint('search', 'maximum charge')]
+        states = charge
     states.sort()
-    return zip((exp_mass * ch - ch * mass.nist_mass['H+'][0][0]
-            for ch in states), states)
+    return zip((c * (exp_mass - mass.nist_mass['H+'][0][0])
+            for c in states), states)
 
 
 @aux.memoize(10)
@@ -194,7 +167,7 @@ def write_pepxml(inputfile, settings, results):
     root.set("date", strftime("%Y:%m:%d:%H:%M:%S"))
     root.set("summary_xml", '')
     root.set("xmlns", 'http://regis-web.systemsbiology.net/pepXML')
-    # TO ADD!
+    # TODO
     #root.set("xmlns:xsi", 'http://www.w3.org/2001/XMLSchema-instance')
     #root.set("xsi:schemaLocation", 'http://sashimi.sourceforge.net/schema_revision/pepXML/pepXML_v117.xsd')
 
@@ -238,7 +211,7 @@ def write_pepxml(inputfile, settings, results):
 
     child4.append(copy(child5))
 
-    results = [x for x in results if x['candidates']]
+    results = [x for x in results if x['candidates'].size]
     pept_prot = dict()
     prots = dict()
     peptides = set(x['candidates'][i][1] for x in results for i in range(
@@ -254,7 +227,7 @@ def write_pepxml(inputfile, settings, results):
                     pept_prot[pep] = np.array([dbinfo.split(' ')[0]], dtype = '|S50')
 
     for idx, result in enumerate(results):
-        if result['candidates']:
+        if result['candidates'].size:
             tmp = etree.Element('spectrum_query')
             spectrum = result['spectrum']
             tmp.set('spectrum', spectrum['params']['title'])
@@ -270,7 +243,7 @@ def write_pepxml(inputfile, settings, results):
 
             tmp2 = etree.Element('search_result')
             result['candidates'] = result['candidates'][:len(result['e-values'])]
-            
+
             for i, candidate in enumerate(result['candidates']):
                 tmp3 = etree.Element('search_hit')
                 tmp3.set('hit_rank', str(i + 1))
@@ -279,7 +252,7 @@ def write_pepxml(inputfile, settings, results):
                 tmp3.set('peptide_prev_aa', 'K')  # ???
                 tmp3.set('peptide_next_aa', 'K')  # ???
                 proteins = pept_prot[sequence]
-                
+
                 tmp3.set('protein', prots[proteins[0]].split(' ', 1)[0])
                 tmp3.set('protein_descr', prots[proteins[0]].split(' ', 1)[1])
 

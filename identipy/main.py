@@ -12,7 +12,7 @@ import scoring, utils
 from types import FunctionType
 from ConfigParser import RawConfigParser
 
-def top_candidates_from_arrays(spectrum, settings):
+def candidates_from_arrays(spectrum, settings):
     spectrum = copy(spectrum)
     idx = np.nonzero(spectrum['m/z array'] >=
             settings.getfloat('search', 'product minimum m/z'))
@@ -20,6 +20,10 @@ def top_candidates_from_arrays(spectrum, settings):
     spectrum['m/z array'] = spectrum['m/z array'][idx]
     maxpeaks = settings.getint('scoring', 'maximum peaks')
     minpeaks = settings.getint('scoring', 'minimum peaks')
+    maxlen = settings.getint('search', 'peptide maximum length')
+
+    dtype = np.dtype([('score', np.float32),
+                ('seq', np.str_, maxlen), ('note', np.str_, 1)])
     if maxpeaks and minpeaks > maxpeaks:
         raise ValueError('minpeaks > maxpeaks: {} and {}'.format(
             minpeaks, maxpeaks))
@@ -29,7 +33,7 @@ def top_candidates_from_arrays(spectrum, settings):
         spectrum['intensity array'] = spectrum['intensity array'][i][j]
         spectrum['m/z array'] = spectrum['m/z array'][i][j]
     if minpeaks and spectrum['intensity array'].size < minpeaks:
-        return []
+        return np.array([], dtype=dtype)
     dynrange = settings.getfloat('scoring', 'dynamic range')
     if dynrange:
         i = spectrum['intensity array'] > spectrum['intensity array'].max(
@@ -37,16 +41,14 @@ def top_candidates_from_arrays(spectrum, settings):
         spectrum['intensity array'] = spectrum['intensity array'][i]
         spectrum['m/z array'] = spectrum['m/z array'][i]
     if minpeaks and spectrum['intensity array'].size < minpeaks:
-        return []
+        return np.array([], dtype=dtype)
 
     masses, seqs, notes = get_arrays(settings) if not settings.has_option(
             'performance', 'arrays') else settings.get('performance', 'arrays')
     exp_mass = utils.neutral_masses(spectrum, settings)
-    n = settings.getint('output', 'candidates')
-    if n < 1: n = None
     score = utils.import_(settings.get('scoring', 'score'))
-    acc_l = settings.getfloat('search', 'precursor accuracy value left')
-    acc_r = settings.getfloat('search', 'precursor accuracy value right')
+    acc_l = settings.getfloat('search', 'precursor accuracy left')
+    acc_r = settings.getfloat('search', 'precursor accuracy right')
     unit = settings.get('search', 'precursor accuracy unit')
     if unit == 'ppm':
         rel = True
@@ -58,29 +60,31 @@ def top_candidates_from_arrays(spectrum, settings):
     candidates = []
     candidates_notes = []
     for m, c in exp_mass:
-        if c != 1:
-            dm_l = acc_l * m / 1.0e6 if rel else acc_l * c
-            dm_r = acc_r * m / 1.0e6 if rel else acc_r * c
-            start = masses.searchsorted(m - dm_l)
-            end = masses.searchsorted(m + dm_r)
-            candidates.extend(seqs[start:end])
-            candidates_notes.extend(notes[start:end])
-    threshold = settings.getfloat('scoring', 'score threshold')
+        dm_l = acc_l * m / 1.0e6 if rel else acc_l * c
+        dm_r = acc_r * m / 1.0e6 if rel else acc_r * c
+        start = masses.searchsorted(m - dm_l)
+        end = masses.searchsorted(m + dm_r)
+        candidates.extend(seqs[start:end])
+        candidates_notes.extend(notes[start:end])
 
-    result = [(score(spectrum, x, settings), x, candidates_notes[idx])
-            for idx, x in enumerate(candidates)]
-    result = sorted((x for x in result if x[0] > threshold), reverse=True)[:n]
+    result = []
+    for idx, x in enumerate(candidates):
+        s = score(spectrum, x, settings)
+        if s > 0:
+            result.append((s, x, candidates_notes[idx]))
+    result.sort(reverse=True)
 
-    result = [(score, seq, note) for score, seq, note in result]
     if settings.has_option('misc', 'legend'):
         mods = list(zip(settings.get('misc', 'legend'), punctuation))
         res = []
         for score, cand, note in result:
             for (mod, aa), char in mods:
                 cand = cand.replace(char, mod + aa)
+            if len(cand) > maxlen:
+                maxlen = len(cand)
             res.append((score, cand, note))
         result = res
-    return result
+    return np.array(result, dtype=dtype)
 
 
 def get_arrays(settings):
@@ -88,7 +92,7 @@ def get_arrays(settings):
     hasher = settings.get('misc', 'hash')
     dbhash = hashlib.new(hasher)
     with open(db) as f:
-        print "Scanning database contents..."
+        print "Scanning database contents ..."
         for line in f:
             dbhash.update(line)
     dbhash = dbhash.hexdigest()
@@ -175,7 +179,7 @@ def spectrum_processor(settings):
         settings = copy(settings)
         if not settings.has_option('performance', 'arrays'):
             settings.set('performance', 'arrays', get_arrays(settings))
-        candidates = lambda s: top_candidates_from_arrays(s, settings)
+        candidates = lambda s: candidates_from_arrays(s, settings)
         if processor == 'minimal':
             return lambda s: {'spectrum': s, 'candidates': candidates(s)}
         elif processor == 'e-value':
@@ -183,18 +187,14 @@ def spectrum_processor(settings):
             if condition:
                 if not isinstance(condition, FunctionType):
                     condition = utils.import_(condition)
-            else:
-                condition = utils.allow_all
 
             def f(s):
                 c = candidates(s)
-                c = [x for x in c if condition(s, str(x[1]), settings)]
-                if c:
-                    return {'spectrum': s, 'candidates': c,
+                if condition:
+                    c = np.array([x for x in c if condition(s, x[1], settings)],
+                            dtype=c.dtype)
+                return {'spectrum': s, 'candidates': c,
                     'e-values': scoring.evalues(c, settings)}
-                else:
-                    return {'spectrum': s, 'candidates': [],
-                    'e-values': []}
             return f
     else:
         raise NotImplementedError('Unsupported pre-calculation mode')
