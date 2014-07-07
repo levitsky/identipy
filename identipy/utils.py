@@ -95,6 +95,10 @@ def get_aa_mass(settings):
 
     return aa_mass
 
+def cand_charge(result):
+    mz = result['spectrum']['params']['pepmass'][0]
+    m = np.array(map(mass.fast_mass, result['candidates']['seq']))
+    return np.round(m/mz).astype(np.int8)
 
 def multimap(n, func, it):
     if n == 0:
