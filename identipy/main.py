@@ -182,7 +182,7 @@ def spectrum_processor(settings):
         candidates = lambda s: candidates_from_arrays(s, settings)
         if processor == 'minimal':
             return lambda s: {'spectrum': s, 'candidates': candidates(s)}
-        elif processor == 'e-value':
+        elif processor.startswith('e-value'):
             condition = settings.get('scoring', 'condition')
             if condition:
                 if not isinstance(condition, FunctionType):
@@ -193,8 +193,18 @@ def spectrum_processor(settings):
                 if condition:
                     c = np.array([x for x in c if condition(s, x[1], settings)],
                             dtype=c.dtype)
-                return {'spectrum': s, 'candidates': c,
-                    'e-values': scoring.evalues(c, settings)}
+                if processor == 'e-value':
+                    return {'spectrum': s, 'candidates': c,
+                        'e-values': scoring.evalues(c, settings)}
+                elif processor == 'e-value2':
+                    if not hasattr(spectrum_processor, 'cache'):
+                        spectrum_processor.cache = {}
+                    for cand in c[:]:
+                        for m, ch in utils.neutral_masses(s, settings):
+                            spectrum_processor.cache.setdefault(
+                                    (len(cand[1]), ch), []).append(cand[0])
+                    return {'spectrum': s, 'candidates': c}
+#                       'e-values': scoring.evalues2(s, c, settings)}
             return f
     else:
         raise NotImplementedError('Unsupported pre-calculation mode')
@@ -229,7 +239,6 @@ def process_file(fname, settings):
 def double_run(fname, settings, stage1):
     print '[double run] stage 1 starting ...'
     new_settings = stage1(fname, settings)
-    new_settings.remove_option('performance', 'arrays')
     print '[double run] stage 2 starting ...'
     return process_file(fname, new_settings)
 
@@ -277,11 +286,10 @@ def varmod_stage1(fname, settings):
     new_settings.set('misc', 'aa_mass', aa_mass)
     new_settings.set('misc', 'legend', mods)
     new_settings.set('performance', 'arrays', (masses, seqs))
-    maxlen = settings.getint('search', 'peptide maximum length')
     return new_settings
 
 
-@aux.memoize(10)
+#@aux.memoize(10)
 def settings(fname=None, default_name=os.path.join(
         os.path.dirname(os.path.abspath(__file__)), os.pardir, 'default.cfg')):
     """Read a configuration file and return a :py:class:`RawConfigParser` object.
