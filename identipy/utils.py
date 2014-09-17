@@ -63,7 +63,9 @@ def neutral_masses(spectrum, settings):
         states = range(settings.getint('search', 'minimum charge'),
             1 + settings.getint('search', 'maximum charge'))
     else:
-        states = charge
+        states = [c for c in charge if settings.getint('search', 'minimum charge'
+                    ) <= c <= settings.getint('search', 'maximum charge')]
+
     states.sort()
     return zip((c * (exp_mass - mass.nist_mass['H+'][0][0])
             for c in states), states)

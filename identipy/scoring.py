@@ -89,6 +89,7 @@ def morpheusscore(spectrum, peptide, settings):
 def hyperscore(spectrum, peptide, settings):
     """A simple implementation of X!Tandem's Hyperscore."""
     int_array = spectrum['intensity array']
+    mz_array = spectrum['m/z array']
     int_array = int_array / int_array.max() * 100
     acc = settings.getfloat('search', 'product accuracy')
     charge = max(1, max(c for m, c in neutral_masses(spectrum, settings)) - 1)
@@ -97,8 +98,7 @@ def hyperscore(spectrum, peptide, settings):
     mult = []
     total_matched = 0
     if '__KDTree' not in spectrum:
-        spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape(
-            (spectrum['m/z array'].size, 1)))
+        spectrum['__KDTree'] = cKDTree(mz_array.reshape((mz_array.size, 1)))
 
     for fragments in theor.values():
         n = fragments.size
