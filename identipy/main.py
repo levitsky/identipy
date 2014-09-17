@@ -23,7 +23,8 @@ def candidates_from_arrays(spectrum, settings):
     maxlen = settings.getint('search', 'peptide maximum length')
 
     dtype = np.dtype([('score', np.float128),
-                ('seq', np.str_, maxlen), ('note', np.str_, 1)])
+                ('seq', np.str_, maxlen), ('note', np.str_, 1),
+                ('charge', np.int8)])
     if maxpeaks and minpeaks > maxpeaks:
         raise ValueError('minpeaks > maxpeaks: {} and {}'.format(
             minpeaks, maxpeaks))
@@ -59,6 +60,7 @@ def candidates_from_arrays(spectrum, settings):
 
     candidates = []
     candidates_notes = []
+    candidates_charges = []
     for m, c in exp_mass:
         dm_l = acc_l * m / 1.0e6 if rel else acc_l * c
         dm_r = acc_r * m / 1.0e6 if rel else acc_r * c
@@ -66,12 +68,13 @@ def candidates_from_arrays(spectrum, settings):
         end = masses.searchsorted(m + dm_r)
         candidates.extend(seqs[start:end])
         candidates_notes.extend(notes[start:end])
+        candidates_charges.extend([c] * (end-start))
 
     result = []
     for idx, x in enumerate(candidates):
-        s = score(spectrum, x, settings)
+        s = score(spectrum, x, candidates_charges[idx], settings)
         if s > 0:
-            result.append((s, x, candidates_notes[idx]))
+            result.append((s, x, candidates_notes[idx], candidates_charges[idx]))
     result.sort(reverse=True)
 
     if settings.has_option('misc', 'legend'):

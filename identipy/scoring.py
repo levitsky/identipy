@@ -86,14 +86,15 @@ def morpheusscore(spectrum, peptide, settings):
     return total_matched + score / int_array.sum()
 
 
-def hyperscore(spectrum, peptide, settings):
+def hyperscore(spectrum, peptide, charge, settings):
     """A simple implementation of X!Tandem's Hyperscore."""
     int_array = spectrum['intensity array']
     mz_array = spectrum['m/z array']
     int_array = int_array / int_array.max() * 100
     acc = settings.getfloat('search', 'product accuracy')
-    charge = max(1, max(c for m, c in neutral_masses(spectrum, settings)) - 1)
-    theor = theor_spectrum(peptide, maxcharge=charge, aa_mass=get_aa_mass(settings))
+#   charge = max(1, max(c for m, c in neutral_masses(spectrum, settings)) - 1)
+    theor = theor_spectrum(peptide, maxcharge=1,#max(1, charge-1),
+            aa_mass=get_aa_mass(settings))
     score = 0
     mult = []
     total_matched = 0
