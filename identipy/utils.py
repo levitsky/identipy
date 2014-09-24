@@ -251,6 +251,10 @@ def write_pepxml(inputfile, settings, results):
             result['candidates'] = result['candidates'][:len(result['e-values'])]
 
             for i, candidate in enumerate(result['candidates']):
+                if candidate[4]['match'] is None: break
+                if sum(m.sum() for m in candidate[4]['match'].values()
+                        ) < settings.getint('output', 'minimum matched'):
+                    continue
                 tmp3 = etree.Element('search_hit')
                 tmp3.set('hit_rank', str(i + 1))
                 sequence = candidate[1]
