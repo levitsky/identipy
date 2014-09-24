@@ -228,7 +228,6 @@ def process_spectra(f, settings):
     n = settings.getint('performance', 'processes')
     return utils.multimap(n, func, f)
 
-
 def process_file(fname, settings):
     stage1 = settings.get('misc', 'first stage')
     if stage1:
@@ -244,7 +243,6 @@ def process_file(fname, settings):
         else:
             raise ValueError('Unrecognized file type: {}'.format(ftype))
         return process_spectra(spectra, settings)
-
 
 def double_run(fname, settings, stage1):
     print '[double run] stage 1 starting ...'

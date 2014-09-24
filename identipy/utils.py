@@ -146,6 +146,22 @@ def get_RT(spectrum):
                 return 0
     return spectrum['scanList']['scan'][0]['scan start time']
 
+def get_output(results, settings):
+    for result in results:
+        c = result['candidates']
+        c = c[c['score'] > settings.getfloat('output', 'score threshold')]
+        mm = settings.getint('output', 'minimum matched')
+        if mm:
+            mask = np.array([
+                c_[4]['match'] is not None and
+                sum(m.sum() for m in c_[4]['match'].values()) >= mm
+                for c_ in c], dtype=bool)
+            c = c[mask]
+        if (not c.size) and not settings.getboolean('output', 'show empty'):
+            continue
+        result['candidates'] = c[:settings.getint('output', 'candidates') or None]
+        yield result
+
 
 def write_pepxml(inputfile, settings, results):
     from lxml import etree
@@ -232,7 +248,7 @@ def write_pepxml(inputfile, settings, results):
                 except:
                     pept_prot[pep] = np.array([dbinfo.split(' ')[0]], dtype = '|S50')
 
-    for idx, result in enumerate(results):
+    for idx, result in enumerate(get_output(results, settings)):
         if result['candidates'].size:
             tmp = etree.Element('spectrum_query')
             spectrum = result['spectrum']
@@ -252,9 +268,6 @@ def write_pepxml(inputfile, settings, results):
 
             for i, candidate in enumerate(result['candidates']):
                 if candidate[4]['match'] is None: break
-                if sum(m.sum() for m in candidate[4]['match'].values()
-                        ) < settings.getint('output', 'minimum matched'):
-                    continue
                 tmp3 = etree.Element('search_hit')
                 tmp3.set('hit_rank', str(i + 1))
                 sequence = candidate[1]
