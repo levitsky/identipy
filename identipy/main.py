@@ -24,7 +24,7 @@ def candidates_from_arrays(spectrum, settings):
 
     dtype = np.dtype([('score', np.float128),
                 ('seq', np.str_, maxlen), ('note', np.str_, 1),
-                ('charge', np.int8)])
+                ('charge', np.int8), ('info', np.object_)])
     if maxpeaks and minpeaks > maxpeaks:
         raise ValueError('minpeaks > maxpeaks: {} and {}'.format(
             minpeaks, maxpeaks))
@@ -47,6 +47,7 @@ def candidates_from_arrays(spectrum, settings):
     masses, seqs, notes = get_arrays(settings) if not settings.has_option(
             'performance', 'arrays') else settings.get('performance', 'arrays')
     exp_mass = utils.neutral_masses(spectrum, settings)
+    charge2mass = dict((c, m) for m, c in exp_mass)
     score = utils.import_(settings.get('scoring', 'score'))
     acc_l = settings.getfloat('search', 'precursor accuracy left')
     acc_r = settings.getfloat('search', 'precursor accuracy right')
@@ -57,10 +58,13 @@ def candidates_from_arrays(spectrum, settings):
         rel = False
     else:
         raise ValueError('Unrecognized precursor accuracy unit: ' + unit)
+    aa_mass = utils.get_aa_mass(settings)
 
     candidates = []
     candidates_notes = []
     candidates_charges = []
+    candidates_info = []
+    indexes = []
     for m, c in exp_mass:
         dm_l = acc_l * m / 1.0e6 if rel else acc_l * c
         dm_r = acc_r * m / 1.0e6 if rel else acc_r * c
@@ -69,23 +73,25 @@ def candidates_from_arrays(spectrum, settings):
         candidates.extend(seqs[start:end])
         candidates_notes.extend(notes[start:end])
         candidates_charges.extend([c] * (end-start))
+        indexes.extend(range(start, end))
 
     result = []
     for idx, x in enumerate(candidates):
         s = score(spectrum, x, candidates_charges[idx], settings)
-        if s > 0:
-            result.append((s, x, candidates_notes[idx], candidates_charges[idx]))
+        result.append((s.pop('score'), x, candidates_notes[idx], candidates_charges[idx], s))
+        result[-1][4]['mzdiff'] = {'Th': charge2mass[candidates_charges[idx]] - masses[indexes[idx]]}
+        result[-1][4]['mzdiff']['ppm'] = 1e6 * result[-1][4]['mzdiff']['Th'] / masses[indexes[idx]]
     result.sort(reverse=True)
 
     if settings.has_option('misc', 'legend'):
         mods = list(zip(settings.get('misc', 'legend'), punctuation))
         res = []
-        for score, cand, note in result:
+        for score, cand, note, info in result:
             for (mod, aa), char in mods:
                 cand = cand.replace(char, mod + aa)
             if len(cand) > maxlen:
                 maxlen = len(cand)
-            res.append((score, cand, note))
+            res.append((score, cand, note, info))
         result = res
     return np.array(result, dtype=dtype)
 
@@ -203,9 +209,10 @@ def spectrum_processor(settings):
                     if not hasattr(spectrum_processor, 'cache'):
                         spectrum_processor.cache = {}
                     for cand in c[:]:
-                        for m, ch in utils.neutral_masses(s, settings):
-                            spectrum_processor.cache.setdefault(
-                                    (len(cand[1]), ch), []).append(cand[0])
+                        if cand[0] > 0 and cand[2] == 'd':
+                            for m, ch in utils.neutral_masses(s, settings):
+                                spectrum_processor.cache.setdefault(
+                                        (len(cand[1]), ch), []).append(cand[0])
                     return {'spectrum': s, 'candidates': c}
 #                       'e-values': scoring.evalues2(s, c, settings)}
             return f
