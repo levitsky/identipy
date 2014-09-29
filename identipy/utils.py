@@ -259,7 +259,7 @@ def write_pepxml(inputfile, settings, results):
 
             neutral_mass, charge_state, RT = get_info(spectrum, result, settings, aa_mass)
             tmp.set('precursor_neutral_mass', str(neutral_mass))
-            tmp.set('assumed_charge', str(charge_state))
+            tmp.set('assumed_charge', str(int(charge_state)))
             if RT:
                 tmp.set('retention_time_sec', str(RT))
 
