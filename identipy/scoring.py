@@ -61,29 +61,32 @@ def get_fragment_mass_tol(spectrum, peptide, settings):
     return new_params
 
 
-def morpheusscore(spectrum, peptide, settings):
+def morpheusscore(spectrum, peptide, charge, settings):
     """A simple implementation of Morpheus's score."""
     int_array = spectrum['intensity array']
-    int_array = int_array / int_array.max() * 100
+#   int_array = int_array / int_array.max() * 100
     acc = settings.getfloat('search', 'product accuracy')
-    charge = max(1, max(c for _, c in neutral_masses(spectrum, settings)) - 1)
-    theor = theor_spectrum(peptide, maxcharge=charge, aa_mass=get_aa_mass(settings))
+#   charge = max(1, max(c for _, c in neutral_masses(spectrum, settings)) - 1)
+    theor = theor_spectrum(peptide, maxcharge=1, aa_mass=get_aa_mass(settings))
     score = 0
     total_matched = 0
+    match = {}
     if '__KDTree' not in spectrum:
         spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape(
             (spectrum['m/z array'].size, 1)))
 
-    for fragments in theor.values():
+    for ion, fragments in theor.items():
         n = fragments.size
         dist, ind = spectrum['__KDTree'].query(fragments.reshape((n, 1)),
             distance_upper_bound=acc)
         mask = (dist != np.inf)
-        total_matched += fragments.size
+        nmatched = mask.sum()
+        total_matched += nmatched
+        match[ion] = mask
         score += int_array[ind[mask]].sum()
-    if total_matched < settings.getint('scoring', 'minimum matched'):
-        return -1
-    return total_matched + score / int_array.sum()
+    if not total_matched:
+        return {'score': 0, 'match': None}
+    return {'score': total_matched + score / int_array.sum(), 'match': match}
 
 
 def hyperscore(spectrum, peptide, charge, settings):
