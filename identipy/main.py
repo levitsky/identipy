@@ -200,7 +200,7 @@ def spectrum_processor(settings):
             def f(s):
                 c = candidates(s)
                 if condition:
-                    c = np.array([x for x in c if condition(s, x[1], settings)],
+                    c = np.array([tuple(x) for x in c if condition(s, x[1], settings)],
                             dtype=c.dtype)
                 if processor == 'e-value':
                     return {'spectrum': s, 'candidates': c,
