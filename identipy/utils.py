@@ -147,19 +147,22 @@ def get_RT(spectrum):
     return spectrum['scanList']['scan'][0]['scan start time']
 
 def get_output(results, settings):
+    show_empty = settings.getboolean('output', 'show empty')
+    score_threshold = settings.getfloat('output', 'score threshold')
+    min_matched = settings.getint('output', 'minimum matched')
+    num_candidates = settings.getint('output', 'candidates') or None
     for result in results:
         c = result['candidates']
-        c = c[c['score'] > settings.getfloat('output', 'score threshold')]
-        mm = settings.getint('output', 'minimum matched')
-        if mm:
+        c = c[c['score'] > score_threshold]
+        if min_matched:
             mask = np.array([
                 c_[4]['match'] is not None and
-                sum(m.sum() for m in c_[4]['match'].values()) >= mm
+                sum(m.sum() for m in c_[4]['match'].values()) >= min_matched
                 for c_ in c], dtype=bool)
             c = c[mask]
-        if (not c.size) and not settings.getboolean('output', 'show empty'):
+        if (not c.size) and not show_empty:
             continue
-        result['candidates'] = c[:settings.getint('output', 'candidates') or None]
+        result['candidates'] = c[:num_candidates]
         yield result
 
 
@@ -259,7 +262,7 @@ def write_pepxml(inputfile, settings, results):
 
             neutral_mass, charge_state, RT = get_info(spectrum, result, settings, aa_mass)
             tmp.set('precursor_neutral_mass', str(neutral_mass))
-            tmp.set('assumed_charge', str(charge_state))
+            tmp.set('assumed_charge', str(int(charge_state)))
             if RT:
                 tmp.set('retention_time_sec', str(RT))
 
