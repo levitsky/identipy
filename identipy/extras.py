@@ -3,8 +3,7 @@ from pyteomics import achrom, auxiliary, parser
 from main import *
 from scoring import get_fragment_mass_tol
 from numpy import mean, sort
-from utils import get_info, get_aa_mass
-
+from utils import get_info, get_aa_mass, get_output
 
 def FDbinSize(X):
     """Calculates the Freedman-Diaconis bin size for
@@ -22,11 +21,11 @@ def FDbinSize(X):
     return h
 
 
-def get_cutoff(results, FDR=1):
+def get_cutoff(results, settings, FDR=1):
     """A function for e-value threshold calculation"""
     target_evalues, decoy_evalues = np.array([]), np.array([])
-    for res in results:
-        for e, (_, _, note) in zip(res['e-values'], res['candidates']):
+    for res in get_output(results, settings):
+        for e, (_, _, note, _, _) in zip(res['e-values'], res['candidates']):
             if note == 't':
                 target_evalues = np.append(target_evalues, float(e))
             elif note == 'd':
@@ -51,11 +50,11 @@ def optimization(fname, settings):
     results = []
     for res in process_file(fname, settings):
         results.append(res)
-    cutoff = get_cutoff(results, FDR=1)
+    cutoff = get_cutoff(results, settings, FDR=1)
     print cutoff
 
-    functions = ['rt_filtering', 'precursor_mass_optimization',
-                  'fragment_mass_optimization', 'missed_cleavages_optimization', 'charge_optimization']
+    functions = ['rt_filtering', 'precursor_mass_optimization', 'fragment_mass_optimization',
+            'charge_optimization', 'missed_cleavages_optimization']
     for func in functions:
         settings = eval('%s(results, settings, cutoff)' % (func, ))
     return settings
@@ -85,17 +84,16 @@ def precursor_mass_optimization(results, settings, cutoff):
 
     best_par_mt_l = min(massdif[massdif > scoreatpercentile(massdif, 0.5)])
     best_par_mt_r = max(massdif[massdif < scoreatpercentile(massdif, 99.5)])
-
     print 'NEW PARENT MASS TOLERANCE = %s:%s' % (best_par_mt_l, best_par_mt_r)
-    settings.set('search', 'precursor accuracy left', best_par_mt_l)
+    settings.set('search', 'precursor accuracy left', -(best_par_mt_l))
     settings.set('search', 'precursor accuracy right', best_par_mt_r)
     return settings
 
 
 def get_values(formula, results, settings, cutoff):
     values = np.array([])
-    for res in results:
-        for e, (_, seq, note) in zip(res['e-values'], res['candidates']):
+    for res in get_output(results, settings):
+        for e, (_, seq, note, _, _) in zip(res['e-values'], res['candidates']):
             e, seq, note, RT, _ = float(e), seq, note, utils.get_RT(res['spectrum']), res['spectrum']
             if note == 'd' or float(e) > cutoff:
                 pass
@@ -129,7 +127,6 @@ def fragment_mass_optimization(results, settings, cutoff):
     settings = copy(settings)
     formula = """get_fragment_mass_tol(res['spectrum'], seq, settings)['fmt']"""
     fragmassdif = get_values(formula, results, settings, cutoff)
-
     step = FDbinSize(fragmassdif)
     lside, rside = 0, 1
     mt_h, _ = np.histogram(fragmassdif, bins=np.arange(lside, rside, step))
@@ -140,7 +137,7 @@ def fragment_mass_optimization(results, settings, cutoff):
             break
     threshold = mt_h.size * step
     fragmassdif = fragmassdif[fragmassdif <= threshold]
-    best_frag_mt = max(fragmassdif[fragmassdif < scoreatpercentile(fragmassdif, 95)])
+    best_frag_mt = max(fragmassdif[fragmassdif < scoreatpercentile(fragmassdif, 97.5)])
 
     print 'NEW FRAGMENT MASS TOLERANCE = %s' % (best_frag_mt, )
     settings.set('search', 'product accuracy', best_frag_mt)
