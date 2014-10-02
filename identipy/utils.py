@@ -151,6 +151,10 @@ def get_output(results, settings):
     score_threshold = settings.getfloat('output', 'score threshold')
     min_matched = settings.getint('output', 'minimum matched')
     num_candidates = settings.getint('output', 'candidates') or None
+    acc_l = settings.getfloat('output', 'precursor accuracy left')
+    acc_r = settings.getfloat('output', 'precursor accuracy right')
+    rel = settings.get('output', 'precursor accuracy unit') == 'ppm'
+    key = ['Th', 'ppm'][rel]
     for result in results:
         c = result['candidates']
         c = c[c['score'] > score_threshold]
@@ -160,6 +164,8 @@ def get_output(results, settings):
                 sum(m.sum() for m in c_[4]['match'].values()) >= min_matched
                 for c_ in c], dtype=bool)
             c = c[mask]
+        mask = np.array([-acc_l < c_[4]['mzdiff'][key] < acc_r for c_ in c], dtype=bool)
+        c = c[mask]
         if (not c.size) and not show_empty:
             continue
         result['candidates'] = c[:num_candidates]
