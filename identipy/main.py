@@ -11,6 +11,7 @@ from string import punctuation
 import scoring, utils
 from types import FunctionType
 from ConfigParser import RawConfigParser
+import operator as op
 
 def candidates_from_arrays(spectrum, settings):
     spectrum = copy(spectrum)
@@ -86,12 +87,12 @@ def candidates_from_arrays(spectrum, settings):
     if settings.has_option('misc', 'legend'):
         mods = list(zip(settings.get('misc', 'legend'), punctuation))
         res = []
-        for score, cand, note, info in result:
+        for score, cand, note, charge, info in result:
             for (mod, aa), char in mods:
                 cand = cand.replace(char, mod + aa)
             if len(cand) > maxlen:
                 maxlen = len(cand)
-            res.append((score, cand, note, info))
+            res.append((score, cand, note, charge, info))
         result = res
     return np.array(result, dtype=dtype)
 
@@ -267,23 +268,22 @@ def varmod_stage1(fname, settings):
     settings = copy(settings)
     settings.set('modifications', 'variable', '')
     for s in process_file(fname, settings):
-        candidates.update(c[1] for c in s['candidates'])
+        candidates.update((c[1], c[2]) for c in s['candidates'])
 
     n = settings.getint('modifications', 'maximum variable mods')
     seq_iter = chain.from_iterable(
-            (parser.tostring(x, False) for x in
-                parser.isoforms(seq, variable_mods=mod_dict, format='split')
-                if ((len(x[0]) > 2) + (len(x[-1]) > 2) + sum(
-                    len(y) > 1 for y in x[1:-1])) <= n)
-            for seq in candidates)
+            ((form, cand[1]) for form in parser.isoforms(cand[0], variable_mods=mod_dict, maxmods=n))
+            for cand in candidates)
 
     def prepare_seqs():
-        for seq in seq_iter:
+        for seq, note in seq_iter:
             for (mod, aa), char in zip(mods, punctuation):
                 seq = seq.replace(mod + aa, char)
-            yield seq
+            yield seq, note
     maxlen = settings.getint('search', 'peptide maximum length')
-    seqs = np.fromiter(prepare_seqs(), dtype=np.dtype((np.str_, maxlen)))
+    seqs_and_notes = np.fromiter(prepare_seqs(), dtype=np.dtype(
+            [('seq', np.str_, maxlen), ('note', np.str_, 1)]))
+    seqs, notes = op.itemgetter('seq', 'note')(seqs_and_notes)
     masses = np.empty(seqs.shape, dtype=np.float32)
     for i in range(seqs.size):
         masses[i] = mass.fast_mass(seqs[i], aa_mass=aa_mass)
@@ -293,7 +293,7 @@ def varmod_stage1(fname, settings):
     new_settings = copy(settings)
     new_settings.set('misc', 'aa_mass', aa_mass)
     new_settings.set('misc', 'legend', mods)
-    new_settings.set('performance', 'arrays', (masses, seqs))
+    new_settings.set('performance', 'arrays', (masses, seqs, notes))
     return new_settings
 
 

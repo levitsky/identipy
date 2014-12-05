@@ -20,7 +20,7 @@ def get_info(spectrum, result, settings, aa_mass=None):
     else:
         RT = spectrum['scanList']['scan'][0]['scan start time']
     masses, states = zip(*neutral_masses(spectrum, settings))
-    idx = find_nearest(masses, mass.fast_mass(result['candidates'][0][1], aa_mass=aa_mass))
+    idx = find_nearest(masses, mass.fast_mass2(result['candidates'][0][1], aa_mass=aa_mass))
     return (masses[idx], states[idx], RT)
 
 def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, **kwargs):
@@ -84,6 +84,9 @@ def get_aa_mass(settings):
     if settings.has_option('misc', 'aa_mass'):
         return settings.get('misc', 'aa_mass')
     aa_mass = mass.std_aa_mass.copy()
+    for k, v in settings.items('modifications'):
+        if k not in {'fixed', 'variable'}:
+            aa_mass[k] = float(v)
     fmods = settings.get('modifications', 'fixed')
     if fmods:
         for mod in re.split(r'[,;]\s*', fmods):
@@ -245,17 +248,15 @@ def write_pepxml(inputfile, settings, results):
     results = [x for x in results if x['candidates'].size]
     pept_prot = dict()
     prots = dict()
-    peptides = set(x['candidates'][i][1] for x in results for i in range(
+    peptides = set(re.sub(r'[^A-Z]', '', x['candidates'][i][1]) for x in results for i in range(
                 settings.getint('output', 'candidates') or len(x['candidates'])))
-    for desc, prot in fasta.read(database):
-        prots[desc.split(' ')[0]] = desc
-        for pep in parser.cleave(prot, parser.expasy_rules.get(enzyme, enzyme), missed_cleavages):
-            if pep in peptides:
-                dbinfo = desc
-                try:
-                    pept_prot[pep] = np.append(pept_prot[pep], dbinfo.split(' ')[0])
-                except:
-                    pept_prot[pep] = np.array([dbinfo.split(' ')[0]], dtype = '|S50')
+    with fasta.read(database) as f:
+        for desc, prot in f:
+            dbinfo = desc.split(' ')[0]
+            prots[dbinfo] = desc
+            for pep in parser.cleave(prot, parser.expasy_rules.get(enzyme, enzyme), missed_cleavages):
+                if pep in peptides:
+                    pept_prot.setdefault(pep, []).append(dbinfo)
 
     for idx, result in enumerate(get_output(results, settings)):
         if result['candidates'].size:
@@ -283,7 +284,7 @@ def write_pepxml(inputfile, settings, results):
                 tmp3.set('peptide', sequence)
                 tmp3.set('peptide_prev_aa', 'K')  # ???
                 tmp3.set('peptide_next_aa', 'K')  # ???
-                proteins = pept_prot[sequence]
+                proteins = pept_prot[re.sub(r'[^A-Z]', '', sequence)]
 
                 tmp3.set('protein', prots[proteins[0]].split(' ', 1)[0])
                 tmp3.set('protein_descr', prots[proteins[0]].split(' ', 1)[1])
@@ -292,7 +293,7 @@ def write_pepxml(inputfile, settings, results):
                 tmp3.set('num_tot_proteins', str(num_tot_proteins))
                 tmp3.set('num_matched_ions', '7')  # ???
                 tmp3.set('tot_num_ions', '7')  # ???
-                neutral_mass_theor = mass.fast_mass(sequence, aa_mass=aa_mass)
+                neutral_mass_theor = mass.fast_mass2(sequence, aa_mass=aa_mass)
                 tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
                 tmp3.set('massdiff', str(neutral_mass - neutral_mass_theor))
                 tmp3.set('num_tol_term', '2')  # ???
