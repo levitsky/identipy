@@ -2,7 +2,7 @@ from scipy.stats import percentileofscore, scoreatpercentile
 from pyteomics import achrom, auxiliary, parser
 from main import *
 from scoring import get_fragment_mass_tol
-from numpy import mean, sort
+import numpy as np
 from utils import get_info, get_aa_mass, get_output
 
 def FDbinSize(X):
@@ -13,7 +13,7 @@ def FDbinSize(X):
     Returns:
     h:  F-D bin size
     """
-    X = sort(X)
+    X = np.sort(X)
     upperQuartile = scoreatpercentile(X, 75)
     lowerQuartile = scoreatpercentile(X, 25)
     IQR = upperQuartile - lowerQuartile
@@ -150,22 +150,26 @@ def rt_filtering(results, settings, cutoff):
     RTexp, seqs = zip(*get_values(formula, results, settings, cutoff))
     RTexp = [float(x) for x in RTexp]
     print len(RTexp), 'top PSMs with 1% FDR'
-    RC_def = achrom.RCs_yoshida
+    RC_def = achrom.RCs_gilar_rp
     xdict = {}
     for key, val in RC_def['aa'].items():
         xdict[key] = [val, None]
     RC_dict = achrom.get_RCs_vary_lcp(seqs, RTexp)
     RC_dict_new = dict()
     for key, val in RC_dict['aa'].items():
-        xdict[key][1] = val
+        xdict.setdefault(key, [val, None])[1] = val
     a, b, _, _ = auxiliary.linear_regression([x[0] for x in xdict.values() if x[1] != None], [x[1] for x in xdict.values() if x[1] != None])
     for key, x in xdict.items():
         if x[1] == None:
             x[1] = x[0] * a + b
         RC_dict_new[key] = x[1]
     RC_dict['aa'] = RC_dict_new
-    deltaRT = [rtexp - achrom.calculate_RT(pep, RC_dict, raise_no_mod=False)
-            for rtexp, pep in zip([mean(x) for x in RTexp], seqs)]
+    print RC_dict
+    rtexp = np.array([np.mean(x) for x in RTexp])
+    rttheor = np.array([achrom.calculate_RT(pep, RC_dict, raise_no_mod=False)
+        for pep in seqs])
+    deltaRT = rtexp - rttheor
+    print auxiliary.linear_regression(rtexp, rttheor)
 
     def condition(spectrum, cand, _):
         return 1 <= percentileofscore(deltaRT, utils.get_RT(spectrum)
