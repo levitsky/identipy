@@ -126,5 +126,3 @@ def calculateRH_local(seq_list, version=None):
         psm_list.append((splitted_string[0], float(splitted_string[2])))
     return psm_list
 
-if __name__ == '__main__':
-    pass
