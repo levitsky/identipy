@@ -290,6 +290,7 @@ def varmod_stage1(fname, settings):
     i = masses.argsort()
     masses = masses[i]
     seqs = seqs[i]
+    notes = notes[i]
     new_settings = copy(settings)
     new_settings.set('misc', 'aa_mass', aa_mass)
     new_settings.set('misc', 'legend', mods)
@@ -299,7 +300,7 @@ def varmod_stage1(fname, settings):
 
 #@aux.memoize(10)
 def settings(fname=None, default_name=os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), os.pardir, 'default.cfg')):
+        os.path.dirname(os.path.abspath(__file__)), 'default.cfg')):
     """Read a configuration file and return a :py:class:`RawConfigParser` object.
     """
 
