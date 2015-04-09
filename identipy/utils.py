@@ -185,7 +185,12 @@ def write_pepxml(inputfile, settings, results):
     else:
         aa_mass = get_aa_mass(settings)
 
-    filename = path.splitext(inputfile)[0] + path.extsep + 'pep' + path.extsep + 'xml'
+    if settings.has_option('output', 'path'):
+        outpath = settings.get('output', 'path')
+    else:
+        outpath = path.dirname(inputfile)
+
+    filename = path.join(outpath, path.splitext(path.basename(inputfile))[0] + path.extsep + 'pep' + path.extsep + 'xml')
     enzyme = settings.get('search', 'enzyme')
     search_engine = 'IdentiPy'
     database = settings.get('input', 'database')
