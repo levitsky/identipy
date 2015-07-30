@@ -10,7 +10,8 @@ from copy import copy
 from string import punctuation
 import scoring, utils
 from types import FunctionType
-from ConfigParser import RawConfigParser
+from utils import CustomRawConfigParser
+# from ConfigParser import RawConfigParser
 import operator as op
 
 def candidates_from_arrays(spectrum, settings):
@@ -112,7 +113,7 @@ def get_arrays(settings):
         os.makedirs(folder)
     enzyme = settings.get('search', 'enzyme')
     enzyme = parser.expasy_rules.get(enzyme, enzyme)
-    mc = settings.getint('search', 'missed cleavages')
+    mc = settings.getint('search', 'number of missed cleavages')
     minlen = settings.getint('search', 'peptide minimum length')
     maxlen = settings.getint('search', 'peptide maximum length')
     aa_mass = utils.get_aa_mass(settings)
@@ -304,7 +305,7 @@ def settings(fname=None, default_name=os.path.join(
     """Read a configuration file and return a :py:class:`RawConfigParser` object.
     """
 
-    raw_config = RawConfigParser(dict_type=dict, allow_no_value=True)
+    raw_config = CustomRawConfigParser(dict_type=dict, allow_no_value=True)
     if default_name:
         raw_config.read(default_name)
     if fname:

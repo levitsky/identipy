@@ -5,6 +5,22 @@ import numpy as np
 from multiprocessing import Queue, Process, cpu_count
 from string import punctuation
 from copy import copy
+from ConfigParser import RawConfigParser
+
+
+class CustomRawConfigParser(RawConfigParser):
+    def get(self, section, option):
+        val = RawConfigParser.get(self, section, option)
+        if isinstance(val, basestring):
+            return val.split('|')[0]
+        return val
+
+    def get_choices(self, section, option):
+        val = RawConfigParser.get(self, section, option)
+        if isinstance(val, basestring) and len(val.split('|')) > 1:
+            return val.split('|')[1]
+        else:
+            return ''
 
 
 def find_nearest(array, value):
@@ -194,7 +210,7 @@ def write_pepxml(inputfile, settings, results):
     enzyme = settings.get('search', 'enzyme')
     search_engine = 'IdentiPy'
     database = settings.get('input', 'database')
-    missed_cleavages = settings.getint('search', 'missed cleavages')
+    missed_cleavages = settings.getint('search', 'number of missed cleavages')
 
 
     output = open(filename, 'w')
