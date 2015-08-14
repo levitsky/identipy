@@ -297,56 +297,62 @@ def write_pepxml(inputfile, settings, results):
             tmp2 = etree.Element('search_result')
             result['candidates'] = result['candidates'][:len(result['e-values'])]
 
+            flag = 1
             for i, candidate in enumerate(result['candidates']):
                 if candidate[4]['match'] is None: break
                 tmp3 = etree.Element('search_hit')
                 tmp3.set('hit_rank', str(i + 1))
                 sequence = candidate[1]
-                tmp3.set('peptide', sequence)
-                tmp3.set('peptide_prev_aa', 'K')  # ???
-                tmp3.set('peptide_next_aa', 'K')  # ???
-                proteins = pept_prot[re.sub(r'[^A-Z]', '', sequence)]
+                if sequence not in pept_prot:
+                    flag = 0
+                    break
+                else:
+                    tmp3.set('peptide', sequence)
+                    tmp3.set('peptide_prev_aa', 'K')  # ???
+                    tmp3.set('peptide_next_aa', 'K')  # ???
+                    proteins = pept_prot[re.sub(r'[^A-Z]', '', sequence)]
 
-                tmp3.set('protein', prots[proteins[0]].split(' ', 1)[0])
-                tmp3.set('protein_descr', prots[proteins[0]].split(' ', 1)[1])
+                    tmp3.set('protein', prots[proteins[0]].split(' ', 1)[0])
+                    tmp3.set('protein_descr', prots[proteins[0]].split(' ', 1)[1])
 
-                num_tot_proteins = len(proteins)
-                tmp3.set('num_tot_proteins', str(num_tot_proteins))
-                tmp3.set('num_matched_ions', '7')  # ???
-                tmp3.set('tot_num_ions', '7')  # ???
-                neutral_mass_theor = mass.fast_mass2(sequence, aa_mass=aa_mass)
-                tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
-                tmp3.set('massdiff', str(neutral_mass - neutral_mass_theor))
-                tmp3.set('num_tol_term', '2')  # ???
-                tmp3.set('num_missed_cleavages', str(len(parser.cleave(sequence, parser.expasy_rules[enzyme], 0)) - 1))
-                tmp3.set('is_rejected', '0')  # ???
+                    num_tot_proteins = len(proteins)
+                    tmp3.set('num_tot_proteins', str(num_tot_proteins))
+                    tmp3.set('num_matched_ions', '7')  # ???
+                    tmp3.set('tot_num_ions', '7')  # ???
+                    neutral_mass_theor = mass.fast_mass2(sequence, aa_mass=aa_mass)
+                    tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
+                    tmp3.set('massdiff', str(neutral_mass - neutral_mass_theor))
+                    tmp3.set('num_tol_term', '2')  # ???
+                    tmp3.set('num_missed_cleavages', str(len(parser.cleave(sequence, parser.expasy_rules[enzyme], 0)) - 1))
+                    tmp3.set('is_rejected', '0')  # ???
 
-                if num_tot_proteins > 1:
-                    for idx in range(len(proteins)):
-                        if idx != 0:
-                            tmp4 = etree.Element('alternative_protein')
-                            tmp4.set('protein', prots[proteins[idx]].split(' ', 1)[0])
-                            tmp4.set('protein_descr', prots[proteins[idx]].split(' ', 1)[1])
-                            tmp3.append(copy(tmp4))
+                    if num_tot_proteins > 1:
+                        for idx in range(len(proteins)):
+                            if idx != 0:
+                                tmp4 = etree.Element('alternative_protein')
+                                tmp4.set('protein', prots[proteins[idx]].split(' ', 1)[0])
+                                tmp4.set('protein_descr', prots[proteins[idx]].split(' ', 1)[1])
+                                tmp3.append(copy(tmp4))
 
-                tmp4 = etree.Element('search_score')
-                tmp4.set('name', 'hyperscore')
-                tmp4.set('value', str(candidate[0]))
-                tmp3.append(copy(tmp4))
+                    tmp4 = etree.Element('search_score')
+                    tmp4.set('name', 'hyperscore')
+                    tmp4.set('value', str(candidate[0]))
+                    tmp3.append(copy(tmp4))
 
-                tmp4 = etree.Element('search_score')
-                tmp4.set('name', 'nextscore')
-                tmp4.set('value', str(candidate[0]))
-                tmp3.append(copy(tmp4))
+                    tmp4 = etree.Element('search_score')
+                    tmp4.set('name', 'nextscore')
+                    tmp4.set('value', str(candidate[0]))
+                    tmp3.append(copy(tmp4))
 
-                tmp4 = etree.Element('search_score')
-                tmp4.set('name', 'expect')
-                tmp4.set('value', str(result['e-values'][i]))
-                tmp3.append(copy(tmp4))
+                    tmp4 = etree.Element('search_score')
+                    tmp4.set('name', 'expect')
+                    tmp4.set('value', str(result['e-values'][i]))
+                    tmp3.append(copy(tmp4))
 
-                tmp2.append(copy(tmp3))
-            tmp.append(copy(tmp2))
-            child1.append(copy(tmp))
+                    tmp2.append(copy(tmp3))
+            if flag:
+                tmp.append(copy(tmp2))
+                child1.append(copy(tmp))
 
     s = etree.tostring(root, pretty_print=True)
     output.write(s)
