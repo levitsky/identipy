@@ -116,11 +116,12 @@ def hyperscore(spectrum, peptide, charge, settings):
         score += int_array[ind[mask]].sum()
         match[ion] = mask
     if not total_matched:
-        return {'score': 0, 'match': None}
+        return {'score': 0, 'match': None, 'sumI': 0}
     for m in mult:
         score *= m
+    sumI = max(np.log10(spectrum['intensity array'][ind[mask]].sum()), 1)
 
-    return {'score': score, 'match': match}
+    return {'score': score, 'match': match, 'sumI': sumI}
 
 
 def survival_hist(scores):

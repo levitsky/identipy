@@ -25,7 +25,7 @@ def get_cutoff(results, settings, FDR=1):
     """A function for e-value threshold calculation"""
     target_evalues, decoy_evalues = np.array([]), np.array([])
     for res in get_output(results, settings):
-        for e, (_, _, note, _, _) in zip(res['e-values'], res['candidates']):
+        for e, (_, _, note, _, _, _) in zip(res['e-values'], res['candidates']):
             if note == 't':
                 target_evalues = np.append(target_evalues, float(e))
             elif note == 'd':
@@ -93,7 +93,7 @@ def precursor_mass_optimization(results, settings, cutoff):
 def get_values(formula, results, settings, cutoff):
     values = np.array([])
     for res in get_output(results, settings):
-        for e, (_, seq, note, _, _) in zip(res['e-values'], res['candidates']):
+        for e, (_, seq, note, _, _, _) in zip(res['e-values'], res['candidates']):
             e, seq, note, RT, _ = float(e), seq, note, utils.get_RT(res['spectrum']), res['spectrum']
             if note == 'd' or float(e) > cutoff:
                 pass
