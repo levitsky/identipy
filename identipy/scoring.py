@@ -85,8 +85,9 @@ def morpheusscore(spectrum, peptide, charge, settings):
         match[ion] = mask
         score += int_array[ind[mask]].sum()
     if not total_matched:
-        return {'score': 0, 'match': None}
-    return {'score': total_matched + score / int_array.sum(), 'match': match}
+        return {'score': 0, 'match': None, 'sumI': 0}
+    sumI = max(np.log10(spectrum['intensity array'][ind[mask]].sum()), 1)
+    return {'score': total_matched + score / int_array.sum(), 'match': match, 'sumI': sumI}
 
 
 def hyperscore(spectrum, peptide, charge, settings):
