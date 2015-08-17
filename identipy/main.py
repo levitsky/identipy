@@ -26,7 +26,7 @@ def candidates_from_arrays(spectrum, settings):
 
     dtype = np.dtype([('score', np.float128),
                 ('seq', np.str_, maxlen), ('note', np.str_, 1),
-                ('charge', np.int8), ('info', np.object_)])
+                ('charge', np.int8), ('info', np.object_), ('sumI', np.int64)])
     if maxpeaks and minpeaks > maxpeaks:
         raise ValueError('minpeaks > maxpeaks: {} and {}'.format(
             minpeaks, maxpeaks))
@@ -80,7 +80,7 @@ def candidates_from_arrays(spectrum, settings):
     result = []
     for idx, x in enumerate(candidates):
         s = score(spectrum, x, candidates_charges[idx], settings)
-        result.append((s.pop('score'), x, candidates_notes[idx], candidates_charges[idx], s))
+        result.append((s.pop('score'), x, candidates_notes[idx], candidates_charges[idx], s, s.pop('sumI')))
         result[-1][4]['mzdiff'] = {'Th': charge2mass[candidates_charges[idx]] - masses[indexes[idx]]}
         result[-1][4]['mzdiff']['ppm'] = 1e6 * result[-1][4]['mzdiff']['Th'] / masses[indexes[idx]]
     result.sort(reverse=True)
@@ -88,12 +88,12 @@ def candidates_from_arrays(spectrum, settings):
     if settings.has_option('misc', 'legend'):
         mods = list(zip(settings.get('misc', 'legend'), punctuation))
         res = []
-        for score, cand, note, charge, info in result:
+        for score, cand, note, charge, info, sumI in result:
             for (mod, aa), char in mods:
                 cand = cand.replace(char, mod + aa)
             if len(cand) > maxlen:
                 maxlen = len(cand)
-            res.append((score, cand, note, charge, info))
+            res.append((score, cand, note, charge, info, sumI))
         result = res
     return np.array(result, dtype=dtype)
 
