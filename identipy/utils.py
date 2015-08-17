@@ -90,11 +90,15 @@ def neutral_masses(spectrum, settings):
 @aux.memoize(10)
 def import_(name):
     """Import a function by name: module.function or
-    module.submodule.function, etc. Return the function object."""
+    module.submodule.function, etc. By default trying to find
+    function name in identipy.scoring module.
+    Return the function object."""
 
-    mod, f = name.rsplit('.', 1)
-    return getattr(__import__(mod, fromlist=[f]), f)
-
+    try:
+        mod, f = name.rsplit('.', 1)
+        return getattr(__import__(mod, fromlist=[f]), f)
+    except:
+        return getattr(__import__('identipy.scoring', fromlist=[name]), name)
 
 def get_aa_mass(settings):
     if settings.has_option('misc', 'aa_mass'):
