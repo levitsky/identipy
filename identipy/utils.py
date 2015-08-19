@@ -7,6 +7,60 @@ from string import punctuation
 from copy import copy
 from ConfigParser import RawConfigParser
 
+def get_enzyme(enzyme):
+    if enzyme in parser.expasy_rules:
+        return parser.expasy_rules.get(enzyme)
+    else:
+        try:
+            enzyme = convert_tandem_cleave_rule_to_regexp(enzyme)
+            return enzyme
+        except:
+            return enzyme
+
+def convert_tandem_cleave_rule_to_regexp(cleavage_rule):
+
+    def get_sense(c_term_rule, n_term_rule):
+        if '{' in c_term_rule:
+            return 'N'
+        elif '{' in n_term_rule:
+            return 'C'
+        else:
+            if len(c_term_rule) <= len(n_term_rule):
+                return 'C'
+            else:
+                return 'N'
+
+    def get_cut(cut, no_cut):
+        aminoacids = set(parser.std_amino_acids)
+        cut = ''.join(aminoacids & set(cut))
+        if '{' in no_cut:
+            no_cut = ''.join(aminoacids & set(no_cut))
+            return cut, no_cut
+        else:
+            no_cut = ''.join(set(parser.std_amino_acids) - set(no_cut))
+            return cut, no_cut
+
+    out_rules = []
+    for protease in cleavage_rule.split(','):
+        protease = protease.replace('X', ''.join(parser.std_amino_acids))
+        c_term_rule, n_term_rule = protease.split('|')
+        sense = get_sense(c_term_rule, n_term_rule)
+        if sense == 'C':
+            cut, no_cut = get_cut(c_term_rule, n_term_rule)
+        else:
+            cut, no_cut = get_cut(n_term_rule, c_term_rule)
+
+        if no_cut:
+            if sense == 'C':
+                out_rules.append('([%s](?=[^%s]))' % (cut, no_cut))
+            else:
+                out_rules.append('([^%s](?=[%s]))' % (no_cut, cut))
+        else:
+            if sense == 'C':
+                out_rules.append('([%s])' % (cut, ))
+            else:
+                out_rules.append('(?=[%s])' % (cut, ))
+    return '|'.join(out_rules)
 
 class CustomRawConfigParser(RawConfigParser):
     def get(self, section, option):
