@@ -10,7 +10,7 @@ from copy import copy
 from string import punctuation
 import scoring, utils
 from types import FunctionType
-from utils import CustomRawConfigParser
+from utils import CustomRawConfigParser, get_enzyme
 # from ConfigParser import RawConfigParser
 import operator as op
 
@@ -112,7 +112,7 @@ def get_arrays(settings):
     if not os.path.isdir(folder):
         os.makedirs(folder)
     enzyme = settings.get('search', 'enzyme')
-    enzyme = parser.expasy_rules.get(enzyme, enzyme)
+    enzyme = get_enzyme(enzyme)
     mc = settings.getint('search', 'number of missed cleavages')
     minlen = settings.getint('search', 'peptide minimum length')
     maxlen = settings.getint('search', 'peptide maximum length')

@@ -3,7 +3,7 @@ from pyteomics import achrom, auxiliary, parser
 from main import *
 from scoring import get_fragment_mass_tol
 import numpy as np
-from utils import get_info, get_aa_mass, get_output
+from utils import get_info, get_aa_mass, get_output, get_enzyme
 
 def FDbinSize(X):
     """Calculates the Freedman-Diaconis bin size for
@@ -111,7 +111,7 @@ def get_values(formula, results, settings, cutoff):
 
 def missed_cleavages_optimization(results, settings, cutoff):
     settings = copy(settings)
-    formula = """len(parser.cleave(seq, parser.expasy_rules[str(settings.get('search', 'enzyme'))], 0)) - 1"""
+    formula = """len(parser.cleave(seq, get_enzyme(str(settings.get('search', 'enzyme'))), 0)) - 1"""
 
     missedcleavages = get_values(formula, results, settings, cutoff)
     best_missedcleavages = max(missedcleavages)
