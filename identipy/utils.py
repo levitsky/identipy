@@ -341,7 +341,10 @@ def write_pepxml(inputfile, settings, results):
         if result['candidates'].size:
             tmp = etree.Element('spectrum_query')
             spectrum = result['spectrum']
-            tmp.set('spectrum', spectrum['params']['title'])
+            try:
+                tmp.set('spectrum', spectrum['params']['title'])
+            except:
+                tmp.set('spectrum', spectrum['spectrum title'])
             tmp.set('start_scan', str(idx))  # ???
             tmp.set('end_scan', str(idx))  # ???
             tmp.set('index', str(idx))  # ???
