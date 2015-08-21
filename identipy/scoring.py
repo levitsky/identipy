@@ -70,6 +70,7 @@ def morpheusscore(spectrum, peptide, charge, settings):
     theor = theor_spectrum(peptide, maxcharge=1, aa_mass=get_aa_mass(settings))
     score = 0
     total_matched = 0
+    sumI = 0
     match = {}
     if '__KDTree' not in spectrum:
         spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape(
@@ -84,9 +85,10 @@ def morpheusscore(spectrum, peptide, charge, settings):
         total_matched += nmatched
         match[ion] = mask
         score += int_array[ind[mask]].sum()
+        sumI += spectrum['intensity array'][ind[mask]].sum()
     if not total_matched:
         return {'score': 0, 'match': None, 'sumI': 0}
-    sumI = max(np.log10(spectrum['intensity array'][ind[mask]].sum()), 1)
+    sumI = np.log10(sumI)
     return {'score': total_matched + score / int_array.sum(), 'match': match, 'sumI': sumI}
 
 
@@ -103,6 +105,7 @@ def hyperscore(spectrum, peptide, charge, settings):
     mult = []
     match = {}
     total_matched = 0
+    sumI = 0
     if '__KDTree' not in spectrum:
         spectrum['__KDTree'] = cKDTree(mz_array.reshape((mz_array.size, 1)))
 
@@ -116,11 +119,12 @@ def hyperscore(spectrum, peptide, charge, settings):
         mult.append(factorial(nmatched))
         score += int_array[ind[mask]].sum()
         match[ion] = mask
+        sumI += spectrum['intensity array'][ind[mask]].sum()
     if not total_matched:
         return {'score': 0, 'match': None, 'sumI': 0}
     for m in mult:
         score *= m
-    sumI = max(np.log10(spectrum['intensity array'][ind[mask]].sum()), 1)
+    sumI = np.log10(sumI)
 
     return {'score': score, 'match': match, 'sumI': sumI}
 
