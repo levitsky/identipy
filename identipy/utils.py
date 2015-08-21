@@ -333,7 +333,7 @@ def write_pepxml(inputfile, settings, results):
         for desc, prot in f:
             dbinfo = desc.split(' ')[0]
             prots[dbinfo] = desc
-            for pep in parser.cleave(prot, parser.expasy_rules.get(enzyme, enzyme), missed_cleavages):
+            for pep in parser.cleave(prot, get_enzyme(enzyme), missed_cleavages):
                 if pep in peptides:
                     pept_prot.setdefault(pep, []).append(dbinfo)
 
@@ -381,7 +381,7 @@ def write_pepxml(inputfile, settings, results):
                     tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
                     tmp3.set('massdiff', str(neutral_mass - neutral_mass_theor))
                     tmp3.set('num_tol_term', '2')  # ???
-                    tmp3.set('num_missed_cleavages', str(len(parser.cleave(sequence, parser.expasy_rules[enzyme], 0)) - 1))
+                    tmp3.set('num_missed_cleavages', str(len(parser.cleave(sequence, get_enzyme(enzyme), 0)) - 1))
                     tmp3.set('is_rejected', '0')  # ???
 
                     if num_tot_proteins > 1:
