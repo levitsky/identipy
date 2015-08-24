@@ -269,7 +269,7 @@ def write_pepxml(inputfile, settings, results):
     search_engine = 'IdentiPy'
     database = settings.get('input', 'database')
     missed_cleavages = settings.getint('search', 'number of missed cleavages')
-
+    fmods = settings.get('modifications', 'fixed')
 
     output = open(filename, 'w')
     line1 = '<?xml version="1.0" encoding="UTF-8"?>\n\
@@ -394,6 +394,15 @@ def write_pepxml(inputfile, settings, results):
                                 tmp4.set('protein', prots[proteins[idx]].split(' ', 1)[0])
                                 tmp4.set('protein_descr', prots[proteins[idx]].split(' ', 1)[1])
                                 tmp3.append(copy(tmp4))
+
+                    tmp4 = etree.Element('modification_info')
+                    for idx, aminoacid in enumerate(sequence):
+                        if aminoacid in fmods:
+                            tmp5 = etree.Element('mod_aminoacid_mass')
+                            tmp5.set('position', str(idx + 1))
+                            tmp5.set('mass', str(aa_mass.get(aminoacid)))
+                            tmp4.append(copy(tmp5))
+                    tmp3.append(copy(tmp4))
 
                     tmp4 = etree.Element('search_score')
                     tmp4.set('name', 'hyperscore')
