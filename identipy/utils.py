@@ -66,7 +66,7 @@ class CustomRawConfigParser(RawConfigParser):
     def get(self, section, option):
         val = RawConfigParser.get(self, section, option)
         if isinstance(val, basestring):
-            return val.split('|')[0]
+            return val[::-1].split('|', 1)[-1][::-1]
         return val
 
     def get_choices(self, section, option):
