@@ -6,6 +6,10 @@ from multiprocessing import Queue, Process, cpu_count
 from string import punctuation
 from copy import copy
 from ConfigParser import RawConfigParser
+try:
+    from pyteomics import cmass
+except ImportError:
+    cmass = mass
 
 def get_enzyme(enzyme):
     if enzyme in parser.expasy_rules:
@@ -90,7 +94,7 @@ def get_info(spectrum, result, settings, aa_mass=None):
     else:
         RT = spectrum['scanList']['scan'][0]['scan start time']
     masses, states = zip(*neutral_masses(spectrum, settings))
-    idx = find_nearest(masses, mass.fast_mass2(result['candidates'][0][1], aa_mass=aa_mass))
+    idx = find_nearest(masses, cmass.fast_mass2(str(result['candidates'][0][1]), aa_mass=aa_mass))
     return (masses[idx], states[idx], RT)
 
 def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, **kwargs):
@@ -102,11 +106,11 @@ def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, **kwargs):
         for i in range(1, len(peptide) - 1):
             for charge in range(1, maxcharge + 1):
                 if ion_type[0] in 'abc':
-                    ms.append(mass.fast_mass(
+                    ms.append(cmass.fast_mass(
                         str(peptide)[:i], ion_type=ion_type, charge=charge,
                         **kwargs))
                 else:
-                    ms.append(mass.fast_mass(
+                    ms.append(cmass.fast_mass(
                         str(peptide)[i:], ion_type=ion_type, charge=charge,
                         **kwargs))
         marr = np.array(ms)
@@ -176,7 +180,7 @@ def get_aa_mass(settings):
 
 def cand_charge(result):
     mz = result['spectrum']['params']['pepmass'][0]
-    m = np.array(map(mass.fast_mass, result['candidates']['seq']))
+    m = np.array(map(lambda x: cmass.fast_mass(str(x)), result['candidates']['seq']))
     return np.round(m/mz).astype(np.int8)
 
 def multimap(n, func, it):
@@ -363,7 +367,7 @@ def write_pepxml(inputfile, settings, results):
                 if candidate[4]['match'] is None: break
                 tmp3 = etree.Element('search_hit')
                 tmp3.set('hit_rank', str(i + 1))
-                sequence = candidate[1]
+                sequence = str(candidate[1])
                 if sequence not in pept_prot:
                     flag = 0
                     break
@@ -380,7 +384,7 @@ def write_pepxml(inputfile, settings, results):
                     tmp3.set('num_tot_proteins', str(num_tot_proteins))
                     tmp3.set('num_matched_ions', '7')  # ???
                     tmp3.set('tot_num_ions', '7')  # ???
-                    neutral_mass_theor = mass.fast_mass2(sequence, aa_mass=aa_mass)
+                    neutral_mass_theor = cmass.fast_mass2(sequence, aa_mass=aa_mass)
                     tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
                     tmp3.set('massdiff', str(neutral_mass - neutral_mass_theor))
                     tmp3.set('num_tol_term', '2')  # ???
