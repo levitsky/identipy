@@ -8,11 +8,15 @@ import ast
 import hashlib
 from copy import copy
 from string import punctuation
-import scoring, utils
-from types import FunctionType
+from . import scoring, utils
 from utils import CustomRawConfigParser, get_enzyme
 # from ConfigParser import RawConfigParser
 import operator as op
+
+try:
+    from pyteomics import cmass
+except ImportError:
+    cmass = mass
 
 def candidates_from_arrays(spectrum, settings):
     spectrum = copy(spectrum)
@@ -46,8 +50,7 @@ def candidates_from_arrays(spectrum, settings):
     if minpeaks and spectrum['intensity array'].size < minpeaks:
         return np.array([], dtype=dtype)
 
-    masses, seqs, notes = get_arrays(settings) if not settings.has_option(
-            'performance', 'arrays') else settings.get('performance', 'arrays')
+    masses, seqs, notes = get_arrays(settings)
     exp_mass = utils.neutral_masses(spectrum, settings)
     charge2mass = dict((c, m) for m, c in exp_mass)
     score = utils.import_(settings.get('scoring', 'score'))
@@ -99,6 +102,8 @@ def candidates_from_arrays(spectrum, settings):
 
 
 def get_arrays(settings):
+    if settings.has_option('performance', 'arrays'):
+        return settings.get('performance', 'arrays')
     db = settings.get('input', 'database')
     hasher = settings.get('misc', 'hash')
     dbhash = hashlib.new(hasher)
@@ -196,7 +201,7 @@ def spectrum_processor(settings):
         elif processor.startswith('e-value'):
             condition = settings.get('scoring', 'condition')
             if condition:
-                if not isinstance(condition, FunctionType):
+                if not callable(condition):
                     condition = utils.import_(condition)
 
             def f(s):
@@ -255,7 +260,7 @@ def double_run(fname, settings, stage1):
 
 def varmod_stage1(fname, settings):
     """Take mods, make a function that yields new settings"""
-    print 'Running preliminary search (no modifications) ...'
+    print 'Calculateing modified isoforms ...'
     aa_mass = utils.get_aa_mass(settings)
     mods = settings.get('modifications', 'variable')
     mods = [parser._split_label(l) for l in re.split(r',\s*', mods)]
@@ -265,16 +270,15 @@ def varmod_stage1(fname, settings):
     for mod, aa in mods:
         mod_dict.setdefault(mod, []).append(aa)
 
-    candidates = set()
+    _, seqs, notes = get_arrays(settings)
+    print 'Unmodified peptides:', seqs.size
     settings = copy(settings)
     settings.set('modifications', 'variable', '')
-    for s in process_file(fname, settings):
-        candidates.update((c[1], c[2]) for c in s['candidates'])
 
     n = settings.getint('modifications', 'maximum variable mods')
     seq_iter = chain.from_iterable(
-            ((form, cand[1]) for form in parser.isoforms(cand[0], variable_mods=mod_dict, maxmods=n))
-            for cand in candidates)
+            ((form, note) for form in parser.isoforms(seq, variable_mods=mod_dict, maxmods=n))
+            for seq, note in zip(seqs, notes))
 
     def prepare_seqs():
         for seq, note in seq_iter:
@@ -285,9 +289,10 @@ def varmod_stage1(fname, settings):
     seqs_and_notes = np.fromiter(prepare_seqs(), dtype=np.dtype(
             [('seq', np.str_, maxlen), ('note', np.str_, 1)]))
     seqs, notes = op.itemgetter('seq', 'note')(seqs_and_notes)
+    print 'Modified peptides:', seqs.size
     masses = np.empty(seqs.shape, dtype=np.float32)
-    for i in range(seqs.size):
-        masses[i] = mass.fast_mass(seqs[i], aa_mass=aa_mass)
+    for i in xrange(seqs.size):
+        masses[i] = cmass.fast_mass(str(seqs[i]), aa_mass=aa_mass)
     i = masses.argsort()
     masses = masses[i]
     seqs = seqs[i]
@@ -299,7 +304,6 @@ def varmod_stage1(fname, settings):
     return new_settings
 
 
-#@aux.memoize(10)
 def settings(fname=None, default_name=os.path.join(
         os.path.dirname(os.path.abspath(__file__)), 'default.cfg')):
     """Read a configuration file and return a :py:class:`RawConfigParser` object.
