@@ -1,9 +1,13 @@
 from scipy.stats import percentileofscore, scoreatpercentile
-from pyteomics import achrom, auxiliary, parser
+from pyteomics import achrom, auxiliary, parser, mass
 from main import *
 from scoring import get_fragment_mass_tol
 import numpy as np
 from utils import get_info, get_aa_mass, get_output, get_enzyme
+try:
+    from pyteomics import cmass
+except ImportError:
+    cmass = mass
 
 def FDbinSize(X):
     """Calculates the Freedman-Diaconis bin size for
@@ -79,7 +83,7 @@ def charge_optimization(results, settings, cutoff):
 
 def precursor_mass_optimization(results, settings, cutoff):
     settings = copy(settings)
-    formula = """(mass.fast_mass(seq, charge=0, aa_mass=get_aa_mass(settings)) - get_info(res['spectrum'], res, settings)[0]) / get_info(res['spectrum'], res, settings)[0] * 1e6"""
+    formula = """(cmass.fast_mass(str(seq), charge=0, aa_mass=get_aa_mass(settings)) - get_info(res['spectrum'], res, settings)[0]) / get_info(res['spectrum'], res, settings)[0] * 1e6"""
     massdif = get_values(formula, results, settings, cutoff)
 
     best_par_mt_l = min(massdif[massdif > scoreatpercentile(massdif, 0.5)])
