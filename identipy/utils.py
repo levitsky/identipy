@@ -94,7 +94,7 @@ def get_info(spectrum, result, settings, aa_mass=None):
     else:
         RT = spectrum['scanList']['scan'][0]['scan start time']
     masses, states = zip(*neutral_masses(spectrum, settings))
-    idx = find_nearest(masses, cmass.fast_mass2(str(result['candidates'][0][1]), aa_mass=aa_mass))
+    idx = find_nearest(masses, cmass.fast_mass(str(result['candidates'][0][1]), aa_mass=aa_mass))
     return (masses[idx], states[idx], RT)
 
 def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, **kwargs):
