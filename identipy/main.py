@@ -24,9 +24,9 @@ def candidates_from_arrays(spectrum, settings):
     minpeaks = settings.getint('scoring', 'minimum peaks')
     maxlen = settings.getint('search', 'peptide maximum length')
 
-    dtype = np.dtype([('score', np.float128),
+    dtype = np.dtype([('score', np.float64),
                 ('seq', np.str_, maxlen), ('note', np.str_, 1),
-                ('charge', np.int8), ('info', np.object_), ('sumI', np.int64)])
+                ('charge', np.int8), ('info', np.object_), ('sumI', np.float64)])
     if maxpeaks and minpeaks > maxpeaks:
         raise ValueError('minpeaks > maxpeaks: {} and {}'.format(
             minpeaks, maxpeaks))
