@@ -148,9 +148,36 @@ def get_arrays(settings):
             else:
                 mode = settings.get('input', 'decoy method')
                 prots = fasta.decoy_db(db, mode=mode, prefix=prefix)
-            func = lambda prot: [(pep, get_note(prot[0], label=prefix))
-                    for pep in parser.cleave(prot[1], enzyme, mc)
-                    if minlen <= len(pep) <= maxlen and parser.fast_valid(pep)]
+
+            aa_mass = utils.get_aa_mass(settings)
+            mods = settings.get('modifications', 'variable').strip()
+            if mods:
+                mods = [parser._split_label(l) for l in re.split(r',\s*', mods)]
+                mods.sort(key=lambda x: len(x[0]), reverse=True)
+                assert all(len(m) == 2 for m in mods), 'unmodified residue given'
+                mod_dict = {}
+                for mod, aa in mods:
+                    mod_dict.setdefault(mod, []).append(aa)
+               # add dynamically modified peptides
+                maxmods = settings.getint('modifications', 'maximum variable mods')
+
+                def func(prot):
+                    note = get_note(prot[0], label=prefix)
+                    out = []
+                    for pep in parser.cleave(prot[1], enzyme, mc):
+                        if minlen <= len(pep) <= maxlen and parser.fast_valid(pep):
+                            for seq in parser.isoforms(pep, variable_mods=mod_dict, maxmods=maxmods):
+                                seqm = seq
+                                for (mod, aa), char in zip(mods, punctuation):
+                                    seqm = seqm.replace(mod + aa, char)
+                                out.append((seqm, note))
+                    return out
+            else:
+                def func(prot):
+                    note = get_note(prot[0], label=prefix)
+                    return [(pep, note)
+                        for pep in parser.cleave(prot[1], enzyme, mc)
+                        if minlen <= len(pep) <= maxlen and parser.fast_valid(pep)]
 
             n = settings.getint('performance', 'processes')
             return chain.from_iterable(
@@ -239,8 +266,6 @@ def process_file(fname, settings):
     stage1 = settings.get('misc', 'first stage')
     if stage1:
         return double_run(fname, settings, utils.import_(stage1))
-    if settings.get('modifications', 'variable'):
-        return double_run(fname, settings, varmod_stage1)
     else:
         ftype = fname.rsplit('.', 1)[-1].lower()
         if ftype == 'mgf':
@@ -256,52 +281,6 @@ def double_run(fname, settings, stage1):
     new_settings = stage1(fname, settings)
     print '[double run] stage 2 starting ...'
     return process_file(fname, new_settings)
-
-
-def varmod_stage1(fname, settings):
-    """Take mods, make a function that yields new settings"""
-    print 'Calculateing modified isoforms ...'
-    aa_mass = utils.get_aa_mass(settings)
-    mods = settings.get('modifications', 'variable')
-    mods = [parser._split_label(l) for l in re.split(r',\s*', mods)]
-    mods.sort(key=lambda x: len(x[0]), reverse=True)
-    assert all(len(m) == 2 for m in mods), 'unmodified residue given'
-    mod_dict = {}
-    for mod, aa in mods:
-        mod_dict.setdefault(mod, []).append(aa)
-
-    _, seqs, notes = get_arrays(settings)
-    print 'Unmodified peptides:', seqs.size
-    settings = copy(settings)
-    settings.set('modifications', 'variable', '')
-
-    n = settings.getint('modifications', 'maximum variable mods')
-    seq_iter = chain.from_iterable(
-            ((form, note) for form in parser.isoforms(seq, variable_mods=mod_dict, maxmods=n))
-            for seq, note in zip(seqs, notes))
-
-    def prepare_seqs():
-        for seq, note in seq_iter:
-            for (mod, aa), char in zip(mods, punctuation):
-                seq = seq.replace(mod + aa, char)
-            yield seq, note
-    maxlen = settings.getint('search', 'peptide maximum length')
-    seqs_and_notes = np.fromiter(prepare_seqs(), dtype=np.dtype(
-            [('seq', np.str_, maxlen), ('note', np.str_, 1)]))
-    seqs, notes = op.itemgetter('seq', 'note')(seqs_and_notes)
-    print 'Modified peptides:', seqs.size
-    masses = np.empty(seqs.shape, dtype=np.float32)
-    for i in xrange(seqs.size):
-        masses[i] = cmass.fast_mass(str(seqs[i]), aa_mass=aa_mass)
-    i = masses.argsort()
-    masses = masses[i]
-    seqs = seqs[i]
-    notes = notes[i]
-    new_settings = copy(settings)
-    new_settings.set('misc', 'aa_mass', aa_mass)
-    new_settings.set('misc', 'legend', mods)
-    new_settings.set('performance', 'arrays', (masses, seqs, notes))
-    return new_settings
 
 
 def settings(fname=None, default_name=os.path.join(
