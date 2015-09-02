@@ -89,11 +89,12 @@ def candidates_from_arrays(spectrum, settings):
     result.sort(reverse=True)
 
     if settings.has_option('misc', 'legend'):
-        mods = list(zip(settings.get('misc', 'legend'), punctuation))
+        leg = settings.get('misc', 'legend')
         res = []
         for score, cand, note, charge, info, sumI in result:
-            for (mod, aa), char in mods:
-                cand = cand.replace(char, mod + aa)
+            for char in punctuation:
+                if char in leg:
+                    cand = cand.replace(char, ''.join(leg[char]))
             if len(cand) > maxlen:
                 maxlen = len(cand)
             res.append((score, cand, note, charge, info, sumI))
@@ -150,26 +151,19 @@ def get_arrays(settings):
                 prots = fasta.decoy_db(db, mode=mode, prefix=prefix)
 
             aa_mass = utils.get_aa_mass(settings)
-            mods = settings.get('modifications', 'variable').strip()
+            mods = settings.get('modifications', 'variable')
             if mods:
-                mods = [parser._split_label(l) for l in re.split(r',\s*', mods)]
-                mods.sort(key=lambda x: len(x[0]), reverse=True)
-                assert all(len(m) == 2 for m in mods), 'unmodified residue given'
-                mod_dict = {}
-                for mod, aa in mods:
-                    mod_dict.setdefault(mod, []).append(aa)
-               # add dynamically modified peptides
                 maxmods = settings.getint('modifications', 'maximum variable mods')
-
+                legend = settings.get('misc', 'legend')
                 def func(prot):
                     note = get_note(prot[0], label=prefix)
                     out = []
                     for pep in parser.cleave(prot[1], enzyme, mc):
                         if minlen <= len(pep) <= maxlen and parser.fast_valid(pep):
-                            for seq in parser.isoforms(pep, variable_mods=mod_dict, maxmods=maxmods):
+                            for seq in parser.isoforms(pep, variable_mods=mods, maxmods=maxmods):
                                 seqm = seq
-                                for (mod, aa), char in zip(mods, punctuation):
-                                    seqm = seqm.replace(mod + aa, char)
+                                for res, char in legend.iteritems():
+                                    seqm = seqm.replace(res, char)
                                 out.append((seqm, note))
                     return out
             else:
@@ -220,11 +214,28 @@ def spectrum_processor(settings):
     mode = settings.get('performance', 'pre-calculation')
     if mode == 'some':  # work with numpy arrays
         settings = copy(settings)
+        
+        mods = settings.get('modifications', 'variable').strip()
+        mod_dict = {}
+        if mods:
+            legend = {}
+            mods = [parser._split_label(l) for l in re.split(r',\s*', mods)]
+            mods.sort(key=lambda x: len(x[0]), reverse=True)
+            for mod, char in zip(mods, punctuation):
+                legend[''.join(mod)] = char
+                legend[char] = mod
+            assert all(len(m) == 2 for m in mods), 'unmodified residue given'
+            for mod, aa in mods:
+                mod_dict.setdefault(mod, []).append(aa)
+            settings.set('misc', 'legend', legend)
+        settings.set('modifications', 'variable', mod_dict)
+
         if not settings.has_option('performance', 'arrays'):
             settings.set('performance', 'arrays', get_arrays(settings))
         candidates = lambda s: candidates_from_arrays(s, settings)
         if processor == 'minimal':
             return lambda s: {'spectrum': s, 'candidates': candidates(s)}
+
         elif processor.startswith('e-value'):
             condition = settings.get('scoring', 'condition')
             if condition:
