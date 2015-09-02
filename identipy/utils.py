@@ -94,7 +94,7 @@ def get_info(spectrum, result, settings, aa_mass=None):
     else:
         RT = spectrum['scanList']['scan'][0]['scan start time']
     masses, states = zip(*neutral_masses(spectrum, settings))
-    idx = find_nearest(masses, cmass.fast_mass(str(result['candidates'][0][1]), aa_mass=aa_mass))
+    idx = find_nearest(masses, cmass.fast_mass2(str(result['candidates'][0][1]), aa_mass=aa_mass))
     return (masses[idx], states[idx], RT)
 
 def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, **kwargs):
@@ -172,10 +172,11 @@ def get_aa_mass(settings):
             aa_mass[aa] += settings.getfloat('modifications', m)
     vmods = settings.get('modifications', 'variable')
     if vmods:
-        mods = [parser._split_label(l) for l in re.split(r',\s*', vmods)]
-        for (mod, aa), char in zip(mods, punctuation):
-            aa_mass[char] = aa_mass[aa] + settings.getfloat('modifications', mod)
-
+        leg = settings.get('misc', 'legend')
+        for p in punctuation:
+            if p in leg:
+                mod, aa = leg[p]
+                aa_mass[p] = aa_mass[mod] + aa_mass[aa]
     return aa_mass
 
 def cand_charge(result):
