@@ -332,7 +332,9 @@ def write_pepxml(inputfile, settings, results):
     results = [x for x in results if x['candidates'].size]
     pept_prot = dict()
     prots = dict()
-    peptides = set(re.sub(r'[^A-Z]', '', x['candidates'][i][1]) for x in results for i in range(
+    peptides = set()
+    for x in results:
+        peptides.update(re.sub(r'[^A-Z]', '', x['candidates'][i][1]) for i in range(
                 settings.getint('output', 'candidates') or len(x['candidates'])))
     with fasta.read(database) as f:
         for desc, prot in f:
