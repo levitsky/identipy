@@ -163,7 +163,8 @@ def get_arrays(settings):
                             for seq in parser.isoforms(pep, variable_mods=mods, maxmods=maxmods):
                                 seqm = seq
                                 for res, char in legend.iteritems():
-                                    seqm = seqm.replace(res, char)
+                                    if isinstance(char, basestring):
+                                        seqm = seqm.replace(res, char)
                                 out.append((seqm, note))
                     return out
             else:
