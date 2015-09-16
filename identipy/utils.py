@@ -177,6 +177,7 @@ def get_aa_mass(settings):
             if p in leg:
                 mod, aa = leg[p]
                 aa_mass[p] = aa_mass[mod] + aa_mass[aa]
+                aa_mass[mod+aa] = aa_mass[mod] + aa_mass[aa]
     return aa_mass
 
 def cand_charge(result):
@@ -275,6 +276,10 @@ def write_pepxml(inputfile, settings, results):
     database = settings.get('input', 'database')
     missed_cleavages = settings.getint('search', 'number of missed cleavages')
     fmods = settings.get('modifications', 'fixed')
+    vmods = set()
+    for k, v in settings.get('modifications', 'variable').items():
+        for aa in v:
+            vmods.add(k + aa)
 
     output = open(filename, 'w')
     line1 = '<?xml version="1.0" encoding="UTF-8"?>\n\
@@ -370,9 +375,11 @@ def write_pepxml(inputfile, settings, results):
                 if candidate[4]['match'] is None: break
                 tmp3 = etree.Element('search_hit')
                 tmp3.set('hit_rank', str(i + 1))
-                sequence = str(candidate[1])
+                mod_sequence = str(candidate[1])
+                sequence = re.sub(r'[^A-Z]', '', mod_sequence)
                 if sequence not in pept_prot:
                     flag = 0
+                    print 'missing peptide: %s' % (sequence, )
                     break
                 else:
                     tmp3.set('peptide', sequence)
@@ -389,7 +396,7 @@ def write_pepxml(inputfile, settings, results):
                     tmp3.set('tot_num_ions', '7')  # ???
                     neutral_mass_theor = cmass.fast_mass2(sequence, aa_mass=aa_mass)
                     tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
-                    tmp3.set('massdiff', str(neutral_mass - neutral_mass_theor))
+                    tmp3.set('massdiff', str(candidate[4]['mzdiff']['Th']))
                     tmp3.set('num_tol_term', '2')  # ???
                     tmp3.set('num_missed_cleavages', str(len(parser.cleave(sequence, get_enzyme(enzyme), 0)) - 1))
                     tmp3.set('is_rejected', '0')  # ???
@@ -403,8 +410,8 @@ def write_pepxml(inputfile, settings, results):
                                 tmp3.append(copy(tmp4))
 
                     tmp4 = etree.Element('modification_info')
-                    for idx, aminoacid in enumerate(sequence):
-                        if aminoacid in fmods:
+                    for idx, aminoacid in enumerate(parser.parse(mod_sequence)):
+                        if aminoacid in fmods or aminoacid in vmods:
                             tmp5 = etree.Element('mod_aminoacid_mass')
                             tmp5.set('position', str(idx + 1))
                             tmp5.set('mass', str(aa_mass.get(aminoacid)))
