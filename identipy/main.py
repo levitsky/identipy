@@ -88,17 +88,17 @@ def candidates_from_arrays(spectrum, settings):
         result[-1][4]['mzdiff']['ppm'] = 1e6 * result[-1][4]['mzdiff']['Th'] / masses[indexes[idx]]
     result.sort(reverse=True)
 
-    if settings.has_option('misc', 'legend'):
-        leg = settings.get('misc', 'legend')
-        res = []
-        for score, cand, note, charge, info, sumI in result:
-            for char in punctuation:
-                if char in leg:
-                    cand = cand.replace(char, ''.join(leg[char]))
-            if len(cand) > maxlen:
-                maxlen = len(cand)
-            res.append((score, cand, note, charge, info, sumI))
-        result = res
+#   if settings.has_option('misc', 'legend'):
+#       leg = settings.get('misc', 'legend')
+#       res = []
+#       for score, cand, note, charge, info, sumI in result:
+#           for char in punctuation:
+#               if char in leg:
+#                   cand = cand.replace(char, ''.join(leg[char]))
+#           if len(cand) > maxlen:
+#               maxlen = len(cand)
+#           res.append((score, cand, note, charge, info, sumI))
+#       result = res
     return np.array(result, dtype=dtype)
 
 
@@ -216,20 +216,22 @@ def spectrum_processor(settings):
     if mode == 'some':  # work with numpy arrays
         settings = copy(settings)
         
-        mods = settings.get('modifications', 'variable').strip()
-        mod_dict = {}
-        if mods:
-            legend = {}
-            mods = [parser._split_label(l) for l in re.split(r',\s*', mods)]
-            mods.sort(key=lambda x: len(x[0]), reverse=True)
-            for mod, char in zip(mods, punctuation):
-                legend[''.join(mod)] = char
-                legend[char] = mod
-            assert all(len(m) == 2 for m in mods), 'unmodified residue given'
-            for mod, aa in mods:
-                mod_dict.setdefault(mod, []).append(aa)
-            settings.set('misc', 'legend', legend)
-        settings.set('modifications', 'variable', mod_dict)
+        mods = settings.get('modifications', 'variable')
+        if isinstance(mods, basestring):
+            mods = mods.strip()
+            mod_dict = {}
+            if mods:
+                legend = {}
+                mods = [parser._split_label(l) for l in re.split(r',\s*', mods)]
+                mods.sort(key=lambda x: len(x[0]), reverse=True)
+                for mod, char in zip(mods, punctuation):
+                    legend[''.join(mod)] = char
+                    legend[char] = mod
+                assert all(len(m) == 2 for m in mods), 'unmodified residue given'
+                for mod, aa in mods:
+                    mod_dict.setdefault(mod, []).append(aa)
+                settings.set('misc', 'legend', legend)
+            settings.set('modifications', 'variable', mod_dict)
 
         if not settings.has_option('performance', 'arrays'):
             settings.set('performance', 'arrays', get_arrays(settings))

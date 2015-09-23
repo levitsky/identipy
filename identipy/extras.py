@@ -150,8 +150,9 @@ def fragment_mass_optimization(results, settings, cutoff):
 
 def rt_filtering(results, settings, cutoff):
     settings = copy(settings)
-    formula = "[float(RT), str(seq)]"
+    formula = "[float(RT), seq]"
     RTexp, seqs = zip(*get_values(formula, results, settings, cutoff))
+    seqs = [list(s) for s in seqs] # FIXME: add terminal groups
     RTexp = [float(x) for x in RTexp]
     print len(RTexp), 'top PSMs with 1% FDR'
     RC_def = achrom.RCs_gilar_rp
@@ -177,7 +178,7 @@ def rt_filtering(results, settings, cutoff):
 
     def condition(spectrum, cand, _):
         return 1 <= percentileofscore(deltaRT, utils.get_RT(spectrum)
-                        - achrom.calculate_RT(cand, RC_dict)
+                        - achrom.calculate_RT(list(cand), RC_dict)
                     ) <= 99
 
     settings.set('scoring', 'condition', condition)

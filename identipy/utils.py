@@ -94,7 +94,7 @@ def get_info(spectrum, result, settings, aa_mass=None):
     else:
         RT = spectrum['scanList']['scan'][0]['scan start time']
     masses, states = zip(*neutral_masses(spectrum, settings))
-    idx = find_nearest(masses, cmass.fast_mass2(str(result['candidates'][0][1]), aa_mass=aa_mass))
+    idx = find_nearest(masses, cmass.fast_mass(str(result['candidates'][0][1]), aa_mass=aa_mass))
     return (masses[idx], states[idx], RT)
 
 def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, **kwargs):
@@ -349,6 +349,10 @@ def write_pepxml(inputfile, settings, results):
                 if pep in peptides:
                     pept_prot.setdefault(pep, []).append(dbinfo)
 
+    leg = {}
+    if settings.has_option('misc', 'legend'):
+        leg = settings.get('misc', 'legend')
+
     for idx, result in enumerate(get_output(results, settings)):
         if result['candidates'].size:
             tmp = etree.Element('spectrum_query')
@@ -376,6 +380,11 @@ def write_pepxml(inputfile, settings, results):
                 tmp3 = etree.Element('search_hit')
                 tmp3.set('hit_rank', str(i + 1))
                 mod_sequence = str(candidate[1])
+                if leg:
+                    for char in punctuation:
+                        if char in leg:
+                            mod_sequence = mod_sequence.replace(char, ''.join(leg[char]))
+
                 sequence = re.sub(r'[^A-Z]', '', mod_sequence)
                 if sequence not in pept_prot:
                     flag = 0
@@ -394,7 +403,7 @@ def write_pepxml(inputfile, settings, results):
                     tmp3.set('num_tot_proteins', str(num_tot_proteins))
                     tmp3.set('num_matched_ions', '7')  # ???
                     tmp3.set('tot_num_ions', '7')  # ???
-                    neutral_mass_theor = cmass.fast_mass2(sequence, aa_mass=aa_mass)
+                    neutral_mass_theor = cmass.fast_mass(sequence, aa_mass=aa_mass)
                     tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
                     tmp3.set('massdiff', str(candidate[4]['mzdiff']['Th']))
                     tmp3.set('num_tol_term', '2')  # ???
