@@ -49,7 +49,7 @@ def get_fragment_mass_tol(spectrum, peptide, settings):
 
     new_params = {}
     if dist_total.size:
-        new_params['fmt'] = dist_total
+        new_params['fmt'] = 2 * np.median(dist_total)
     else:
         new_params['fmt'] = None
     if int_array_total.size:

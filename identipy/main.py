@@ -281,14 +281,20 @@ def process_file(fname, settings):
     if stage1:
         return double_run(fname, settings, utils.import_(stage1))
     else:
+        iterate = settings.get('misc', 'iterate')
         ftype = fname.rsplit('.', 1)[-1].lower()
-        if ftype == 'mgf':
-            spectra = mgf.read(fname)
-        elif ftype == 'mzml':
-            spectra = (x for x in mzml.read(fname) if x['ms level'] > 1)
+        if iterate == 'spectra':
+            if ftype == 'mgf':
+                spectra = mgf.read(fname)
+            elif ftype == 'mzml':
+                spectra = (x for x in mzml.read(fname) if x['ms level'] > 1)
+            else:
+                raise ValueError('Unrecognized file type: {}'.format(ftype))
+            return process_spectra(spectra, settings)
+        elif iterate == 'peptides':
+            raise NotImplementedError
         else:
-            raise ValueError('Unrecognized file type: {}'.format(ftype))
-        return process_spectra(spectra, settings)
+            raise ValueError('iterate must be "spectra" or "peptides"')
 
 def double_run(fname, settings, stage1):
     print '[double run] stage 1 starting ...'
