@@ -131,7 +131,7 @@ def fragment_mass_optimization(results, settings, cutoff):
     settings = copy(settings)
     formula = """get_fragment_mass_tol(res['spectrum'], seq, settings)['fmt']"""
     fragmassdif = get_values(formula, results, settings, cutoff)
-    step = FDbinSize(fragmassdif)
+#   step = FDbinSize(fragmassdif)
     lside, rside = 0, 1
     mt_h, _ = np.histogram(fragmassdif, bins=np.arange(lside, rside, step))
 
@@ -139,8 +139,8 @@ def fragment_mass_optimization(results, settings, cutoff):
         if mt == 0:
             mt_h = mt_h[:idx]
             break
-    threshold = mt_h.size * step
-    fragmassdif = fragmassdif[fragmassdif <= threshold]
+#   threshold = mt_h.size * step
+#   fragmassdif = fragmassdif[fragmassdif <= threshold]
     best_frag_mt = max(fragmassdif[fragmassdif < scoreatpercentile(fragmassdif, 97.5)])
 
     print 'NEW FRAGMENT MASS TOLERANCE = %s' % (best_frag_mt, )
