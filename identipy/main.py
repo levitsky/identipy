@@ -101,6 +101,19 @@ def candidates_from_arrays(spectrum, settings):
 #       result = res
     return np.array(result, dtype=dtype)
 
+def peptide_gen(db, settings):
+    raise NotImplementedError
+
+def prot_gen(settings):
+    db = settings.get('input', 'database')
+    add_decoy = settings.getboolean('input', 'add decoy')
+    prefix = settings.get('input', 'decoy prefix')
+    mode = settings.get('input', 'decoy method')
+
+    read = [fasta.read, lambda f: fasta.decoy_db(f, mode=mode, prefix=prefix)][add_decoy]
+    with read(db) as f:
+        for p in f:
+            yield p
 
 def get_arrays(settings):
     if settings.has_option('performance', 'arrays'):
@@ -113,6 +126,7 @@ def get_arrays(settings):
         for line in f:
             dbhash.update(line)
     dbhash = dbhash.hexdigest()
+    add_decoy = settings.getboolean('input', 'add decoy')
     print "Done."
     folder = settings.get('performance', 'folder')
     if not os.path.isdir(folder):
@@ -123,9 +137,9 @@ def get_arrays(settings):
     minlen = settings.getint('search', 'peptide minimum length')
     maxlen = settings.getint('search', 'peptide maximum length')
     aa_mass = utils.get_aa_mass(settings)
-    add_decoy = settings.getboolean('input', 'add decoy')
+    
     index = os.path.join(folder, 'identipy.idx')
-    prefix = settings.get('input', 'decoy prefix')
+    
 
     profile = (dbhash, add_decoy, enzyme, mc, minlen, maxlen, aa_mass)
     arr_name = None
@@ -144,12 +158,7 @@ def get_arrays(settings):
             return 'd' if protein_description.startswith(label) else 't'
 
         def peps():
-            if not add_decoy:
-                prots = fasta.read(db)
-            else:
-                mode = settings.get('input', 'decoy method')
-                prots = fasta.decoy_db(db, mode=mode, prefix=prefix)
-
+            prots = prot_gen(settings)
             aa_mass = utils.get_aa_mass(settings)
             mods = settings.get('modifications', 'variable')
             if mods:
@@ -276,6 +285,9 @@ def process_spectra(f, settings):
     n = settings.getint('performance', 'processes')
     return utils.multimap(n, func, f)
 
+def process_peptides(f, settings):
+    raise NotImplementedError
+
 def process_file(fname, settings):
     stage1 = settings.get('misc', 'first stage')
     if stage1:
@@ -292,7 +304,7 @@ def process_file(fname, settings):
                 raise ValueError('Unrecognized file type: {}'.format(ftype))
             return process_spectra(spectra, settings)
         elif iterate == 'peptides':
-            raise NotImplementedError
+            return process_peptides(fname, settings)
         else:
             raise ValueError('iterate must be "spectra" or "peptides"')
 
