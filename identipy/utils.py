@@ -341,13 +341,19 @@ def write_pepxml(inputfile, settings, results):
     for x in results:
         peptides.update(re.sub(r'[^A-Z]', '', x['candidates'][i][1]) for i in range(
                 settings.getint('output', 'candidates') or len(x['candidates'])))
-    with fasta.read(database) as f:
-        for desc, prot in f:
-            dbinfo = desc.split(' ')[0]
-            prots[dbinfo] = desc
-            for pep in parser.cleave(prot, get_enzyme(enzyme), missed_cleavages):
-                if pep in peptides:
-                    pept_prot.setdefault(pep, []).append(dbinfo)
+    if settings.getboolean('input', 'add decoy'):
+        decoy_method = settings.get('input', 'decoy method')
+        decoy_prefix = settings.get('input', 'decoy prefix')
+        f = fasta.decoy_db(database, mode=decoy_method, prefix=decoy_prefix)
+    else:
+        f = fasta.read(database)
+    for desc, prot in f:
+        dbinfo = desc.split(' ')[0]
+        prots[dbinfo] = desc
+        for pep in parser.cleave(prot, get_enzyme(enzyme), missed_cleavages):
+            if pep in peptides:
+                pept_prot.setdefault(pep, []).append(dbinfo)
+    f.close()
 
     leg = {}
     if settings.has_option('misc', 'legend'):
