@@ -11,6 +11,24 @@ try:
 except ImportError:
     cmass = mass
 
+def set_mod_dict(settings):
+    mods = settings.get('modifications', 'variable')
+    if isinstance(mods, basestring):
+        mods = mods.strip()
+        mod_dict = {}
+        if mods:
+            legend = {}
+            mods = [parser._split_label(l) for l in re.split(r',\s*', mods)]
+            mods.sort(key=lambda x: len(x[0]), reverse=True)
+            for mod, char in zip(mods, punctuation):
+                legend[''.join(mod)] = char
+                legend[char] = mod
+            assert all(len(m) == 2 for m in mods), 'unmodified residue given'
+            for mod, aa in mods:
+                mod_dict.setdefault(mod, []).append(aa)
+            settings.set('misc', 'legend', legend)
+            settings.set('modifications', 'variable', mod_dict)
+
 def get_enzyme(enzyme):
     if enzyme in parser.expasy_rules:
         return parser.expasy_rules.get(enzyme)

@@ -9,7 +9,6 @@ import hashlib
 from copy import copy
 from string import punctuation
 from . import scoring, utils
-from utils import CustomRawConfigParser, get_enzyme
 # from ConfigParser import RawConfigParser
 import operator as op
 
@@ -101,8 +100,12 @@ def candidates_from_arrays(spectrum, settings):
 #       result = res
     return np.array(result, dtype=dtype)
 
-def peptide_gen(db, settings):
-    raise NotImplementedError
+def peptide_gen(settings):
+    prefix = settings.get('input', 'decoy prefix')
+    for prot in prot_gen(settings):
+        decoy = prot[0].startswith(prefix)
+        for pep in prot_peptides(prot[1], settings):
+            yield pep, decoy
 
 def prot_gen(settings):
     db = settings.get('input', 'database')
@@ -114,6 +117,23 @@ def prot_gen(settings):
     with read(db) as f:
         for p in f:
             yield p
+
+def prot_peptides(prot_seq, settings):
+    mods = settings.get('modifications', 'variable')
+    enzyme = utils.get_enzyme(settings.get('search', 'enzyme'))
+    mc = settings.getint('search', 'number of missed cleavages')
+    minlen = settings.getint('search', 'peptide minimum length')
+    maxlen = settings.getint('search', 'peptide maximum length')
+    mods = settings.get('modifications', 'variable')
+    if mods:
+        maxmods = settings.getint('modifications', 'maximum variable mods')
+    else:
+        mods = {}
+        maxmods = 0
+    for pep in parser.cleave(prot_seq, enzyme, mc):
+        if minlen <= len(pep) <= maxlen and parser.fast_valid(pep):
+            for form in parser.isoforms(pep, variable_mods=mods, maxmods=maxmods):
+                yield form
 
 def get_arrays(settings):
     if settings.has_option('performance', 'arrays'):
@@ -131,8 +151,7 @@ def get_arrays(settings):
     folder = settings.get('performance', 'folder')
     if not os.path.isdir(folder):
         os.makedirs(folder)
-    enzyme = settings.get('search', 'enzyme')
-    enzyme = get_enzyme(enzyme)
+    enzyme = utils.get_enzyme(settings.get('search', 'enzyme'))
     mc = settings.getint('search', 'number of missed cleavages')
     minlen = settings.getint('search', 'peptide minimum length')
     maxlen = settings.getint('search', 'peptide maximum length')
@@ -154,8 +173,8 @@ def get_arrays(settings):
     if arr_name is None:
 
         print 'Generating peptide arrays ...'
-        def get_note(protein_description, label='DECOY_'):
-            return 'd' if protein_description.startswith(label) else 't'
+        def get_note(description, label='DECOY_'):
+            return 'd' if description.startswith(label) else 't'
 
         def peps():
             prots = prot_gen(settings)
@@ -224,23 +243,7 @@ def spectrum_processor(settings):
     mode = settings.get('performance', 'pre-calculation')
     if mode == 'some':  # work with numpy arrays
         settings = copy(settings)
-        
-        mods = settings.get('modifications', 'variable')
-        if isinstance(mods, basestring):
-            mods = mods.strip()
-            mod_dict = {}
-            if mods:
-                legend = {}
-                mods = [parser._split_label(l) for l in re.split(r',\s*', mods)]
-                mods.sort(key=lambda x: len(x[0]), reverse=True)
-                for mod, char in zip(mods, punctuation):
-                    legend[''.join(mod)] = char
-                    legend[char] = mod
-                assert all(len(m) == 2 for m in mods), 'unmodified residue given'
-                for mod, aa in mods:
-                    mod_dict.setdefault(mod, []).append(aa)
-                settings.set('misc', 'legend', legend)
-            settings.set('modifications', 'variable', mod_dict)
+        utils.set_mod_dict(settings)
 
         if not settings.has_option('performance', 'arrays'):
             settings.set('performance', 'arrays', get_arrays(settings))
@@ -285,8 +288,34 @@ def process_spectra(f, settings):
     n = settings.getint('performance', 'processes')
     return utils.multimap(n, func, f)
 
-def process_peptides(f, settings):
+def peptide_processor(fname, settings):
+    global spectra
+    global nmasses
+    global charges
+    # spectra.extend(spec for spec in iterate_spectra(fname))
+    # nmasses.extend
     raise NotImplementedError
+
+def iterate_spectra(fname):
+    ftype = fname.rsplit('.', 1)[-1].lower()
+    if ftype == 'mgf':
+        with mgf.read(fname) as f:
+            for x in f:
+                yield x
+    elif ftype == 'mzml':
+        with mzml.read(fname) as f:
+            for x in f:
+                if x['ms level'] > 1:
+                    yield x
+    else:
+        raise ValueError('Unrecognized file type: {}'.format(ftype))
+
+def process_peptides(fname, settings):
+    peps = peptide_gen(settings)
+    func = peptide_processor(fname, settings)
+    print 'Running the search ...'
+    n = settings.getint('performance', 'processes')
+    return utils.multimap(n, func, peps)
 
 def process_file(fname, settings):
     stage1 = settings.get('misc', 'first stage')
@@ -296,12 +325,7 @@ def process_file(fname, settings):
         iterate = settings.get('misc', 'iterate')
         ftype = fname.rsplit('.', 1)[-1].lower()
         if iterate == 'spectra':
-            if ftype == 'mgf':
-                spectra = mgf.read(fname)
-            elif ftype == 'mzml':
-                spectra = (x for x in mzml.read(fname) if x['ms level'] > 1)
-            else:
-                raise ValueError('Unrecognized file type: {}'.format(ftype))
+            spectra = iterate_spectra(fname)
             return process_spectra(spectra, settings)
         elif iterate == 'peptides':
             return process_peptides(fname, settings)
@@ -320,7 +344,7 @@ def settings(fname=None, default_name=os.path.join(
     """Read a configuration file and return a :py:class:`RawConfigParser` object.
     """
 
-    raw_config = CustomRawConfigParser(dict_type=dict, allow_no_value=True)
+    raw_config = utils.CustomRawConfigParser(dict_type=dict, allow_no_value=True)
     if default_name:
         raw_config.read(default_name)
     if fname:
