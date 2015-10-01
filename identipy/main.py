@@ -74,6 +74,7 @@ def candidates_from_arrays(spectrum, settings):
     return np.array(result, dtype=dtype)
 
 def peptide_gen(settings):
+
     prefix = settings.get('input', 'decoy prefix')
     for prot in prot_gen(settings):
         for pep in prot_peptides(prot[1], settings):
@@ -97,15 +98,21 @@ def prot_peptides(prot_seq, settings):
     minlen = settings.getint('search', 'peptide minimum length')
     maxlen = settings.getint('search', 'peptide maximum length')
     mods = settings.get('modifications', 'variable')
-    if mods:
-        maxmods = settings.getint('modifications', 'maximum variable mods')
+    maxmods = settings.getint('modifications', 'maximum variable mods')
+    seen = set()
+    if mods and maxmods:
+        for pep in parser.cleave(prot_seq, enzyme, mc):
+            if pep not in seen:
+                seen.add(pep)
+                if minlen <= len(pep) <= maxlen and parser.fast_valid(pep):
+                    for form in parser.isoforms(pep, variable_mods=mods, maxmods=maxmods):
+                        yield form
     else:
-        mods = {}
-        maxmods = 0
-    for pep in parser.cleave(prot_seq, enzyme, mc):
-        if minlen <= len(pep) <= maxlen and parser.fast_valid(pep):
-            for form in parser.isoforms(pep, variable_mods=mods, maxmods=maxmods):
-                yield form
+        for pep in parser.cleave(prot_seq, enzyme, mc):
+            if minlen <= len(pep) <= maxlen and parser.fast_valid(pep):
+                if pep not in seen:
+                    seen.add(pep)
+                    yield pep
 
 def get_arrays(settings):
     if settings.has_option('performance', 'arrays'):
@@ -362,7 +369,6 @@ def process_peptides(fname, settings):
                     if nc is None or len(top_scores) < nc:
                         top_scores.insert(i, score)
                         top_seqs.insert(i, peptide)
-                        print top_seqs
                     else:
                         top_scores[i+1:nc+1] = top_scores[i:nc]
                         top_scores[i] = score
