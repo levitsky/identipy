@@ -56,12 +56,7 @@ def candidates_from_arrays(spectrum, settings):
     acc_l = settings.getfloat('search', 'precursor accuracy left')
     acc_r = settings.getfloat('search', 'precursor accuracy right')
     unit = settings.get('search', 'precursor accuracy unit')
-    if unit == 'ppm':
-        rel = True
-    elif unit in {'Th', 'Da', 'amu'}:
-        rel = False
-    else:
-        raise ValueError('Unrecognized precursor accuracy unit: ' + unit)
+    rel = utils.relative(unit)
     aa_mass = utils.get_aa_mass(settings)
 
     candidates = []
@@ -103,9 +98,8 @@ def candidates_from_arrays(spectrum, settings):
 def peptide_gen(settings):
     prefix = settings.get('input', 'decoy prefix')
     for prot in prot_gen(settings):
-        decoy = prot[0].startswith(prefix)
         for pep in prot_peptides(prot[1], settings):
-            yield pep, decoy
+            yield pep, prot[0]
 
 def prot_gen(settings):
     db = settings.get('input', 'database')
@@ -288,13 +282,63 @@ def process_spectra(f, settings):
     n = settings.getint('performance', 'processes')
     return utils.multimap(n, func, f)
 
+
 def peptide_processor(fname, settings):
     global spectra
     global nmasses
     global charges
-    # spectra.extend(spec for spec in iterate_spectra(fname))
-    # nmasses.extend
-    raise NotImplementedError
+    spectra = []
+    nmasses = []
+    charges = []
+    idx = []
+    print 'Reading spectra ...'
+    spectra.extend(spec for spec in iterate_spectra(fname))
+    for i, s in enumerate(spectra):
+        for m, c in utils.neutral_masses(s, settings):
+            charges.append(c)
+            nmasses.append(m)
+            idx.append(i)
+    print len(spectra), 'spectra loaded.'
+    i = np.argsort(nmasses)
+    nmasses = np.array(nmasses)[i]
+    charges = np.array(charges)[i]
+    idx = np.array(idx)[i]
+    spectra = np.array(spectra)
+    utils.set_mod_dict(settings)
+    aa_mass = utils.get_aa_mass(settings)
+    score = utils.import_(settings.get('scoring', 'score'))
+    acc_l = settings.getfloat('search', 'precursor accuracy left')
+    acc_r = settings.getfloat('search', 'precursor accuracy right')
+    acc_frag = settings.getfloat('search', 'product accuracy')
+    unit = settings.get('search', 'precursor accuracy unit')
+    rel = utils.relative(unit)
+    leg = settings.get('misc', 'legend')
+    punct = set(punctuation)
+
+    def func(peptide):
+        seq, prot = peptide
+        seqm = seq
+        for p, mod in leg.iteritems():
+            if p in punct:
+                seqm = seqm.replace(mod[0] + mod[1], p)
+        m = cmass.fast_mass(seqm, aa_mass=aa_mass)
+        dm_l = acc_l * m / 1.0e6 if rel else acc_l * c
+        dm_r = acc_r * m / 1.0e6 if rel else acc_r * c
+        start = nmasses.searchsorted(m - dm_l)
+        end = nmasses.searchsorted(m + dm_r)
+        if start == end: return None
+        cand_idx = idx[start:end]
+        cand_spectra = spectra[cand_idx]
+        theor = utils.theor_spectrum(seqm, maxcharge=1, aa_mass=aa_mass)
+        results = [scoring._hyperscore(s, theor, acc_frag) for s in cand_spectra] # FIXME (use score from settings?)
+        
+        results = [(x.pop('score'), utils.get_title(s), s, x) for x, s in zip(results, cand_spectra)]
+
+        results.sort(reverse=True)
+        results = np.array(results, dtype=[('score', np.float32), ('title', np.str_, 30), ('spectrum', np.object_), ('info', np.object_)])
+        return results[0] if results.size else None
+
+    return func
 
 def iterate_spectra(fname):
     ftype = fname.rsplit('.', 1)[-1].lower()
@@ -315,7 +359,8 @@ def process_peptides(fname, settings):
     func = peptide_processor(fname, settings)
     print 'Running the search ...'
     n = settings.getint('performance', 'processes')
-    return utils.multimap(n, func, peps)
+    # return utils.multimap(n, func, peps)
+    return (func(p) for p in peps)
 
 def process_file(fname, settings):
     stage1 = settings.get('misc', 'first stage')

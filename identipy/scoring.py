@@ -94,13 +94,17 @@ def morpheusscore(spectrum, peptide, charge, settings):
 
 def hyperscore(spectrum, peptide, charge, settings):
     """A simple implementation of X!Tandem's Hyperscore."""
-    int_array = spectrum.setdefault('normalized intensity array',
-            spectrum['intensity array'] * 100 / spectrum['intensity array'].max())
-    mz_array = spectrum['m/z array']
+    
     acc = settings.getfloat('search', 'product accuracy')
 #   charge = max(1, max(c for m, c in neutral_masses(spectrum, settings)) - 1)
     theor = theor_spectrum(peptide, maxcharge=1,#max(1, charge-1),
             aa_mass=get_aa_mass(settings))
+    return _hyperscore(spectrum, theor, acc)
+
+def _hyperscore(spectrum, theoretical, acc):
+    int_array = spectrum.setdefault('normalized intensity array',
+            spectrum['intensity array'] * 100 / spectrum['intensity array'].max())
+    mz_array = spectrum['m/z array']
     score = 0
     mult = []
     match = {}
@@ -109,7 +113,7 @@ def hyperscore(spectrum, peptide, charge, settings):
     if '__KDTree' not in spectrum:
         spectrum['__KDTree'] = cKDTree(mz_array.reshape((mz_array.size, 1)))
 
-    for ion, fragments in theor.iteritems():
+    for ion, fragments in theoretical.iteritems():
         n = fragments.size
         dist, ind = spectrum['__KDTree'].query(fragments.reshape((n, 1)),
             distance_upper_bound=acc)
@@ -127,7 +131,6 @@ def hyperscore(spectrum, peptide, charge, settings):
     sumI = np.log10(sumI)
 
     return {'score': score, 'match': match, 'sumI': sumI}
-
 
 def survival_hist(scores):
     X_axis = Y_axis = None
