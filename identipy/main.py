@@ -8,9 +8,9 @@ import ast
 import hashlib
 from copy import copy
 from string import punctuation
-from . import scoring, utils
-# from ConfigParser import RawConfigParser
 import operator as op
+from bisect import bisect
+from . import scoring, utils
 
 try:
     from pyteomics import cmass
@@ -18,35 +18,13 @@ except ImportError:
     cmass = mass
 
 def candidates_from_arrays(spectrum, settings):
-    spectrum = copy(spectrum)
-    idx = np.nonzero(spectrum['m/z array'] >=
-            settings.getfloat('search', 'product minimum m/z'))
-    spectrum['intensity array'] = spectrum['intensity array'][idx]
-    spectrum['m/z array'] = spectrum['m/z array'][idx]
-    maxpeaks = settings.getint('scoring', 'maximum peaks')
-    minpeaks = settings.getint('scoring', 'minimum peaks')
+    spectrum = utils.preprocess_spectrum(spectrum, settings)
+    
     maxlen = settings.getint('search', 'peptide maximum length')
-
     dtype = np.dtype([('score', np.float64),
                 ('seq', np.str_, maxlen), ('note', np.str_, 1),
                 ('charge', np.int8), ('info', np.object_), ('sumI', np.float64)])
-    if maxpeaks and minpeaks > maxpeaks:
-        raise ValueError('minpeaks > maxpeaks: {} and {}'.format(
-            minpeaks, maxpeaks))
-    if maxpeaks and spectrum['intensity array'].size > maxpeaks:
-        i = np.argsort(spectrum['intensity array'])[-maxpeaks:]
-        j = np.argsort(spectrum['m/z array'][i])
-        spectrum['intensity array'] = spectrum['intensity array'][i][j]
-        spectrum['m/z array'] = spectrum['m/z array'][i][j]
-    if minpeaks and spectrum['intensity array'].size < minpeaks:
-        return np.array([], dtype=dtype)
-    dynrange = settings.getfloat('scoring', 'dynamic range')
-    if dynrange:
-        i = spectrum['intensity array'] > spectrum['intensity array'].max(
-                ) / dynrange
-        spectrum['intensity array'] = spectrum['intensity array'][i]
-        spectrum['m/z array'] = spectrum['m/z array'][i]
-    if minpeaks and spectrum['intensity array'].size < minpeaks:
+    if spectrum is None:
         return np.array([], dtype=dtype)
 
     masses, seqs, notes = get_arrays(settings)
@@ -287,12 +265,16 @@ def peptide_processor(fname, settings):
     global spectra
     global nmasses
     global charges
+    global idx
     spectra = []
     nmasses = []
     charges = []
     idx = []
     print 'Reading spectra ...'
-    spectra.extend(spec for spec in iterate_spectra(fname))
+    for spec in iterate_spectra(fname):
+        ps = utils.preprocess_spectrum(spec, settings)
+        if ps is not None:
+            spectra.append(ps)
     for i, s in enumerate(spectra):
         for m, c in utils.neutral_masses(s, settings):
             charges.append(c)
@@ -330,13 +312,13 @@ def peptide_processor(fname, settings):
         cand_idx = idx[start:end]
         cand_spectra = spectra[cand_idx]
         theor = utils.theor_spectrum(seqm, maxcharge=1, aa_mass=aa_mass)
-        results = [scoring._hyperscore(s, theor, acc_frag) for s in cand_spectra] # FIXME (use score from settings?)
+        results = [scoring._hyperscore(copy(s), theor, acc_frag) for s in cand_spectra] # FIXME (use score from settings?)
         
         results = [(x.pop('score'), utils.get_title(s), s, x) for x, s in zip(results, cand_spectra)]
 
         results.sort(reverse=True)
-        results = np.array(results, dtype=[('score', np.float32), ('title', np.str_, 30), ('spectrum', np.object_), ('info', np.object_)])
-        return results[0] if results.size else None
+        # results = np.array(results, dtype=[('score', np.float32), ('title', np.str_, 30), ('spectrum', np.object_), ('info', np.object_)])
+        return peptide, results
 
     return func
 
@@ -355,12 +337,40 @@ def iterate_spectra(fname):
         raise ValueError('Unrecognized file type: {}'.format(ftype))
 
 def process_peptides(fname, settings):
+    global spec_scores
+    global spec_top_scores
+    global spec_top_seqs
+    spec_scores = {}
+    spec_top_scores = {}
+    spec_top_seqs = {}
     peps = peptide_gen(settings)
     func = peptide_processor(fname, settings)
+    nc = settings.getint('output', 'candidates') or None
     print 'Running the search ...'
     n = settings.getint('performance', 'processes')
+    for x in utils.multimap(n, func, peps):
+        if x is not None:
+            peptide, result = x
+            for score, spec_t, spec, info in result:
+                spec_scores.setdefault(spec_t, []).append(score)
+                spec_top_scores.setdefault(spec_t, [])
+                spec_top_seqs.setdefault(spec_t, [])
+                top_scores = spec_top_scores[spec_t]
+                top_seqs = spec_top_seqs[spec_t]
+                i = bisect(top_scores, score)
+                if nc is None or i < nc:
+                    if nc is None or len(top_scores) < nc:
+                        top_scores.insert(i, score)
+                        top_seqs.insert(i, peptide)
+                        print top_seqs
+                    else:
+                        top_scores[i+1:nc+1] = top_scores[i:nc]
+                        top_scores[i] = score
+                        top_seqs[i+1:nc+1] = top_seqs[i:nc]
+                        top_seqs[i] = peptide
+            yield peptide, result
+    # return (func(p) for p in peps)
     # return utils.multimap(n, func, peps)
-    return (func(p) for p in peps)
 
 def process_file(fname, settings):
     stage1 = settings.get('misc', 'first stage')
