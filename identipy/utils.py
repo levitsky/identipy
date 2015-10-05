@@ -355,9 +355,11 @@ def write_pepxml(inputfile, settings, results):
     missed_cleavages = settings.getint('search', 'number of missed cleavages')
     fmods = settings.get('modifications', 'fixed')
     vmods = set()
-    for k, v in settings.get('modifications', 'variable').items():
-        for aa in v:
-            vmods.add(k + aa)
+    variablemods =  settings.get('modifications', 'variable')
+    if variablemods:
+        for k, v in variablemods.items():
+            for aa in v:
+                vmods.add(k + aa)
 
     output = open(filename, 'w')
     line1 = '<?xml version="1.0" encoding="UTF-8"?>\n\
