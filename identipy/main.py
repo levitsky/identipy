@@ -100,12 +100,17 @@ def prot_peptides(prot_seq, settings):
     mods = settings.get('modifications', 'variable')
     maxmods = settings.getint('modifications', 'maximum variable mods')
     seen = set()
+
+    leg = settings.get('misc', 'legend')
+    punct = set(punctuation)
+    nmods = [(p, mod[1]) for p, mod in leg.iteritems() if p in punct]
+
     if mods and maxmods:
         for pep in parser.cleave(prot_seq, enzyme, mc):
             if pep not in seen:
                 seen.add(pep)
                 if minlen <= len(pep) <= maxlen and parser.fast_valid(pep):
-                    for form in parser.isoforms(pep, variable_mods=mods, maxmods=maxmods):
+                   for form in utils.custom_isoforms(pep, variable_mods=nmods, maxmods=maxmods):
                         yield form
     else:
         for pep in parser.cleave(prot_seq, enzyme, mc):
@@ -162,16 +167,15 @@ def get_arrays(settings):
             if mods:
                 maxmods = settings.getint('modifications', 'maximum variable mods')
                 legend = settings.get('misc', 'legend')
+                punct = set(punctuation)
+                nmods = [(p, mod[1]) for p, mod in legend.iteritems() if p in punct]
+
                 def func(prot):
                     note = get_note(prot[0], label=prefix)
                     out = []
                     for pep in parser.cleave(prot[1], enzyme, mc):
                         if minlen <= len(pep) <= maxlen and parser.fast_valid(pep):
-                            for seq in parser.isoforms(pep, variable_mods=mods, maxmods=maxmods):
-                                seqm = seq
-                                for res, char in legend.iteritems():
-                                    if isinstance(char, basestring):
-                                        seqm = seqm.replace(res, char)
+                            for seqm in utils.custom_isoforms(pep, variable_mods=nmods, maxmods=maxmods):
                                 out.append((seqm, note))
                     return out
             else:
@@ -301,15 +305,9 @@ def peptide_processor(fname, settings):
     acc_frag = settings.getfloat('search', 'product accuracy')
     unit = settings.get('search', 'precursor accuracy unit')
     rel = utils.relative(unit)
-    leg = settings.get('misc', 'legend')
-    punct = set(punctuation)
 
     def func(peptide):
-        seq, prot = peptide
-        seqm = seq
-        for p, mod in leg.iteritems():
-            if p in punct:
-                seqm = seqm.replace(mod[0] + mod[1], p)
+        seqm, prot = peptide
         m = cmass.fast_mass(seqm, aa_mass=aa_mass)
         dm_l = acc_l * m / 1.0e6 if rel else acc_l * c
         dm_r = acc_r * m / 1.0e6 if rel else acc_r * c
