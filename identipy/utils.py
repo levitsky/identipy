@@ -1,6 +1,7 @@
 import re
 from pyteomics import mass, electrochem as ec, auxiliary as aux, parser, fasta
 import sys
+from itertools import product
 import numpy as np
 from multiprocessing import Queue, Process, cpu_count
 from string import punctuation
@@ -10,6 +11,22 @@ try:
     from pyteomics import cmass
 except ImportError:
     cmass = mass
+
+
+def custom_isoforms(peptide, variable_mods, maxmods=2):
+    if not variable_mods:
+        yield peptide
+    else:
+        to_char = variable_mods[-1][0]
+        from_char = variable_mods[-1][1]
+        options = [(c,) if c != from_char else (from_char, to_char) for c in peptide]
+        variants = (''.join(o) for o in product(*options))
+        for v in variants:
+            vc = v.count(to_char)
+            pc = peptide.count(to_char)
+            if vc - pc <= maxmods:
+                for z in custom_isoforms(v, variable_mods[:-1], maxmods=maxmods + pc - vc):
+                    yield z
 
 def preprocess_spectrum(spectrum, settings):
     spectrum = copy(spectrum)
