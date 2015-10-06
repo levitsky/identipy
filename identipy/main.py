@@ -8,6 +8,7 @@ import ast
 import hashlib
 from copy import copy
 from string import punctuation
+from collections import defaultdict
 import operator as op
 from bisect import bisect
 from . import scoring, utils
@@ -77,7 +78,7 @@ def peptide_gen(settings):
 
     prefix = settings.get('input', 'decoy prefix')
     for prot in prot_gen(settings):
-        for pep in prot_peptides(prot[1], settings):
+        for pep in prot_peptides(prot[1], settings, is_decoy=prefix in prot[0]):
             yield pep, prot[0]
 
 def prot_gen(settings):
@@ -91,7 +92,9 @@ def prot_gen(settings):
         for p in f:
             yield p
 
-def prot_peptides(prot_seq, settings):
+def prot_peptides(prot_seq, settings, is_decoy):
+    global seen_target
+    global seen_decoy
     mods = settings.get('modifications', 'variable')
     enzyme = utils.get_enzyme(settings.get('search', 'enzyme'))
     mc = settings.getint('search', 'number of missed cleavages')
@@ -99,7 +102,8 @@ def prot_peptides(prot_seq, settings):
     maxlen = settings.getint('search', 'peptide maximum length')
     mods = settings.get('modifications', 'variable')
     maxmods = settings.getint('modifications', 'maximum variable mods')
-    seen = set()
+    seen_target = set()
+    seen_decoy = set()
 
     leg = settings.get('misc', 'legend')
     punct = set(punctuation)
@@ -107,16 +111,22 @@ def prot_peptides(prot_seq, settings):
 
     if mods and maxmods:
         for pep in parser.cleave(prot_seq, enzyme, mc):
-            if pep not in seen:
-                seen.add(pep)
+            if pep not in seen_target and pep not in seen_decoy:
+                if is_decoy:
+                    seen_decoy.add(pep)
+                else:
+                    seen_target.add(pep)
                 if minlen <= len(pep) <= maxlen and parser.fast_valid(pep):
                    for form in utils.custom_isoforms(pep, variable_mods=nmods, maxmods=maxmods):
                         yield form
     else:
         for pep in parser.cleave(prot_seq, enzyme, mc):
             if minlen <= len(pep) <= maxlen and parser.fast_valid(pep):
-                if pep not in seen:
-                    seen.add(pep)
+                if pep not in seen_target and pep not in seen_decoy:
+                    if is_decoy:
+                        seen_decoy.add(pep)
+                    else:
+                        seen_target.add(pep)
                     yield pep
 
 def get_arrays(settings):
@@ -290,6 +300,8 @@ def peptide_processor(fname, settings):
         for m, c in utils.neutral_masses(s, settings):
             charges.append(c)
             nmasses.append(m)
+            s['nm'] = m
+            s['ch'] = c
             idx.append(i)
     print len(spectra), 'spectra loaded.'
     i = np.argsort(nmasses)
@@ -319,7 +331,7 @@ def peptide_processor(fname, settings):
         theor = utils.theor_spectrum(seqm, maxcharge=1, aa_mass=aa_mass)
         results = [scoring._hyperscore(copy(s), theor, acc_frag) for s in cand_spectra] # FIXME (use score from settings?)
         
-        results = [(x.pop('score'), utils.get_title(s), s, x) for x, s in zip(results, cand_spectra)]
+        results = [(x.pop('score'), utils.get_title(s), s, x, m) for x, s in zip(results, cand_spectra)]
 
         results.sort(reverse=True)
         # results = np.array(results, dtype=[('score', np.float32), ('title', np.str_, 30), ('spectrum', np.object_), ('info', np.object_)])
@@ -342,9 +354,11 @@ def iterate_spectra(fname):
         raise ValueError('Unrecognized file type: {}'.format(ftype))
 
 def process_peptides(fname, settings):
-    global spec_scores
-    global spec_top_scores
-    global spec_top_seqs
+    # global spec_scores
+    # global spec_top_scores
+    # global spec_top_seqs
+
+    spec_results = defaultdict(dict)
     spec_scores = {}
     spec_top_scores = {}
     spec_top_seqs = {}
@@ -356,23 +370,54 @@ def process_peptides(fname, settings):
     for x in utils.multimap(n, func, peps):
         if x is not None:
             peptide, result = x
-            for score, spec_t, spec, info in result:
-                spec_scores.setdefault(spec_t, []).append(score)
-                spec_top_scores.setdefault(spec_t, [])
-                spec_top_seqs.setdefault(spec_t, [])
-                top_scores = spec_top_scores[spec_t]
-                top_seqs = spec_top_seqs[spec_t]
+            peptide = peptide[0]
+            for score, spec_t, spec, info, m in result:
+                info['pep_nm'] = m
+                spec_results[spec_t]['spectrum'] = spec
+                spec_results[spec_t].setdefault('scores', []).append(score)
+                spec_results[spec_t].setdefault('sequences', [])
+                spec_results[spec_t].setdefault('top_scores', [])
+                spec_results[spec_t].setdefault('info', [])
+                # spec_scores.setdefault(spec_t, []).append(score)
+                # spec_top_scores.setdefault(spec_t, [])
+                # spec_top_seqs.setdefault(spec_t, [])
+                top_scores = spec_results[spec_t]['top_scores']
+                top_seqs = spec_results[spec_t]['sequences']
+                top_info = spec_results[spec_t]['info']
                 i = bisect(top_scores, score)
                 if nc is None or i < nc:
                     if nc is None or len(top_scores) < nc:
                         top_scores.insert(i, score)
                         top_seqs.insert(i, peptide)
+                        top_info.insert(i, info)
                     else:
                         top_scores[i+1:nc+1] = top_scores[i:nc]
                         top_scores[i] = score
                         top_seqs[i+1:nc+1] = top_seqs[i:nc]
                         top_seqs[i] = peptide
-            yield peptide, result
+                        top_info[i+1:nc+1] = top_info[i:nc]
+                        top_info[i] = info
+            # print peptide, result
+
+    maxlen = settings.getint('search', 'peptide maximum length')
+    dtype = np.dtype([('score', np.float64),
+        ('seq', np.str_, maxlen), ('note', np.str_, 1),
+        ('charge', np.int8), ('info', np.object_), ('sumI', np.float64)])
+
+    for spec_name, val in spec_results.iteritems():
+        s = val['spectrum']
+        c = []
+        evalues = []
+        for idx, score in enumerate(val['top_scores']):
+            pseq = val['sequences'][idx]
+            c.append((score, pseq, 't' if pseq in seen_target else 'd', s['ch'], val['info'][idx], val['info'][idx].pop('sumI')))
+            c[-1][4]['mzdiff'] = {'Th': s['nm'] - val['info'][idx]['pep_nm']}
+            c[-1][4]['mzdiff']['ppm'] = 1e6 * c[-1][4]['mzdiff']['Th'] / val['info'][idx]['pep_nm']
+            evalues.append(1.0/score if score else 1e6)
+        c = np.array(c, dtype=dtype)
+        yield {'spectrum': s, 'candidates': c, 'e-values': evalues}
+
+    # return spec_results
     # return (func(p) for p in peps)
     # return utils.multimap(n, func, peps)
 
