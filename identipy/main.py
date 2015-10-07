@@ -300,8 +300,8 @@ def peptide_processor(fname, settings):
         for m, c in utils.neutral_masses(s, settings):
             charges.append(c)
             nmasses.append(m)
-            s['nm'] = m
-            s['ch'] = c
+            s.setdefault('nm', []).append(m)
+            s.setdefault('ch', []).append(c)
             idx.append(i)
     print len(spectra), 'spectra loaded.'
     i = np.argsort(nmasses)
@@ -405,10 +405,11 @@ def process_peptides(fname, settings):
         evalues = []
         for idx, score in enumerate(val['top_scores']):
             pseq = val['sequences'][idx]
-            c.append((-score, pseq, 't' if pseq in seen_target else 'd', s['ch'], val['info'][idx], val['info'][idx].pop('sumI')))
-            c[-1][4]['mzdiff'] = {'Th': s['nm'] - val['info'][idx]['pep_nm']}
-            c[-1][4]['mzdiff']['ppm'] = 1e6 * c[-1][4]['mzdiff']['Th'] / val['info'][idx]['pep_nm']
-            print c[-1][4]['mzdiff'], s['nm'],  val['info'][idx]['pep_nm']
+            pnm = val['info'][idx]['pep_nm']
+            nidx = min(range(len(s['nm'])), key=lambda i: abs(s['nm'][i]-pnm))
+            c.append((-score, pseq, 't' if pseq in seen_target else 'd', s['ch'][nidx], val['info'][idx], val['info'][idx].pop('sumI')))
+            c[-1][4]['mzdiff'] = {'Th': s['nm'][nidx] - pnm}
+            c[-1][4]['mzdiff']['ppm'] = 1e6 * c[-1][4]['mzdiff']['Th'] / pnm
             evalues.append(1.0/-score if -score else 1e6)
         c = np.array(c, dtype=dtype)
         yield {'spectrum': s, 'candidates': c, 'e-values': evalues}
