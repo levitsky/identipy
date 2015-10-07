@@ -372,6 +372,7 @@ def process_peptides(fname, settings):
             peptide, result = x
             peptide = peptide[0]
             for score, spec_t, spec, info, m in result:
+                score = float(score)
                 info['pep_nm'] = m
                 spec_results[spec_t]['spectrum'] = spec
                 spec_results[spec_t].setdefault('scores', []).append(score)
@@ -384,21 +385,15 @@ def process_peptides(fname, settings):
                 top_scores = spec_results[spec_t]['top_scores']
                 top_seqs = spec_results[spec_t]['sequences']
                 top_info = spec_results[spec_t]['info']
-                i = bisect(top_scores, score)
+                i = bisect(top_scores, -score)
                 if nc is None or i < nc:
-                    if nc is None or len(top_scores) < nc:
-                        top_scores.insert(i, score)
-                        top_seqs.insert(i, peptide)
-                        top_info.insert(i, info)
-                    else:
-                        top_scores[i+1:nc+1] = top_scores[i:nc]
-                        top_scores[i] = score
-                        top_seqs[i+1:nc+1] = top_seqs[i:nc]
-                        top_seqs[i] = peptide
-                        top_info[i+1:nc+1] = top_info[i:nc]
-                        top_info[i] = info
-            # print peptide, result
-
+                    top_scores.insert(i, -score)
+                    top_seqs.insert(i, peptide)
+                    top_info.insert(i, info)
+                    if nc is not None and len(top_scores) > nc:
+                        top_scores[:] = top_scores[:-1]
+                        top_seqs[:] = top_seqs[:-1]
+                        top_info[:] = top_info[:-1]
     maxlen = settings.getint('search', 'peptide maximum length')
     dtype = np.dtype([('score', np.float64),
         ('seq', np.str_, maxlen), ('note', np.str_, 1),
@@ -410,10 +405,11 @@ def process_peptides(fname, settings):
         evalues = []
         for idx, score in enumerate(val['top_scores']):
             pseq = val['sequences'][idx]
-            c.append((score, pseq, 't' if pseq in seen_target else 'd', s['ch'], val['info'][idx], val['info'][idx].pop('sumI')))
+            c.append((-score, pseq, 't' if pseq in seen_target else 'd', s['ch'], val['info'][idx], val['info'][idx].pop('sumI')))
             c[-1][4]['mzdiff'] = {'Th': s['nm'] - val['info'][idx]['pep_nm']}
             c[-1][4]['mzdiff']['ppm'] = 1e6 * c[-1][4]['mzdiff']['Th'] / val['info'][idx]['pep_nm']
-            evalues.append(1.0/score if score else 1e6)
+            print c[-1][4]['mzdiff'], s['nm'],  val['info'][idx]['pep_nm']
+            evalues.append(1.0/-score if -score else 1e6)
         c = np.array(c, dtype=dtype)
         yield {'spectrum': s, 'candidates': c, 'e-values': evalues}
 
