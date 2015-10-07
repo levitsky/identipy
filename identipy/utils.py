@@ -415,6 +415,7 @@ def write_pepxml(inputfile, settings, results):
     child4.append(copy(child5))
 
     results = [x for x in results if x['candidates'].size]
+    results = list(get_output(results, settings))
     pept_prot = dict()
     prots = dict()
     peptides = set()
@@ -439,7 +440,7 @@ def write_pepxml(inputfile, settings, results):
     if settings.has_option('misc', 'legend'):
         leg = settings.get('misc', 'legend')
 
-    for idx, result in enumerate(get_output(results, settings)):
+    for idx, result in enumerate(results):
         if result['candidates'].size:
             tmp = etree.Element('spectrum_query')
             spectrum = result['spectrum']
@@ -474,7 +475,6 @@ def write_pepxml(inputfile, settings, results):
                 sequence = re.sub(r'[^A-Z]', '', mod_sequence)
                 if sequence not in pept_prot:
                     flag = 0
-                    print 'missing peptide: %s' % (sequence, )
                     break
                 else:
                     tmp3.set('peptide', sequence)
