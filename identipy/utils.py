@@ -39,6 +39,15 @@ def preprocess_spectrum(spectrum, settings):
     spectrum['intensity array'] = spectrum['intensity array'][idx]
     spectrum['m/z array'] = spectrum['m/z array'][idx]
 
+    if minpeaks and spectrum['intensity array'].size < minpeaks:
+        return None
+
+    if dynrange:
+        i = spectrum['intensity array'] > spectrum['intensity array'].max(
+                ) / dynrange
+        spectrum['intensity array'] = spectrum['intensity array'][i]
+        spectrum['m/z array'] = spectrum['m/z array'][i]
+
     if maxpeaks and minpeaks > maxpeaks:
         raise ValueError('minpeaks > maxpeaks: {} and {}'.format(
             minpeaks, maxpeaks))
@@ -47,12 +56,6 @@ def preprocess_spectrum(spectrum, settings):
         j = np.argsort(spectrum['m/z array'][i])
         spectrum['intensity array'] = spectrum['intensity array'][i][j]
         spectrum['m/z array'] = spectrum['m/z array'][i][j]
-    
-    if dynrange:
-        i = spectrum['intensity array'] > spectrum['intensity array'].max(
-                ) / dynrange
-        spectrum['intensity array'] = spectrum['intensity array'][i]
-        spectrum['m/z array'] = spectrum['m/z array'][i]
     
     if minpeaks and spectrum['intensity array'].size < minpeaks:
         return None
