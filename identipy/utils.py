@@ -341,11 +341,6 @@ def write_pepxml(inputfile, settings, results):
     from time import strftime
     from os import path
 
-    if settings.has_option('misc', 'aa_mass'):
-        aa_mass = settings.get('misc', 'aa_mass')
-    else:
-        aa_mass = get_aa_mass(settings)
-
     if settings.has_option('output', 'path'):
         outpath = settings.get('output', 'path')
     else:
@@ -357,12 +352,6 @@ def write_pepxml(inputfile, settings, results):
     database = settings.get('input', 'database')
     missed_cleavages = settings.getint('search', 'number of missed cleavages')
     fmods = settings.get('modifications', 'fixed')
-    vmods = set()
-    variablemods =  settings.get('modifications', 'variable')
-    if variablemods:
-        for k, v in variablemods.items():
-            for aa in v:
-                vmods.add(k + aa)
 
     output = open(filename, 'w')
     line1 = '<?xml version="1.0" encoding="UTF-8"?>\n\
@@ -438,6 +427,18 @@ def write_pepxml(inputfile, settings, results):
             if pep in peptides:
                 pept_prot.setdefault(pep, []).append(dbinfo)
     f.close()
+
+    if settings.has_option('misc', 'aa_mass'):
+        aa_mass = settings.get('misc', 'aa_mass')
+    else:
+        aa_mass = get_aa_mass(settings)
+
+    vmods = set()
+    variablemods =  settings.get('modifications', 'variable')
+    if variablemods:
+        for k, v in variablemods.items():
+            for aa in v:
+                vmods.add(k + aa)
 
     leg = {}
     if settings.has_option('misc', 'legend'):
