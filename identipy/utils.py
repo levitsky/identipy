@@ -7,6 +7,7 @@ from multiprocessing import Queue, Process, cpu_count
 from string import punctuation
 from copy import copy
 from ConfigParser import RawConfigParser
+
 try:
     from pyteomics import cmass
 except ImportError:
@@ -262,7 +263,7 @@ def cand_charge(result):
     m = np.array(map(lambda x: cmass.fast_mass(str(x)), result['candidates']['seq']))
     return np.round(m/mz).astype(np.int8)
 
-def multimap(n, func, it):
+def multimap(n, func, it, **kw):
     if n == 0:
         try:
             n = cpu_count()
@@ -270,26 +271,42 @@ def multimap(n, func, it):
             n = 1
     if n == 1:
         for s in it:
-            yield func(s)
+            yield func(s, **kw)
     else:
         def worker(qin, qout):
             for spectrum in iter(qin.get, None):
-                result = func(spectrum)
+                result = func(spectrum, **kw)
                 qout.put(result)
         qin = Queue()
         qout = Queue()
         count = 0
-        for _ in range(n):
-            Process(target=worker, args=(qin, qout)).start()
-        for s in it:
-            qin.put(s)
-            count += 1
-        for _ in range(n):
-            qin.put(None)
-        while count:
-            yield qout.get()
-            count -= 1
+        while True:
+            procs = []
+            for _ in range(n):
+                p = Process(target=worker, args=(qin, qout))
+                p.start()
+                procs.append(p)
+            for s in it:
+                qin.put(s)
+                count += 1
+                if count > 500000:
+                    print 'Loaded 500000 items. Ending cycle.'
+                    break
+            for _ in range(n):
+                qin.put(None)
 
+            if not count:
+                print 'No items left. Exiting.'
+                break
+
+            while count:
+                yield qout.get()
+                count -= 1
+
+            for p in procs:
+                p.join()
+
+            print 'Cycle finished.'
 
 def allow_all(*args):
     return True
@@ -319,7 +336,9 @@ def get_output(results, settings):
     acc_r = settings.getfloat('output', 'precursor accuracy right')
     rel = settings.get('output', 'precursor accuracy unit') == 'ppm'
     key = ['Th', 'ppm'][rel]
+    count = 0
     for result in results:
+        count += 1
         c = result['candidates']
         c = c[c['score'] > score_threshold]
         if min_matched:
@@ -334,6 +353,7 @@ def get_output(results, settings):
             continue
         result['candidates'] = c[:num_candidates]
         yield result
+    print 'Unfiltered results:', count
 
 
 def write_pepxml(inputfile, settings, results):
@@ -408,6 +428,7 @@ def write_pepxml(inputfile, settings, results):
 
     results = [x for x in results if x['candidates'].size]
     results = list(get_output(results, settings))
+    print 'Accumulated results:', len(results)
     pept_prot = dict()
     prots = dict()
     peptides = set()
