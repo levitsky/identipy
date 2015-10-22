@@ -282,21 +282,24 @@ def process_spectra(f, settings):
     return utils.multimap(n, func, f)
 
 
-def peptide_processor(fname, settings):
+def prepare_peptide_processor(fname, settings):
     global spectra
     global nmasses
     global charges
     global idx
+    global t2i
     spectra = []
     nmasses = []
     charges = []
     idx = []
+    t2i = {}
     print 'Reading spectra ...'
     for spec in iterate_spectra(fname):
         ps = utils.preprocess_spectrum(spec, settings)
         if ps is not None:
             spectra.append(ps)
     for i, s in enumerate(spectra):
+        t2i[utils.get_title(s)] = i
         for m, c in utils.neutral_masses(s, settings):
             charges.append(c)
             nmasses.append(m)
@@ -309,6 +312,7 @@ def peptide_processor(fname, settings):
     charges = np.array(charges)[i]
     idx = np.array(idx)[i]
     spectra = np.array(spectra)
+
     utils.set_mod_dict(settings)
     aa_mass = utils.get_aa_mass(settings)
     score = utils.import_(settings.get('scoring', 'score'))
@@ -317,27 +321,31 @@ def peptide_processor(fname, settings):
     acc_frag = settings.getfloat('search', 'product accuracy')
     unit = settings.get('search', 'precursor accuracy unit')
     rel = utils.relative(unit)
+    return {'rel': rel, 'aa_mass': aa_mass, 'acc_l': acc_l, 'acc_r': acc_r, 'acc_frag': acc_frag,
+            'unit': unit}
 
-    def func(peptide):
-        seqm, prot = peptide
-        m = cmass.fast_mass(seqm, aa_mass=aa_mass)
-        dm_l = acc_l * m / 1.0e6 if rel else acc_l * c
-        dm_r = acc_r * m / 1.0e6 if rel else acc_r * c
-        start = nmasses.searchsorted(m - dm_l)
-        end = nmasses.searchsorted(m + dm_r)
-        if start == end: return None
-        cand_idx = idx[start:end]
-        cand_spectra = spectra[cand_idx]
-        theor = utils.theor_spectrum(seqm, maxcharge=1, aa_mass=aa_mass)
-        results = [scoring._hyperscore(copy(s), theor, acc_frag) for s in cand_spectra] # FIXME (use score from settings?)
-        
-        results = [(x.pop('score'), utils.get_title(s), s, x, m) for x, s in zip(results, cand_spectra)]
+def peptide_processor(peptide, **kwargs):
+    seqm, prot = peptide
+    m = cmass.fast_mass(seqm, aa_mass=kwargs['aa_mass'])
+    rel = kwargs['rel']
+    acc_l = kwargs['acc_l']
+    acc_r = kwargs['acc_r']
+    dm_l = acc_l * m / 1.0e6 if rel else acc_l# * c FIXME
+    dm_r = acc_r * m / 1.0e6 if rel else acc_r# * c FIXME
+    start = nmasses.searchsorted(m - dm_l)
+    end = nmasses.searchsorted(m + dm_r)
+    if start == end: return None
+    cand_idx = idx[start:end]
+    cand_spectra = spectra[cand_idx]
+    theor = utils.theor_spectrum(seqm, maxcharge=1, aa_mass=kwargs['aa_mass'])
+    results = [scoring._hyperscore(copy(s), theor, kwargs['acc_frag']) for s in cand_spectra] # FIXME (use score from settings?)
+    
+    results = [(x.pop('score'), utils.get_title(s), x, m) for x, s in zip(results, cand_spectra)]
 
-        results.sort(reverse=True)
-        # results = np.array(results, dtype=[('score', np.float32), ('title', np.str_, 30), ('spectrum', np.object_), ('info', np.object_)])
-        return peptide, results
+    results.sort(reverse=True)
+    # results = np.array(results, dtype=[('score', np.float32), ('title', np.str_, 30), ('spectrum', np.object_), ('info', np.object_)])
+    return peptide, results
 
-    return func
 
 def iterate_spectra(fname):
     ftype = fname.rsplit('.', 1)[-1].lower()
@@ -363,19 +371,21 @@ def process_peptides(fname, settings):
     spec_top_scores = {}
     spec_top_seqs = {}
     peps = peptide_gen(settings)
-    func = peptide_processor(fname, settings)
+    kwargs = prepare_peptide_processor(fname, settings)
+    func = peptide_processor
     nc = settings.getint('output', 'candidates') or None
     print 'Running the search ...'
     n = settings.getint('performance', 'processes')
-    for x in utils.multimap(n, func, peps):
+    for x in utils.multimap(n, func, peps, **kwargs):
         if x is not None:
             peptide, result = x
             peptide = peptide[0]
-            for score, spec_t, spec, info, m in result:
+            for score, spec_t, info, m in result:
+                spec = spectra[t2i[spec_t]]
                 score = float(score)
                 info['pep_nm'] = m
                 spec_results[spec_t]['spectrum'] = spec
-                spec_results[spec_t].setdefault('scores', []).append(score)
+#               spec_results[spec_t].setdefault('scores', []).append(score) FIXME write histogram
                 spec_results[spec_t].setdefault('sequences', [])
                 spec_results[spec_t].setdefault('top_scores', [])
                 spec_results[spec_t].setdefault('info', [])
@@ -391,9 +401,9 @@ def process_peptides(fname, settings):
                     top_seqs.insert(i, peptide)
                     top_info.insert(i, info)
                     if nc is not None and len(top_scores) > nc:
-                        top_scores[:] = top_scores[:-1]
-                        top_seqs[:] = top_seqs[:-1]
-                        top_info[:] = top_info[:-1]
+                        top_scores.pop()
+                        top_seqs.pop()
+                        top_info.pop()
     maxlen = settings.getint('search', 'peptide maximum length')
     dtype = np.dtype([('score', np.float64),
         ('seq', np.str_, maxlen), ('note', np.str_, 1),
