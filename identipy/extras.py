@@ -27,13 +27,15 @@ def FDbinSize(X):
 
 def get_cutoff(results, settings, FDR=1):
     """A function for e-value threshold calculation"""
-    target_evalues, decoy_evalues = np.array([]), np.array([])
+    target_evalues, decoy_evalues = [], []
     for res in get_output(results, settings):
         for e, (_, _, note, _, _, _) in zip(res['e-values'], res['candidates']):
             if note == 't':
-                target_evalues = np.append(target_evalues, float(e))
+                target_evalues.append(float(e))
             elif note == 'd':
-                decoy_evalues = np.append(decoy_evalues, float(e))
+                decoy_evalues.append(float(e))
+    target_evalues = np.array(target_evalues)
+    decoy_evalues = np.array(decoy_evalues)
     target_evalues.sort()
     best_cut_evalue = None
     for cut_evalue in target_evalues:
@@ -54,8 +56,9 @@ def optimization(fname, settings):
     results = []
     for res in process_file(fname, settings):
         results.append(res)
+    print 'Results before optimization:', len(results)
     cutoff = get_cutoff(results, settings, FDR=1)
-    print cutoff
+    print 'E-value cutoff:', cutoff
 
     functions = ['rt_filtering', 'precursor_mass_optimization', 'fragment_mass_optimization',
             'charge_optimization', 'missed_cleavages_optimization']

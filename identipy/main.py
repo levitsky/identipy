@@ -79,7 +79,7 @@ def peptide_gen(settings):
     prefix = settings.get('input', 'decoy prefix')
     for prot in prot_gen(settings):
         for pep in prot_peptides(prot[1], settings, is_decoy=prefix in prot[0]):
-            yield pep, prot[0]
+            yield pep #, prot[0]
 
 def prot_gen(settings):
     db = settings.get('input', 'database')
@@ -306,7 +306,7 @@ def prepare_peptide_processor(fname, settings):
             s.setdefault('nm', []).append(m)
             s.setdefault('ch', []).append(c)
             idx.append(i)
-    print len(spectra), 'spectra loaded.'
+    print len(spectra), 'spectra pass quality criteria.'
     i = np.argsort(nmasses)
     nmasses = np.array(nmasses)[i]
     charges = np.array(charges)[i]
@@ -325,7 +325,7 @@ def prepare_peptide_processor(fname, settings):
             'unit': unit}
 
 def peptide_processor(peptide, **kwargs):
-    seqm, prot = peptide
+    seqm = peptide
     m = cmass.fast_mass(seqm, aa_mass=kwargs['aa_mass'])
     rel = kwargs['rel']
     acc_l = kwargs['acc_l']
@@ -379,7 +379,6 @@ def process_peptides(fname, settings):
     for x in utils.multimap(n, func, peps, **kwargs):
         if x is not None:
             peptide, result = x
-            peptide = peptide[0]
             for score, spec_t, info, m in result:
                 spec = spectra[t2i[spec_t]]
                 score = float(score)
