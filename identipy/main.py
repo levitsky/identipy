@@ -92,9 +92,9 @@ def prot_gen(settings):
         for p in f:
             yield p
 
+seen_target = set()
+seen_decoy = set()
 def prot_peptides(prot_seq, settings, is_decoy):
-    global seen_target
-    global seen_decoy
     mods = settings.get('modifications', 'variable')
     enzyme = utils.get_enzyme(settings.get('search', 'enzyme'))
     mc = settings.getint('search', 'number of missed cleavages')
@@ -102,8 +102,6 @@ def prot_peptides(prot_seq, settings, is_decoy):
     maxlen = settings.getint('search', 'peptide maximum length')
     mods = settings.get('modifications', 'variable')
     maxmods = settings.getint('modifications', 'maximum variable mods')
-    seen_target = set()
-    seen_decoy = set()
 
     leg = settings.get('misc', 'legend')
     punct = set(punctuation)
@@ -428,6 +426,7 @@ def process_peptides(fname, settings):
     # return utils.multimap(n, func, peps)
 
 def process_file(fname, settings):
+    
     stage1 = settings.get('misc', 'first stage')
     if stage1:
         return double_run(fname, settings, utils.import_(stage1))
@@ -438,6 +437,8 @@ def process_file(fname, settings):
             spectra = iterate_spectra(fname)
             return process_spectra(spectra, settings)
         elif iterate == 'peptides':
+            seen_target.clear()
+            seen_decoy.clear()
             return process_peptides(fname, settings)
         else:
             raise ValueError('iterate must be "spectra" or "peptides"')
