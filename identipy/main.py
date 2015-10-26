@@ -74,59 +74,6 @@ def candidates_from_arrays(spectrum, settings):
 #       result = res
     return np.array(result, dtype=dtype)
 
-def peptide_gen(settings):
-
-    prefix = settings.get('input', 'decoy prefix')
-    for prot in prot_gen(settings):
-        for pep in prot_peptides(prot[1], settings, is_decoy=prefix in prot[0]):
-            yield pep #, prot[0]
-
-def prot_gen(settings):
-    db = settings.get('input', 'database')
-    add_decoy = settings.getboolean('input', 'add decoy')
-    prefix = settings.get('input', 'decoy prefix')
-    mode = settings.get('input', 'decoy method')
-
-    read = [fasta.read, lambda f: fasta.decoy_db(f, mode=mode, prefix=prefix)][add_decoy]
-    with read(db) as f:
-        for p in f:
-            yield p
-
-seen_target = set()
-seen_decoy = set()
-def prot_peptides(prot_seq, settings, is_decoy):
-    mods = settings.get('modifications', 'variable')
-    enzyme = utils.get_enzyme(settings.get('search', 'enzyme'))
-    mc = settings.getint('search', 'number of missed cleavages')
-    minlen = settings.getint('search', 'peptide minimum length')
-    maxlen = settings.getint('search', 'peptide maximum length')
-    mods = settings.get('modifications', 'variable')
-    maxmods = settings.getint('modifications', 'maximum variable mods')
-
-    leg = settings.get('misc', 'legend')
-    punct = set(punctuation)
-    nmods = [(p, mod[1]) for p, mod in leg.iteritems() if p in punct]
-
-    if mods and maxmods:
-        for pep in parser.cleave(prot_seq, enzyme, mc):
-            if pep not in seen_target and pep not in seen_decoy:
-                if is_decoy:
-                    seen_decoy.add(pep)
-                else:
-                    seen_target.add(pep)
-                if minlen <= len(pep) <= maxlen and parser.fast_valid(pep):
-                   for form in utils.custom_isoforms(pep, variable_mods=nmods, maxmods=maxmods):
-                        yield form
-    else:
-        for pep in parser.cleave(prot_seq, enzyme, mc):
-            if minlen <= len(pep) <= maxlen and parser.fast_valid(pep):
-                if pep not in seen_target and pep not in seen_decoy:
-                    if is_decoy:
-                        seen_decoy.add(pep)
-                    else:
-                        seen_target.add(pep)
-                    yield pep
-
 def get_arrays(settings):
     if settings.has_option('performance', 'arrays'):
         return settings.get('performance', 'arrays')
@@ -225,7 +172,6 @@ def get_arrays(settings):
         notes = npz['notes']
     return masses, seqs, notes
 
-
 def spectrum_processor(settings):
     processor = settings.get('misc', 'spectrum processor')
     if '.' in processor:
@@ -270,7 +216,6 @@ def spectrum_processor(settings):
     else:
         raise NotImplementedError('Unsupported pre-calculation mode')
 
-
 def process_spectra(f, settings):
     # prepare the function
     func = spectrum_processor(settings)
@@ -279,6 +224,42 @@ def process_spectra(f, settings):
     n = settings.getint('performance', 'processes')
     return utils.multimap(n, func, f)
 
+
+def peptide_gen(settings):
+
+    prefix = settings.get('input', 'decoy prefix')
+    for prot in prot_gen(settings):
+        for pep in prot_peptides(prot[1], settings, is_decoy=prefix in prot[0]):
+            yield pep #, prot[0]
+
+def prot_gen(settings):
+    db = settings.get('input', 'database')
+    add_decoy = settings.getboolean('input', 'add decoy')
+    prefix = settings.get('input', 'decoy prefix')
+    mode = settings.get('input', 'decoy method')
+
+    read = [fasta.read, lambda f: fasta.decoy_db(f, mode=mode, prefix=prefix)][add_decoy]
+    with read(db) as f:
+        for p in f:
+            yield p
+
+seen_target = set()
+seen_decoy = set()
+def prot_peptides(prot_seq, settings, is_decoy):
+    mods = settings.get('modifications', 'variable')
+    enzyme = utils.get_enzyme(settings.get('search', 'enzyme'))
+    mc = settings.getint('search', 'number of missed cleavages')
+    minlen = settings.getint('search', 'peptide minimum length')
+    maxlen = settings.getint('search', 'peptide maximum length')
+    
+    for pep in parser.cleave(prot_seq, enzyme, mc):
+        if minlen <= len(pep) <= maxlen and parser.fast_valid(pep):
+            if pep not in seen_target and pep not in seen_decoy:
+                if is_decoy:
+                    seen_decoy.add(pep)
+                else:
+                    seen_target.add(pep)
+                yield pep
 
 def prepare_peptide_processor(fname, settings):
     global spectra
@@ -312,6 +293,13 @@ def prepare_peptide_processor(fname, settings):
     spectra = np.array(spectra)
 
     utils.set_mod_dict(settings)
+
+    mods = settings.get('modifications', 'variable')
+    maxmods = settings.getint('modifications', 'maximum variable mods')
+    leg = settings.get('misc', 'legend')
+    punct = set(punctuation)
+    nmods = [(p, mod[1]) for p, mod in leg.iteritems() if p in punct]
+
     aa_mass = utils.get_aa_mass(settings)
     score = utils.import_(settings.get('scoring', 'score'))
     acc_l = settings.getfloat('search', 'precursor accuracy left')
@@ -320,7 +308,18 @@ def prepare_peptide_processor(fname, settings):
     unit = settings.get('search', 'precursor accuracy unit')
     rel = utils.relative(unit)
     return {'rel': rel, 'aa_mass': aa_mass, 'acc_l': acc_l, 'acc_r': acc_r, 'acc_frag': acc_frag,
-            'unit': unit}
+            'unit': unit, 'nmods': nmods, 'maxmods': maxmods}
+
+def peptide_processor_iter_isoforms(peptide, **kwargs):
+    nmods, maxmods = op.itemgetter('nmods', 'maxmods')(kwargs)
+    out = []
+    if nmods and maxmods:
+        for form in utils.custom_isoforms(peptide, variable_mods=nmods, maxmods=maxmods):
+            out.append(peptide_processor(form, **kwargs))
+    else:
+        out.append(peptide_processor(peptide, **kwargs))
+    return out
+
 
 def peptide_processor(peptide, **kwargs):
     seqm = peptide
@@ -370,37 +369,38 @@ def process_peptides(fname, settings):
     spec_top_seqs = {}
     peps = peptide_gen(settings)
     kwargs = prepare_peptide_processor(fname, settings)
-    func = peptide_processor
+    func = peptide_processor_iter_isoforms
     nc = settings.getint('output', 'candidates') or None
     print 'Running the search ...'
     n = settings.getint('performance', 'processes')
-    for x in utils.multimap(n, func, peps, **kwargs):
-        if x is not None:
-            peptide, result = x
-            for score, spec_t, info, m in result:
-                spec = spectra[t2i[spec_t]]
-                score = float(score)
-                info['pep_nm'] = m
-                spec_results[spec_t]['spectrum'] = spec
+    for y in utils.multimap(n, func, peps, **kwargs):
+        for x in y:
+            if x is not None:
+                peptide, result = x
+                for score, spec_t, info, m in result:
+                    spec = spectra[t2i[spec_t]]
+                    score = float(score)
+                    info['pep_nm'] = m
+                    spec_results[spec_t]['spectrum'] = spec
 #               spec_results[spec_t].setdefault('scores', []).append(score) FIXME write histogram
-                spec_results[spec_t].setdefault('sequences', [])
-                spec_results[spec_t].setdefault('top_scores', [])
-                spec_results[spec_t].setdefault('info', [])
-                # spec_scores.setdefault(spec_t, []).append(score)
-                # spec_top_scores.setdefault(spec_t, [])
-                # spec_top_seqs.setdefault(spec_t, [])
-                top_scores = spec_results[spec_t]['top_scores']
-                top_seqs = spec_results[spec_t]['sequences']
-                top_info = spec_results[spec_t]['info']
-                i = bisect(top_scores, -score)
-                if nc is None or i < nc:
-                    top_scores.insert(i, -score)
-                    top_seqs.insert(i, peptide)
-                    top_info.insert(i, info)
-                    if nc is not None and len(top_scores) > nc:
-                        top_scores.pop()
-                        top_seqs.pop()
-                        top_info.pop()
+                    spec_results[spec_t].setdefault('sequences', [])
+                    spec_results[spec_t].setdefault('top_scores', [])
+                    spec_results[spec_t].setdefault('info', [])
+                    # spec_scores.setdefault(spec_t, []).append(score)
+                    # spec_top_scores.setdefault(spec_t, [])
+                    # spec_top_seqs.setdefault(spec_t, [])
+                    top_scores = spec_results[spec_t]['top_scores']
+                    top_seqs = spec_results[spec_t]['sequences']
+                    top_info = spec_results[spec_t]['info']
+                    i = bisect(top_scores, -score)
+                    if nc is None or i < nc:
+                        top_scores.insert(i, -score)
+                        top_seqs.insert(i, peptide)
+                        top_info.insert(i, info)
+                        if nc is not None and len(top_scores) > nc:
+                            top_scores.pop()
+                            top_seqs.pop()
+                            top_info.pop()
     maxlen = settings.getint('search', 'peptide maximum length')
     dtype = np.dtype([('score', np.float64),
         ('seq', np.str_, maxlen), ('note', np.str_, 1),
