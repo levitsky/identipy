@@ -1,7 +1,7 @@
 import re
 from pyteomics import mass, electrochem as ec, auxiliary as aux, parser, fasta
 import sys
-from itertools import product
+from itertools import combinations
 import numpy as np
 from multiprocessing import Queue, Process, cpu_count
 from string import punctuation
@@ -20,13 +20,16 @@ def custom_isoforms(peptide, variable_mods, maxmods=2):
     else:
         to_char = variable_mods[-1][0]
         from_char = variable_mods[-1][1]
-        options = [(c,) if c != from_char else (from_char, to_char) for c in peptide]
-        variants = (''.join(o) for o in product(*options))
-        for v in variants:
-            vc = v.count(to_char)
-            pc = peptide.count(to_char)
-            if vc - pc <= maxmods:
-                for z in custom_isoforms(v, variable_mods[:-1], maxmods=maxmods + pc - vc):
+        sites = [s[0] for s in enumerate(peptide) if s[1] == from_char]
+        for m in range(maxmods+1):
+            for comb in combinations(sites, m):
+                v = ''
+                cc_prev = 0
+                for cc in comb:
+                    v = v + peptide[cc_prev:cc] + to_char
+                    cc_prev = cc + 1
+                v = v + peptide[cc_prev:]
+                for z in custom_isoforms(v, variable_mods[:-1], maxmods=maxmods - m):
                     yield z
 
 def preprocess_spectrum(spectrum, settings):
