@@ -373,6 +373,9 @@ def process_peptides(fname, settings):
     nc = settings.getint('output', 'candidates') or None
     print 'Running the search ...'
     n = settings.getint('performance', 'processes')
+    leg = {}
+    if settings.has_option('misc', 'legend'):
+        leg = settings.get('misc', 'legend')
     for y in utils.multimap(n, func, peps, **kwargs):
         for x in y:
             if x is not None:
@@ -411,13 +414,16 @@ def process_peptides(fname, settings):
         c = []
         evalues = []
         for idx, score in enumerate(val['top_scores']):
-            pseq = val['sequences'][idx]
+            mseq = val['sequences'][idx]
+            seq = mseq
+            for x in set(mseq).intersection(punctuation):
+                seq = seq.replace(x, leg[x][1])
             pnm = val['info'][idx]['pep_nm']
             nidx = min(range(len(s['nm'])), key=lambda i: abs(s['nm'][i]-pnm))
-            c.append((-score, pseq, 't' if pseq in seen_target else 'd', s['ch'][nidx], val['info'][idx], val['info'][idx].pop('sumI')))
+            c.append((-score, mseq, 't' if seq in seen_target else 'd', s['ch'][nidx], val['info'][idx], val['info'][idx].pop('sumI')))
             c[-1][4]['mzdiff'] = {'Th': s['nm'][nidx] - pnm}
             c[-1][4]['mzdiff']['ppm'] = 1e6 * c[-1][4]['mzdiff']['Th'] / pnm
-            evalues.append(1.0/-score if -score else 1e6)
+            evalues.append(-1./score if -score else 1e6)
         c = np.array(c, dtype=dtype)
         yield {'spectrum': s, 'candidates': c, 'e-values': evalues}
 
