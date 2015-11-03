@@ -1,5 +1,5 @@
 from scipy.stats import percentileofscore, scoreatpercentile
-from pyteomics import achrom, auxiliary, parser, mass
+from pyteomics import achrom, auxiliary as aux, parser, mass
 from main import *
 from scoring import get_fragment_mass_tol
 import numpy as np
@@ -25,58 +25,43 @@ def FDbinSize(X):
     return h
 
 
-def get_cutoff(results, settings, FDR=1):
-    """A function for e-value threshold calculation"""
-    target_evalues, decoy_evalues = [], []
-    for res in get_output(results, settings):
-        for e, (_, _, note, _, _, _) in zip(res['e-values'], res['candidates']):
-            if note == 't':
-                target_evalues.append(float(e))
-            elif note == 'd':
-                decoy_evalues.append(float(e))
-    target_evalues = np.array(target_evalues)
-    decoy_evalues = np.array(decoy_evalues)
-    target_evalues.sort()
-    best_cut_evalue = None
-    for cut_evalue in target_evalues:
-        counter_target = target_evalues[target_evalues <= cut_evalue].size
-        counter_decoy = decoy_evalues[decoy_evalues <= cut_evalue].size
-        if counter_target and (float(counter_decoy) / float(counter_target)) * 100 <= float(FDR):
-            best_cut_evalue = cut_evalue
-    if not best_cut_evalue:
-        return 1e6
-    return best_cut_evalue
-
+def get_subset(results, settings, fdr=0.01):
+    """Filter results to given FDR using top 1 candidates"""
+    out = get_output(results, settings)
+    subset = aux.filter(out, key=lambda x: x['e-values'][0],
+            is_decoy = lambda x: x['candidates'][0][2] == 'd',
+            fdr=fdr)
+    return subset
 
 def optimization(fname, settings):
     settings = copy(settings)
     settings.set('misc', 'first stage', '')
     settings.set('scoring', 'e-values for candidates', 1)
 
-    results = []
-    for res in process_file(fname, settings):
-        results.append(res)
-    print 'Results before optimization:', len(results)
-    cutoff = get_cutoff(results, settings, FDR=1)
-    print 'E-value cutoff:', cutoff
-
-    functions = ['rt_filtering', 'precursor_mass_optimization', 'fragment_mass_optimization',
-            'charge_optimization', 'missed_cleavages_optimization']
+    results = process_file(fname, settings)
+    filtered = get_subset(results, settings, fdr=0.01)
+    print len(filtered), 'PSMs with 1% FDR.'
+    if len(filtered) < 50:
+        print 'OPTIMIZATION ABORTED'
+        return settings
+    functions = [rt_filtering, precursor_mass_optimization, fragment_mass_optimization,
+            charge_optimization, missed_cleavages_optimization]
     for func in functions:
-        settings = eval('%s(results, settings, cutoff)' % (func, ))
+        settings = func(filtered, settings)
     return settings
 
 
-def charge_optimization(results, settings, cutoff):
+def charge_optimization(results, settings):
     settings = copy(settings)
-    formula = "get_info(res['spectrum'], res, settings)[1]"
-    chargestates = get_values(formula, results, settings, cutoff)
-    mincharge = min(chargestates)
-    maxcharge = max(chargestates)
-    for ch in sorted(set(chargestates)):
+    formula = "get_info("
+    chargestates = np.array([get_info(res['spectrum'], res, settings)[1] for res in results])
+    mincharge = chargestates.min()
+    maxcharge = chargestates.max()
+    
+    for ch in range(mincharge, maxcharge+1):
         if float(chargestates[chargestates < ch].size) / chargestates.size < 0.05:
             mincharge = ch
-    for ch in sorted(set(chargestates))[::-1]:
+    for ch in range(maxcharge, mincharge-1, -1):
         if float(chargestates[chargestates > ch].size) / chargestates.size < 0.05:
             maxcharge = ch
     print 'NEW charges = %s:%s' % (mincharge, maxcharge)
@@ -84,56 +69,35 @@ def charge_optimization(results, settings, cutoff):
     settings.set('search', 'minimum charge', mincharge)
     return settings
 
-def precursor_mass_optimization(results, settings, cutoff):
+def precursor_mass_optimization(results, settings):
     settings = copy(settings)
-    formula = """(cmass.fast_mass(str(seq), charge=0, aa_mass=get_aa_mass(settings)) - get_info(res['spectrum'], res, settings)[0]) / get_info(res['spectrum'], res, settings)[0] * 1e6"""
-    massdif = get_values(formula, results, settings, cutoff)
+    
+    massdif = np.array([(cmass.fast_mass(str(res['candidates'][0][1]), charge=0, aa_mass=get_aa_mass(settings)) -
+        get_info(res['spectrum'], res, settings)[0]) / get_info(res['spectrum'], res, settings)[0] * 1e6 for res in results])
 
     best_par_mt_l = min(massdif[massdif > scoreatpercentile(massdif, 0.5)])
     best_par_mt_r = max(massdif[massdif < scoreatpercentile(massdif, 99.5)])
     print 'NEW PARENT MASS TOLERANCE = %s:%s' % (best_par_mt_l, best_par_mt_r)
     settings.set('search', 'precursor accuracy left', -(best_par_mt_l))
     settings.set('search', 'precursor accuracy right', best_par_mt_r)
+    settings.set('search', 'precursor accuracy unit', 'ppm')
     return settings
 
-
-def get_values(formula, results, settings, cutoff):
-    values = np.array([])
-    for res in get_output(results, settings):
-        for e, (_, seq, note, _, _, _) in zip(res['e-values'], res['candidates']):
-            e, seq, note, RT, _ = float(e), seq, note, utils.get_RT(res['spectrum']), res['spectrum']
-            if note == 'd' or float(e) > cutoff:
-                pass
-            else:
-                toadd = eval(formula)
-                if isinstance(toadd, list):
-                    if values.size:
-                        values = np.vstack((values, toadd))
-                    else:
-                        values = np.array(toadd)
-                else:
-                    values = np.append(values, toadd)
-    return values
-
-
-def missed_cleavages_optimization(results, settings, cutoff):
+def missed_cleavages_optimization(results, settings):
     settings = copy(settings)
-    formula = """len(parser.cleave(seq, get_enzyme(str(settings.get('search', 'enzyme'))), 0)) - 1"""
-
-    missedcleavages = get_values(formula, results, settings, cutoff)
-    best_missedcleavages = max(missedcleavages)
-    for mc in sorted(set(missedcleavages))[::-1]:
+    missedcleavages = np.array([parser.num_sites(str(res['candidates'][0][1]), get_enzyme(str(settings.get('search', 'enzyme'))))
+        for res in results])
+    best_missedcleavages = missedcleavages.max()
+    for mc in range(best_missedcleavages, -1, -1):
         if float(missedcleavages[missedcleavages > mc].size) / missedcleavages.size < 0.05:
             best_missedcleavages = mc
     print 'NEW miscleavages = %s' % (best_missedcleavages, )
     settings.set('search', 'miscleavages', best_missedcleavages)
     return settings
 
-
-def fragment_mass_optimization(results, settings, cutoff):
+def fragment_mass_optimization(results, settings):
     settings = copy(settings)
-    formula = """get_fragment_mass_tol(res['spectrum'], seq, settings)['fmt']"""
-    fragmassdif = get_values(formula, results, settings, cutoff)
+    fragmassdif = np.array([get_fragment_mass_tol(res['spectrum'], str(res['candidates'][0][1]), settings)['fmt'] for res in results])
     step = FDbinSize(fragmassdif)
     lside, rside = 0, 1
     mt_h, _ = np.histogram(fragmassdif, bins=np.arange(lside, rside, step))
@@ -151,13 +115,12 @@ def fragment_mass_optimization(results, settings, cutoff):
     return settings
 
 
-def rt_filtering(results, settings, cutoff):
+def rt_filtering(results, settings):
     settings = copy(settings)
     formula = "[float(RT), seq]"
-    RTexp, seqs = zip(*get_values(formula, results, settings, cutoff))
+    RTexp, seqs = zip(*[(utils.get_RT(res['spectrum']), res['candidates'][0][1]) for res in results])
     seqs = [list(s) for s in seqs] # FIXME: add terminal groups
     RTexp = [float(x) for x in RTexp]
-    print len(RTexp), 'top PSMs with 1% FDR'
     RC_def = achrom.RCs_gilar_rp
     xdict = {}
     for key, val in RC_def['aa'].items():
@@ -166,7 +129,7 @@ def rt_filtering(results, settings, cutoff):
     RC_dict_new = dict()
     for key, val in RC_dict['aa'].items():
         xdict.setdefault(key, [val, None])[1] = val
-    a, b, _, _ = auxiliary.linear_regression([x[0] for x in xdict.values() if x[1] != None], [x[1] for x in xdict.values() if x[1] != None])
+    a, b, _, _ = aux.linear_regression([x[0] for x in xdict.values() if x[1] != None], [x[1] for x in xdict.values() if x[1] != None])
     for key, x in xdict.items():
         if x[1] == None:
             x[1] = x[0] * a + b
@@ -177,7 +140,7 @@ def rt_filtering(results, settings, cutoff):
     rttheor = np.array([achrom.calculate_RT(pep, RC_dict, raise_no_mod=False)
         for pep in seqs])
     deltaRT = rtexp - rttheor
-    print auxiliary.linear_regression(rtexp, rttheor)
+    print aux.linear_regression(rtexp, rttheor)
 
     def condition(spectrum, cand, _):
         return 1 <= percentileofscore(deltaRT, utils.get_RT(spectrum)

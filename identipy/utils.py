@@ -38,8 +38,7 @@ def preprocess_spectrum(spectrum, settings):
     minpeaks = settings.getint('scoring', 'minimum peaks')
     dynrange = settings.getfloat('scoring', 'dynamic range')
 
-    idx = np.nonzero(spectrum['m/z array'] >=
-            settings.getfloat('search', 'product minimum m/z'))
+    idx = np.nonzero(spectrum['m/z array'] >= settings.getfloat('search', 'product minimum m/z'))
     spectrum['intensity array'] = spectrum['intensity array'][idx]
     spectrum['m/z array'] = spectrum['m/z array'][idx]
 
@@ -233,10 +232,12 @@ def import_(name):
     function name in identipy.scoring module.
     Return the function object."""
 
+    print 'Trying to import', name
     try:
         mod, f = name.rsplit('.', 1)
         return getattr(__import__(mod, fromlist=[f]), f)
-    except:
+    except Exception as e:
+        print(e)
         return getattr(__import__('identipy.scoring', fromlist=[name]), name)
 
 def get_aa_mass(settings):
