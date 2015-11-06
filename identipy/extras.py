@@ -44,7 +44,9 @@ def optimization(fname, settings):
     if len(filtered) < 50:
         print 'OPTIMIZATION ABORTED'
         return settings
-    functions = [rt_filtering, precursor_mass_optimization, fragment_mass_optimization,
+    functions = [
+            rt_filtering,
+            precursor_mass_optimization, fragment_mass_optimization,
             charge_optimization, missed_cleavages_optimization]
     for func in functions:
         settings = func(filtered, settings)
@@ -53,7 +55,6 @@ def optimization(fname, settings):
 
 def charge_optimization(results, settings):
     settings = copy(settings)
-    formula = "get_info("
     chargestates = np.array([get_info(res['spectrum'], res, settings)[1] for res in results])
     mincharge = chargestates.min()
     maxcharge = chargestates.max()
@@ -89,10 +90,10 @@ def missed_cleavages_optimization(results, settings):
         for res in results])
     best_missedcleavages = missedcleavages.max()
     for mc in range(best_missedcleavages, -1, -1):
-        if float(missedcleavages[missedcleavages > mc].size) / missedcleavages.size < 0.05:
+        if float(missedcleavages[missedcleavages > mc].size) / missedcleavages.size < 0.02:
             best_missedcleavages = mc
     print 'NEW miscleavages = %s' % (best_missedcleavages, )
-    settings.set('search', 'miscleavages', best_missedcleavages)
+    settings.set('search', 'mnumber of missed cleavages', best_missedcleavages)
     return settings
 
 def fragment_mass_optimization(results, settings):
@@ -117,7 +118,6 @@ def fragment_mass_optimization(results, settings):
 
 def rt_filtering(results, settings):
     settings = copy(settings)
-    formula = "[float(RT), seq]"
     RTexp, seqs = zip(*[(utils.get_RT(res['spectrum']), res['candidates'][0][1]) for res in results])
     seqs = [list(s) for s in seqs] # FIXME: add terminal groups
     RTexp = [float(x) for x in RTexp]
@@ -141,6 +141,7 @@ def rt_filtering(results, settings):
         for pep in seqs])
     deltaRT = rtexp - rttheor
     print aux.linear_regression(rtexp, rttheor)
+    print 'deltaRT percentiles:', scoreatpercentile(deltaRT, [1, 25, 50, 75, 99])
 
     def condition(spectrum, cand, _):
         return 1 <= percentileofscore(deltaRT, utils.get_RT(spectrum)
