@@ -142,11 +142,15 @@ def rt_filtering(results, settings):
     deltaRT = rtexp - rttheor
     print aux.linear_regression(rtexp, rttheor)
     print 'deltaRT percentiles:', scoreatpercentile(deltaRT, [1, 25, 50, 75, 99])
+    
+    h = FDbinSize(deltaRT)
+    heights, edges = np.histogram(deltaRT, bins=np.arange(deltaRT.min(), deltaRT.max()+h, h))
 
     def condition(spectrum, cand, _):
-        return 1 <= percentileofscore(deltaRT, utils.get_RT(spectrum)
-                        - achrom.calculate_RT(list(cand), RC_dict)
-                    ) <= 99
+        b = np.digitize(utils.get_RT(spectrum) - achrom.calculate_RT(list(cand), RC_dict),
+                edges)
+
+        return b and b < edges.size and heights[b-1]
 
     settings.set('scoring', 'condition', condition)
     return settings
