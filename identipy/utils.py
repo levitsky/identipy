@@ -13,6 +13,13 @@ try:
 except ImportError:
     cmass = mass
 
+def normalize_mods(sequence, settings):
+    leg = settings.get('misc', 'legend')
+    if leg:
+        for char in punctuation:
+            if char in leg:
+                sequence = sequence.replace(char, ''.join(leg[char]))
+    return sequence
 
 def custom_isoforms(peptide, variable_mods, maxmods=2):
     if not variable_mods:
@@ -437,7 +444,7 @@ def write_pepxml(inputfile, settings, results):
     prots = dict()
     peptides = set()
     for x in results:
-        peptides.update(re.sub(r'[^A-Z]', '', x['candidates'][i][1]) for i in range(
+        peptides.update(re.sub(r'[^A-Z]', '', normalize_mods(x['candidates'][i][1], settings)) for i in range(
                 settings.getint('output', 'candidates') or len(x['candidates'])))
     if settings.getboolean('input', 'add decoy'):
         decoy_method = settings.get('input', 'decoy method')
@@ -496,10 +503,7 @@ def write_pepxml(inputfile, settings, results):
                 tmp3 = etree.Element('search_hit')
                 tmp3.set('hit_rank', str(i + 1))
                 mod_sequence = str(candidate[1])
-                if leg:
-                    for char in punctuation:
-                        if char in leg:
-                            mod_sequence = mod_sequence.replace(char, ''.join(leg[char]))
+                mod_sequence = normalize_mods(mod_sequence, settings)
 
                 sequence = re.sub(r'[^A-Z]', '', mod_sequence)
                 if sequence not in pept_prot:
