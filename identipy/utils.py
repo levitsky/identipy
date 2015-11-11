@@ -207,6 +207,19 @@ def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, **kwargs):
 
 
 def neutral_masses(spectrum, settings):
+    maxcharge = settings.getint('search', 'maximum charge') or None
+    mincharge = settings.getint('search', 'minimum charge') or None
+
+    if settings.has_option('search', 'minimum unknown charge'):
+        min_ucharge = settings.getint('search', 'minimum unknown charge')
+    else:
+        min_ucharge = 1 #TODO remove?
+
+    if settings.has_option('search', 'maximum unknown charge'):
+        max_ucharge = settings.getint('search', 'maximum unknown charge')
+    else:
+        max_ucharge = 3 #TODO remove?
+
     if 'params' in spectrum:
         exp_mass = spectrum['params']['pepmass'][0]
         charge = spectrum['params'].get('charge')
@@ -218,15 +231,12 @@ def neutral_masses(spectrum, settings):
         exp_mass = ion['selected ion m/z']
     if isinstance(charge, str):
         states = [s for s in aux._parse_charge(charge, True)
-                if settings.getint('search', 'minimum charge'
-                    ) <= s <= settings.getint('search', 'maximum charge')]
+                if (mincharge is None or s >= mincharge) and (maxcharge is None or s <= maxcharge)]
     elif charge is None:
-        states = range(settings.getint('search', 'minimum charge'),
-            1 + settings.getint('search', 'maximum charge'))
+        states = range(min_ucharge, 1 + max_ucharge)
     else:
-        states = [c for c in charge if settings.getint('search', 'minimum charge'
-                    ) <= c <= settings.getint('search', 'maximum charge')]
-
+        states = [c for c in charge if
+            (mincharge is None or s >= mincharge) and (maxcharge is None or s <= maxcharge)]
     states.sort()
     return zip((c * (exp_mass - mass.nist_mass['H+'][0][0])
             for c in states), states)
