@@ -60,10 +60,10 @@ def charge_optimization(results, settings):
     maxcharge = chargestates.max()
     
     for ch in range(mincharge, maxcharge+1):
-        if float(chargestates[chargestates < ch].size) / chargestates.size < 0.05:
+        if float(chargestates[chargestates < ch].size) / chargestates.size < 0.01:
             mincharge = ch
     for ch in range(maxcharge, mincharge-1, -1):
-        if float(chargestates[chargestates > ch].size) / chargestates.size < 0.05:
+        if float(chargestates[chargestates > ch].size) / chargestates.size < 0.01:
             maxcharge = ch
     print 'NEW charges = %s:%s' % (mincharge, maxcharge)
     settings.set('search', 'maximum charge', maxcharge)
