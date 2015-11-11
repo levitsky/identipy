@@ -116,7 +116,7 @@ def get_arrays(settings):
             return 'd' if description.startswith(label) else 't'
 
         def peps():
-            prots = prot_gen(settings)
+            prots = utils.prot_gen(settings)
             aa_mass = utils.get_aa_mass(settings)
             mods = settings.get('modifications', 'variable')
             if mods:
@@ -223,43 +223,6 @@ def process_spectra(f, settings):
     # decide on multiprocessing
     n = settings.getint('performance', 'processes')
     return utils.multimap(n, func, f)
-
-
-def peptide_gen(settings):
-
-    prefix = settings.get('input', 'decoy prefix')
-    for prot in prot_gen(settings):
-        for pep in prot_peptides(prot[1], settings, is_decoy=prefix in prot[0]):
-            yield pep #, prot[0]
-
-def prot_gen(settings):
-    db = settings.get('input', 'database')
-    add_decoy = settings.getboolean('input', 'add decoy')
-    prefix = settings.get('input', 'decoy prefix')
-    mode = settings.get('input', 'decoy method')
-
-    read = [fasta.read, lambda f: fasta.decoy_db(f, mode=mode, prefix=prefix)][add_decoy]
-    with read(db) as f:
-        for p in f:
-            yield p
-
-seen_target = set()
-seen_decoy = set()
-def prot_peptides(prot_seq, settings, is_decoy):
-    mods = settings.get('modifications', 'variable')
-    enzyme = utils.get_enzyme(settings.get('search', 'enzyme'))
-    mc = settings.getint('search', 'number of missed cleavages')
-    minlen = settings.getint('search', 'peptide minimum length')
-    maxlen = settings.getint('search', 'peptide maximum length')
-    
-    for pep in parser.cleave(prot_seq, enzyme, mc):
-        if minlen <= len(pep) <= maxlen and parser.fast_valid(pep):
-            if pep not in seen_target and pep not in seen_decoy:
-                if is_decoy:
-                    seen_decoy.add(pep)
-                else:
-                    seen_target.add(pep)
-                yield pep
 
 def prepare_peptide_processor(fname, settings):
     global spectra
@@ -376,7 +339,7 @@ def process_peptides(fname, settings):
     spec_scores = {}
     spec_top_scores = {}
     spec_top_seqs = {}
-    peps = peptide_gen(settings)
+    peps = utils.peptide_gen(settings)
     kwargs = prepare_peptide_processor(fname, settings)
     func = peptide_processor_iter_isoforms
     nc = settings.getint('output', 'candidates') or None
@@ -429,7 +392,7 @@ def process_peptides(fname, settings):
                 seq = seq.replace(x, leg[x][1])
             pnm = val['info'][idx]['pep_nm']
             nidx = min(range(len(s['nm'])), key=lambda i: abs(s['nm'][i]-pnm))
-            c.append((-score, mseq, 't' if seq in seen_target else 'd', s['ch'][nidx], val['info'][idx], val['info'][idx].pop('sumI')))
+            c.append((-score, mseq, 't' if seq in utils.seen_target else 'd', s['ch'][nidx], val['info'][idx], val['info'][idx].pop('sumI')))
             c[-1][4]['mzdiff'] = {'Th': s['nm'][nidx] - pnm}
             c[-1][4]['mzdiff']['ppm'] = 1e6 * c[-1][4]['mzdiff']['Th'] / pnm
             evalues.append(-1./score if -score else 1e6)
@@ -452,8 +415,8 @@ def process_file(fname, settings):
             spectra = iterate_spectra(fname)
             return process_spectra(spectra, settings)
         elif iterate == 'peptides':
-            seen_target.clear()
-            seen_decoy.clear()
+            utils.seen_target.clear()
+            utils.seen_decoy.clear()
             return process_peptides(fname, settings)
         else:
             raise ValueError('iterate must be "spectra" or "peptides"')
