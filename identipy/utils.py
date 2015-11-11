@@ -13,6 +13,52 @@ try:
 except ImportError:
     cmass = mass
 
+def peptide_gen(settings):
+    prefix = settings.get('input', 'decoy prefix')
+    for prot in prot_gen(settings):
+        for pep in prot_peptides(prot[1], settings, is_decoy=prot[0].startswith(prefix)):
+            yield pep
+
+def prot_gen(settings):
+    db = settings.get('input', 'database')
+    add_decoy = settings.getboolean('input', 'add decoy')
+    prefix = settings.get('input', 'decoy prefix')
+    mode = settings.get('input', 'decoy method')
+
+    read = [fasta.read, lambda f: fasta.decoy_db(f, mode=mode, prefix=prefix)][add_decoy]
+    with read(db) as f:
+        for p in f:
+            yield p
+
+seen_target = set()
+seen_decoy = set()
+def prot_peptides(prot_seq, settings, is_decoy):
+    
+    mods = settings.get('modifications', 'variable')
+    enzyme = get_enzyme(settings.get('search', 'enzyme'))
+    mc = settings.getint('search', 'number of missed cleavages')
+    minlen = settings.getint('search', 'peptide minimum length')
+    maxlen = settings.getint('search', 'peptide maximum length')
+
+    peptides = parser.cleave(prot_seq, enzyme, mc)
+    for pep in peptides:
+        forms = []
+        if minlen <= len(pep) <= maxlen and parser.fast_valid(pep):
+            forms.append(pep)
+        if prot_seq == 'M' and prot_seq.startswith(pep):
+            if minlen <= len(pep) - 1 <= maxlen:
+                forms.append(pep[1:])
+            if minlen <= len(pep) - 2 <= maxlen:
+                forms.append(pep[2:])
+        for f in forms:
+            if f not in seen_target and f not in seen_decoy:
+                if is_decoy:
+                    seen_decoy.add(f)
+                else:
+                    seen_target.add(f)
+                yield f
+
+
 def normalize_mods(sequence, settings):
     leg = settings.get('misc', 'legend')
     if leg:
@@ -295,8 +341,8 @@ def multimap(n, func, it, **kw):
             yield func(s, **kw)
     else:
         def worker(qin, qout):
-            for spectrum in iter(qin.get, None):
-                result = func(spectrum, **kw)
+            for item in iter(qin.get, None):
+                result = func(item, **kw)
                 qout.put(result)
         qin = Queue()
         qout = Queue()
@@ -389,6 +435,7 @@ def write_pepxml(inputfile, settings, results):
 
     filename = path.join(outpath, path.splitext(path.basename(inputfile))[0] + path.extsep + 'pep' + path.extsep + 'xml')
     enzyme = settings.get('search', 'enzyme')
+    prefix = settings.get('input', 'decoy prefix')
     search_engine = 'IdentiPy'
     database = settings.get('input', 'database')
     missed_cleavages = settings.getint('search', 'number of missed cleavages')
@@ -456,19 +503,14 @@ def write_pepxml(inputfile, settings, results):
     for x in results:
         peptides.update(re.sub(r'[^A-Z]', '', normalize_mods(x['candidates'][i][1], settings)) for i in range(
                 settings.getint('output', 'candidates') or len(x['candidates'])))
-    if settings.getboolean('input', 'add decoy'):
-        decoy_method = settings.get('input', 'decoy method')
-        decoy_prefix = settings.get('input', 'decoy prefix')
-        f = fasta.decoy_db(database, mode=decoy_method, prefix=decoy_prefix)
-    else:
-        f = fasta.read(database)
-    for desc, prot in f:
+    seen_target.clear()
+    seen_decoy.clear()
+    for desc, prot in prot_gen(settings):
         dbinfo = desc.split(' ')[0]
         prots[dbinfo] = desc
-        for pep in parser.cleave(prot, get_enzyme(enzyme), missed_cleavages):
+        for pep in prot_peptides(prot, settings, desc.startswith(prefix)):
             if pep in peptides:
                 pept_prot.setdefault(pep, []).append(dbinfo)
-    f.close()
 
     if settings.has_option('misc', 'aa_mass'):
         aa_mass = settings.get('misc', 'aa_mass')
