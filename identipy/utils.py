@@ -236,7 +236,7 @@ def neutral_masses(spectrum, settings):
         states = range(min_ucharge, 1 + max_ucharge)
     else:
         states = [c for c in charge if
-            (mincharge is None or s >= mincharge) and (maxcharge is None or s <= maxcharge)]
+            (mincharge is None or c >= mincharge) and (maxcharge is None or c <= maxcharge)]
     states.sort()
     return zip((c * (exp_mass - mass.nist_mass['H+'][0][0])
             for c in states), states)
