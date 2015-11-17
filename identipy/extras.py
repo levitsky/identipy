@@ -121,6 +121,9 @@ def rt_filtering(results, settings):
     RTexp, seqs = zip(*[(utils.get_RT(res['spectrum']), res['candidates'][0][1]) for res in results])
     seqs = [list(s) for s in seqs] # FIXME: add terminal groups
     RTexp = [float(x) for x in RTexp]
+    if np.allclose(RTexp, 0):
+        print 'RT is missing. Turn off RT optimization'
+        return settings
     RC_def = achrom.RCs_gilar_rp
     xdict = {}
     for key, val in RC_def['aa'].items():
