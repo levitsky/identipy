@@ -226,10 +226,7 @@ def get_info(spectrum, result, settings, aa_mass=None):
     'Returns neutral mass, charge state and retention time of the top candidate'
     if not aa_mass:
         aa_mass = get_aa_mass(settings)
-    if 'params' in spectrum:
-        RT = spectrum['params'].get('rtinseconds')
-    else:
-        RT = spectrum['scanList']['scan'][0]['scan start time']
+    RT = get_RT(spectrum)
     masses, states = zip(*neutral_masses(spectrum, settings))
     idx = find_nearest(masses, cmass.fast_mass(str(result['candidates'][0][1]), aa_mass=aa_mass))
     return (masses[idx], states[idx], RT)
