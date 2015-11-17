@@ -42,12 +42,17 @@ def optimization(fname, settings):
     filtered = get_subset(results, settings, fdr=0.01)
     print len(filtered), 'PSMs with 1% FDR.'
     if len(filtered) < 50:
-        print 'OPTIMIZATION ABORTED'
-        return settings
-    functions = [
-            rt_filtering,
-            precursor_mass_optimization, fragment_mass_optimization,
-            charge_optimization, missed_cleavages_optimization]
+        if len(filtered) < 10:
+            print 'OPTIMIZATION ABORTED'
+            return settings
+        else:
+            functions = [precursor_mass_optimization, fragment_mass_optimization,
+                    missed_cleavages_optimization]
+    else:
+        functions = [
+                rt_filtering,
+                precursor_mass_optimization, fragment_mass_optimization,
+                charge_optimization, missed_cleavages_optimization]
     for func in functions:
         settings = func(filtered, settings)
     return settings
