@@ -91,6 +91,10 @@ def preprocess_spectrum(spectrum, settings):
     minpeaks = settings.getint('scoring', 'minimum peaks')
     dynrange = settings.getfloat('scoring', 'dynamic range')
 
+    _, states = get_expmass(spectrum, settings)
+    if not states:
+        return None
+
     idx = np.nonzero(spectrum['m/z array'] >= settings.getfloat('search', 'product minimum m/z'))
     spectrum['intensity array'] = spectrum['intensity array'][idx]
     spectrum['m/z array'] = spectrum['m/z array'][idx]
@@ -251,8 +255,7 @@ def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, **kwargs):
         peaks[ion_type] = marr
     return peaks
 
-
-def neutral_masses(spectrum, settings):
+def get_expmass(spectrum, settings):
     maxcharge = settings.getint('search', 'maximum charge') or None
     mincharge = settings.getint('search', 'minimum charge') or None
 
@@ -275,6 +278,7 @@ def neutral_masses(spectrum, settings):
         charge = ion.get('charge state')
         if charge is not None: charge = [int(charge)]
         exp_mass = ion['selected ion m/z']
+
     if isinstance(charge, str):
         states = [s for s in aux._parse_charge(charge, True)
                 if (mincharge is None or s >= mincharge) and (maxcharge is None or s <= maxcharge)]
@@ -284,6 +288,12 @@ def neutral_masses(spectrum, settings):
         states = [c for c in charge if
             (mincharge is None or c >= mincharge) and (maxcharge is None or c <= maxcharge)]
     states.sort()
+
+    return exp_mass, states
+
+
+def neutral_masses(spectrum, settings):
+    exp_mass, states = get_expmass(spectrum, settings)
     return zip((c * (exp_mass - mass.nist_mass['H+'][0][0])
             for c in states), states)
 
