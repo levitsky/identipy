@@ -7,7 +7,7 @@ from multiprocessing import Queue, Process, cpu_count
 from string import punctuation
 from copy import copy
 from ConfigParser import RawConfigParser
-
+import tempfile
 try:
     from pyteomics import cmass
 except ImportError:
@@ -439,6 +439,16 @@ def write_pepxml(inputfile, settings, results):
         outpath = settings.get('output', 'path')
     else:
         outpath = path.dirname(inputfile)
+
+    db = settings.get('input', 'database')
+    add_decoy = settings.getboolean('input', 'add decoy')
+    prefix = settings.get('input', 'decoy prefix')
+    mode = settings.get('input', 'decoy method')
+    if add_decoy:
+        ft = tempfile.NamedTemporaryFile(mode='w')
+        fasta.write_decoy_db(db, ft, mode=mode, prefix=prefix)
+        settings.set('input', 'database', ft.name)
+        settings.set('input', 'add decoy', 'no')
 
     filename = path.join(outpath, path.splitext(path.basename(inputfile))[0] + path.extsep + 'pep' + path.extsep + 'xml')
     enzyme = settings.get('search', 'enzyme')
