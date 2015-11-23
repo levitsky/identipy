@@ -635,6 +635,11 @@ def write_pepxml(inputfile, settings, results):
                     tmp4.set('value', str(candidate[5]))
                     tmp3.append(copy(tmp4))
 
+                    tmp4 = etree.Element('search_score')
+                    tmp4.set('name', 'fragmentMT')
+                    tmp4.set('value', str(candidate[6]))
+                    tmp3.append(copy(tmp4))
+
                     tmp2.append(copy(tmp3))
             if flag:
                 tmp.append(copy(tmp2))

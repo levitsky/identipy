@@ -76,6 +76,7 @@ def morpheusscore(spectrum, peptide, charge, settings):
         spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape(
             (spectrum['m/z array'].size, 1)))
 
+    dist_total = []
     for ion, fragments in theor.items():
         n = fragments.size
         dist, ind = spectrum['__KDTree'].query(fragments.reshape((n, 1)),
@@ -86,10 +87,12 @@ def morpheusscore(spectrum, peptide, charge, settings):
         match[ion] = mask
         score += int_array[ind[mask]].sum()
         sumI += spectrum['intensity array'][ind[mask]].sum()
+        dist_total.extend(dist[mask])
     if not total_matched:
-        return {'score': 0, 'match': None, 'sumI': 0}
+        return {'score': 0, 'match': None, 'sumI': 0, 'fragmentMT': 0}
     sumI = np.log10(sumI)
-    return {'score': total_matched + score / int_array.sum(), 'match': match, 'sumI': sumI}
+    fMT = np.median(dist_total)
+    return {'score': total_matched + score / int_array.sum(), 'match': match, 'sumI': sumI, 'fragmentMT': fMT}
 
 
 def hyperscore(spectrum, peptide, charge, settings):
@@ -113,6 +116,7 @@ def _hyperscore(spectrum, theoretical, acc):
     if '__KDTree' not in spectrum:
         spectrum['__KDTree'] = cKDTree(mz_array.reshape((mz_array.size, 1)))
 
+    dist_total = []
     for ion, fragments in theoretical.iteritems():
         n = fragments.size
         dist, ind = spectrum['__KDTree'].query(fragments.reshape((n, 1)),
@@ -124,13 +128,15 @@ def _hyperscore(spectrum, theoretical, acc):
         score += int_array[ind[mask]].sum()
         match[ion] = mask
         sumI += spectrum['intensity array'][ind[mask]].sum()
+        dist_total.extend(dist[mask])
     if not total_matched:
-        return {'score': 0, 'match': None, 'sumI': 0}
+        return {'score': 0, 'match': None, 'sumI': 0, 'fragmentMT': 0}
     for m in mult:
         score *= m
     sumI = np.log10(sumI)
+    fMT = np.median(dist_total)
 
-    return {'score': score, 'match': match, 'sumI': sumI}
+    return {'score': score, 'match': match, 'sumI': sumI, 'fragmentMT': fMT}
 
 def survival_hist(scores):
     X_axis = Y_axis = None
