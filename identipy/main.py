@@ -56,7 +56,7 @@ def candidates_from_arrays(spectrum, settings):
     result = []
     for idx, x in enumerate(candidates):
         s = score(spectrum, x, candidates_charges[idx], settings)
-        result.append((s.pop('score'), x, candidates_notes[idx], candidates_charges[idx], s, s.pop('sumI')))
+        result.append((s.pop('score'), x, candidates_notes[idx], candidates_charges[idx], s, s.pop('sumI'), s.pop('fragmentMT')))
         result[-1][4]['mzdiff'] = {'Th': charge2mass[candidates_charges[idx]] - masses[indexes[idx]]}
         result[-1][4]['mzdiff']['ppm'] = 1e6 * result[-1][4]['mzdiff']['Th'] / masses[indexes[idx]]
     result.sort(reverse=True)
@@ -379,7 +379,7 @@ def process_peptides(fname, settings):
     maxlen = settings.getint('search', 'peptide maximum length')
     dtype = np.dtype([('score', np.float64),
         ('seq', np.str_, maxlen), ('note', np.str_, 1),
-        ('charge', np.int8), ('info', np.object_), ('sumI', np.float64)])
+        ('charge', np.int8), ('info', np.object_), ('sumI', np.float64), ('fragmentMT', np.float64)])
 
     for spec_name, val in spec_results.iteritems():
         s = val['spectrum']
@@ -392,7 +392,7 @@ def process_peptides(fname, settings):
                 seq = seq.replace(x, leg[x][1])
             pnm = val['info'][idx]['pep_nm']
             nidx = min(range(len(s['nm'])), key=lambda i: abs(s['nm'][i]-pnm))
-            c.append((-score, mseq, 't' if seq in utils.seen_target else 'd', s['ch'][nidx], val['info'][idx], val['info'][idx].pop('sumI')))
+            c.append((-score, mseq, 't' if seq in utils.seen_target else 'd', s['ch'][nidx], val['info'][idx], val['info'][idx].pop('sumI'), val['info'][idx].pop('fragmentMT')))
             c[-1][4]['mzdiff'] = {'Th': s['nm'][nidx] - pnm}
             c[-1][4]['mzdiff']['ppm'] = 1e6 * c[-1][4]['mzdiff']['Th'] / pnm
             evalues.append(-1./score if -score else 1e6)
