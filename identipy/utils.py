@@ -394,7 +394,10 @@ def get_RT(spectrum):
             try:
                 return float(spectrum['params']['title'].split(',')[-1].strip().split()[0])
             except:
-                return 0
+                try:
+                    return 60 * np.average([float(x) for x in spectrum['params']['title'].split('lution from: ')[-1].split(' period:')[0].split(' to ')])
+                except:
+                    return 0
     return spectrum['scanList']['scan'][0]['scan start time']
 
 def get_title(spectrum):
