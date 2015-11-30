@@ -13,6 +13,17 @@ try:
 except ImportError:
     cmass = mass
 
+def custom_split_label(mod):
+    j = 0
+    while mod[j].islower():
+        j += 1
+    if len(mod[j:]) > 1 and '[' in mod:
+        return mod[:j], mod[j:].replace('[', ''), '['
+    elif len(mod[j:]) > 1 and ']' in mod:
+        return mod[:j], mod[j:].replace(']', ''), ']'
+    else:
+        return mod[:j], mod[j:], ''
+
 def peptide_gen(settings):
     prefix = settings.get('input', 'decoy prefix')
     for prot in prot_gen(settings):
@@ -64,7 +75,7 @@ def normalize_mods(sequence, settings):
     if leg:
         for char in punctuation:
             if char in leg:
-                sequence = sequence.replace(char, ''.join(leg[char]))
+                sequence = sequence.replace(char, ''.join(leg[char][:2]))
     return sequence
 
 def custom_isoforms(peptide, variable_mods, maxmods=2):
@@ -73,7 +84,8 @@ def custom_isoforms(peptide, variable_mods, maxmods=2):
     else:
         to_char = variable_mods[-1][0]
         from_char = variable_mods[-1][1]
-        sites = [s[0] for s in enumerate(peptide) if s[1] == from_char]
+        term = variable_mods[-1][2]
+        sites = [s[0] for s in enumerate(peptide) if s[1] == from_char and (not term or (term == '[' and s[0] == 0) or (term == ']' and s[0] == len(peptide)-1))]
         for m in range(maxmods+1):
             for comb in combinations(sites, m):
                 v = ''
@@ -137,13 +149,14 @@ def set_mod_dict(settings):
         legend = {}
         
         if mods:
-            mods = [parser._split_label(l) for l in re.split(r',\s*', mods)]
+            # mods = [parser._split_label(l) for l in re.split(r',\s*', mods)]
+            mods = [custom_split_label(l) for l in re.split(r',\s*', mods)]
             mods.sort(key=lambda x: len(x[0]), reverse=True)
             for mod, char in zip(mods, punctuation):
                 legend[''.join(mod)] = char
                 legend[char] = mod
-            assert all(len(m) == 2 for m in mods), 'unmodified residue given'
-            for mod, aa in mods:
+            assert all(len(m) == 3 for m in mods), 'unmodified residue given'
+            for mod, aa, term in mods:
                 mod_dict.setdefault(mod, []).append(aa)
             settings.set('modifications', 'variable', mod_dict)
         settings.set('misc', 'legend', legend)
@@ -327,7 +340,7 @@ def get_aa_mass(settings):
         leg = settings.get('misc', 'legend')
         for p in punctuation:
             if p in leg:
-                mod, aa = leg[p]
+                mod, aa, term = leg[p]
                 aa_mass[p] = aa_mass[mod] + aa_mass[aa]
                 aa_mass[mod+aa] = aa_mass[mod] + aa_mass[aa]
     return aa_mass
@@ -610,13 +623,16 @@ def write_pepxml(inputfile, settings, results):
                                 tmp3.append(copy(tmp4))
 
                     tmp4 = etree.Element('modification_info')
-                    for idx, aminoacid in enumerate(parser.parse(mod_sequence)):
-                        if aminoacid in fmods or aminoacid in vmods:
-                            tmp5 = etree.Element('mod_aminoacid_mass')
-                            tmp5.set('position', str(idx + 1))
-                            tmp5.set('mass', str(aa_mass.get(aminoacid)))
-                            tmp4.append(copy(tmp5))
-                    tmp3.append(copy(tmp4))
+                    try:
+                        for idx, aminoacid in enumerate(parser.parse(mod_sequence)):
+                            if aminoacid in fmods or aminoacid in vmods:
+                                tmp5 = etree.Element('mod_aminoacid_mass')
+                                tmp5.set('position', str(idx + 1))
+                                tmp5.set('mass', str(aa_mass.get(aminoacid)))
+                                tmp4.append(copy(tmp5))
+                        tmp3.append(copy(tmp4))
+                    except:
+                        print mod_sequence
 
                     tmp4 = etree.Element('search_score')
                     tmp4.set('name', 'hyperscore')

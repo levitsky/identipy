@@ -61,17 +61,6 @@ def candidates_from_arrays(spectrum, settings):
         result[-1][4]['mzdiff']['ppm'] = 1e6 * result[-1][4]['mzdiff']['Th'] / masses[indexes[idx]]
     result.sort(reverse=True)
 
-#   if settings.has_option('misc', 'legend'):
-#       leg = settings.get('misc', 'legend')
-#       res = []
-#       for score, cand, note, charge, info, sumI in result:
-#           for char in punctuation:
-#               if char in leg:
-#                   cand = cand.replace(char, ''.join(leg[char]))
-#           if len(cand) > maxlen:
-#               maxlen = len(cand)
-#           res.append((score, cand, note, charge, info, sumI))
-#       result = res
     return np.array(result, dtype=dtype)
 
 def get_arrays(settings):
@@ -123,7 +112,7 @@ def get_arrays(settings):
                 maxmods = settings.getint('modifications', 'maximum variable mods')
                 legend = settings.get('misc', 'legend')
                 punct = set(punctuation)
-                nmods = [(p, mod[1]) for p, mod in legend.iteritems() if p in punct]
+                nmods = [(p, mod[1], mod[2]) for p, mod in legend.iteritems() if p in punct]
 
                 def func(prot):
                     note = get_note(prot[0], label=prefix)
@@ -261,7 +250,7 @@ def prepare_peptide_processor(fname, settings):
     maxmods = settings.getint('modifications', 'maximum variable mods')
     leg = settings.get('misc', 'legend')
     punct = set(punctuation)
-    nmods = [(p, mod[1]) for p, mod in leg.iteritems() if p in punct]
+    nmods = [(p, mod[1], mod[2]) for p, mod in leg.iteritems() if p in punct]
 
     aa_mass = utils.get_aa_mass(settings)
     score = utils.import_(settings.get('scoring', 'score'))
