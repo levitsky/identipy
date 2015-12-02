@@ -17,12 +17,19 @@ def custom_split_label(mod):
     j = 0
     while mod[j].islower():
         j += 1
+    if j == 0:
+        return mod[1:], '-', ']'
     if len(mod[j:]) > 1 and '[' in mod:
         return mod[:j], mod[j:].replace('[', ''), '['
     elif len(mod[j:]) > 1 and ']' in mod:
         return mod[:j], mod[j:].replace(']', ''), ']'
-    else:
-        return mod[:j], mod[j:], ''
+    elif len(mod[j:]) == 1:
+        if mod.startswith('-'):
+            return mod[:j], '-', ']'
+        elif mod.endswith('-'):
+            return mod[:j], '-', '['
+        else:
+            return mod[:j], mod[j:], ''
 
 def peptide_gen(settings):
     prefix = settings.get('input', 'decoy prefix')
@@ -75,27 +82,47 @@ def normalize_mods(sequence, settings):
     if leg:
         for char in punctuation:
             if char in leg:
-                sequence = sequence.replace(char, ''.join(leg[char][:2]))
+                if leg[char][2] == ']' and leg[char][1] == '-':
+                    sequence = sequence.replace(char, '-' + leg[char][0])
+                else:
+                    sequence = sequence.replace(char, ''.join(leg[char][:2]))
     return sequence
 
-def custom_isoforms(peptide, variable_mods, maxmods=2):
+def custom_isoforms(peptide, variable_mods, maxmods=2, nterm=False, cterm=False):
     if not variable_mods:
         yield peptide
     else:
         to_char = variable_mods[-1][0]
         from_char = variable_mods[-1][1]
         term = variable_mods[-1][2]
-        sites = [s[0] for s in enumerate(peptide) if s[1] == from_char and (not term or (term == '[' and s[0] == 0) or (term == ']' and s[0] == len(peptide)-1))]
+        sites = [s[0] for s in enumerate(peptide) if (from_char == '-' or s[1] == from_char) and (not term or (term == '[' and s[0] == 0) or (term == ']' and s[0] == len(peptide)-1))]
         for m in range(maxmods+1):
             for comb in combinations(sites, m):
+                flag = 0
+                flag2 = 0
+                tmpnterm = True if nterm else False
+                tmpcterm = True if cterm else False
                 v = ''
                 cc_prev = 0
                 for cc in comb:
-                    v = v + peptide[cc_prev:cc] + to_char
-                    cc_prev = cc + 1
-                v = v + peptide[cc_prev:]
-                for z in custom_isoforms(v, variable_mods[:-1], maxmods=maxmods - m):
-                    yield z
+                    if from_char == '-':
+                        if term == '[' and not nterm:
+                            flag2 = 1
+                            v += to_char
+                            tmpnterm = True
+                        elif term == ']' and not cterm:
+                            v = v + peptide[cc_prev:cc+1] + to_char
+                            tmpcterm = True
+                        else:
+                            flag = 1
+                    else:
+                        v = v + peptide[cc_prev:cc] + to_char
+                    if not flag2:
+                        cc_prev = cc + 1
+                if not flag:
+                    v = v + peptide[cc_prev:]
+                    for z in custom_isoforms(v, variable_mods[:-1], maxmods=maxmods - m, nterm=tmpnterm, cterm=tmpcterm):
+                        yield z
 
 def preprocess_spectrum(spectrum, settings):
     spectrum = copy(spectrum)
@@ -149,7 +176,6 @@ def set_mod_dict(settings):
         legend = {}
         
         if mods:
-            # mods = [parser._split_label(l) for l in re.split(r',\s*', mods)]
             mods = [custom_split_label(l) for l in re.split(r',\s*', mods)]
             mods.sort(key=lambda x: len(x[0]), reverse=True)
             for mod, char in zip(mods, punctuation):
@@ -327,6 +353,7 @@ def get_aa_mass(settings):
     if settings.has_option('misc', 'aa_mass'):
         return settings.get('misc', 'aa_mass')
     aa_mass = mass.std_aa_mass.copy()
+    aa_mass['-'] = 0.0
     for k, v in settings.items('modifications'):
         if k not in {'fixed', 'variable'}:
             aa_mass[k] = float(v)
@@ -341,8 +368,12 @@ def get_aa_mass(settings):
         for p in punctuation:
             if p in leg:
                 mod, aa, term = leg[p]
-                aa_mass[p] = aa_mass[mod] + aa_mass[aa]
-                aa_mass[mod+aa] = aa_mass[mod] + aa_mass[aa]
+                if term == ']' and aa == '-':
+                    aa_mass[p] = aa_mass[mod] + aa_mass[aa]
+                    aa_mass[aa+mod] = aa_mass[mod] + aa_mass[aa]
+                else:
+                    aa_mass[p] = aa_mass[mod] + aa_mass[aa]
+                    aa_mass[mod+aa] = aa_mass[mod] + aa_mass[aa]
     return aa_mass
 
 def cand_charge(result):
@@ -556,10 +587,14 @@ def write_pepxml(inputfile, settings, results):
         for k, v in variablemods.items():
             for aa in v:
                 vmods.add(k + aa)
+                vmods.add(aa + k)
 
     leg = {}
     if settings.has_option('misc', 'legend'):
         leg = settings.get('misc', 'legend')
+
+    ntermcleavage = settings.getfloat('modifications', 'protein nterm cleavage')
+    ctermcleavage = settings.getfloat('modifications', 'protein cterm cleavage')
 
     for idx, result in enumerate(results):
         if result['candidates'].size:
@@ -593,6 +628,10 @@ def write_pepxml(inputfile, settings, results):
                 sequence = re.sub(r'[^A-Z]', '', mod_sequence)
                 if sequence not in pept_prot:
                     flag = 0
+                    print 'WTF'
+                    print sequence
+                    print mod_sequence
+                    sys.stdout.flush()
                     break
                 else:
                     tmp3.set('peptide', sequence)
@@ -622,17 +661,25 @@ def write_pepxml(inputfile, settings, results):
                                 tmp4.set('protein_descr', prots[proteins[idx]].split(' ', 1)[1])
                                 tmp3.append(copy(tmp4))
 
-                    tmp4 = etree.Element('modification_info')
                     try:
-                        for idx, aminoacid in enumerate(parser.parse(mod_sequence)):
-                            if aminoacid in fmods or aminoacid in vmods:
+                        aalist = parser.parse(mod_sequence)
+                    except:
+                        aalist = [a[::-1] for a in parser.parse(mod_sequence[::-1])][::-1]
+                    tmp4 = etree.Element('modification_info')
+                    ntermmod = 0
+                    for idx, aminoacid in enumerate(aalist):
+                        if aminoacid in fmods or aminoacid in vmods:
+                            if aminoacid.endswith('-') and idx == 0:
+                                ntermmod = 1
+                                tmp4.set('mod_nterm_mass', str(str(aa_mass.get(aminoacid) + ntermcleavage)))
+                            elif aminoacid.startswith('-') and idx == len(aalist) - 1:
+                                tmp4.set('mod_cterm_mass', str(aa_mass.get(aminoacid) + ctermcleavage))
+                            else:
                                 tmp5 = etree.Element('mod_aminoacid_mass')
-                                tmp5.set('position', str(idx + 1))
+                                tmp5.set('position', str(idx + 1 - ntermmod))
                                 tmp5.set('mass', str(aa_mass.get(aminoacid)))
                                 tmp4.append(copy(tmp5))
-                        tmp3.append(copy(tmp4))
-                    except:
-                        print mod_sequence
+                    tmp3.append(copy(tmp4))
 
                     tmp4 = etree.Element('search_score')
                     tmp4.set('name', 'hyperscore')
