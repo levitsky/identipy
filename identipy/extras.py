@@ -98,7 +98,7 @@ def missed_cleavages_optimization(results, settings):
         if float(missedcleavages[missedcleavages > mc].size) / missedcleavages.size < 0.02:
             best_missedcleavages = mc
     print 'NEW miscleavages = %s' % (best_missedcleavages, )
-    settings.set('search', 'mnumber of missed cleavages', best_missedcleavages)
+    settings.set('search', 'number of missed cleavages', best_missedcleavages)
     return settings
 
 def fragment_mass_optimization(results, settings):
