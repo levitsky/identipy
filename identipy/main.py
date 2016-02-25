@@ -259,8 +259,9 @@ def prepare_peptide_processor(fname, settings):
     acc_frag = settings.getfloat('search', 'product accuracy')
     unit = settings.get('search', 'precursor accuracy unit')
     rel = utils.relative(unit)
+    parent_isotope_mass_er = settings.getboolean('search',  'parent mass isotope error')
     return {'rel': rel, 'aa_mass': aa_mass, 'acc_l': acc_l, 'acc_r': acc_r, 'acc_frag': acc_frag,
-            'unit': unit, 'nmods': nmods, 'maxmods': maxmods, 'settings': settings}
+            'unit': unit, 'nmods': nmods, 'maxmods': maxmods,'parent_isotope_mass_er': parent_isotope_mass_er, 'settings': settings}
 
 def peptide_processor_iter_isoforms(peptide, **kwargs):
     nmods, maxmods = op.itemgetter('nmods', 'maxmods')(kwargs)
@@ -279,6 +280,7 @@ def peptide_processor(peptide, **kwargs):
     rel = kwargs['rel']
     acc_l = kwargs['acc_l']
     acc_r = kwargs['acc_r']
+    parent_isotope_mass_er = kwargs['parent_isotope_mass_er']  
     settings = kwargs['settings']
     dm_l = acc_l * m / 1.0e6 if rel else acc_l# * c FIXME
     dm_r = acc_r * m / 1.0e6 if rel else acc_r# * c FIXME
@@ -286,6 +288,12 @@ def peptide_processor(peptide, **kwargs):
     end = nmasses.searchsorted(m + dm_r)
     if start == end: return None
     cand_idx = idx[start:end]
+    
+    if parent_isotope_mass_er:
+        start_i = nmasses.searchsorted(m - dm_l + mass.nist_mass['C'][13][0] - mass.nist_mass['C'][12][0])
+        end_i = nmasses.searchsorted(m + dm_l + mass.nist_mass['C'][13][0] - mass.nist_mass['C'][12][0])  
+        cand_idx = np.hstack((cand_idx, idx[start_i:end_i]))
+
     cand_spectra = spectra[cand_idx]
     if settings.has_option('scoring', 'condition'):
         cond = settings.get('scoring', 'condition')
