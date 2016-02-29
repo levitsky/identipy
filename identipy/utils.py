@@ -619,7 +619,8 @@ def write_pepxml(inputfile, settings, results):
 
             flag = 1
             for i, candidate in enumerate(result['candidates']):
-                if candidate[4]['match'] is None: break
+                match = candidate[4]['match']
+                if match is None: break
                 tmp3 = etree.Element('search_hit')
                 tmp3.set('hit_rank', str(i + 1))
                 mod_sequence = str(candidate[1])
@@ -644,7 +645,7 @@ def write_pepxml(inputfile, settings, results):
 
                     num_tot_proteins = len(proteins)
                     tmp3.set('num_tot_proteins', str(num_tot_proteins))
-                    tmp3.set('num_matched_ions', '7')  # ???
+                    tmp3.set('num_matched_ions', str(sum(v.sum() for v in match.values())))
                     tmp3.set('tot_num_ions', '7')  # ???
                     neutral_mass_theor = cmass.fast_mass(sequence, aa_mass=aa_mass)
                     tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
