@@ -259,9 +259,8 @@ def prepare_peptide_processor(fname, settings):
     acc_frag = settings.getfloat('search', 'product accuracy')
     unit = settings.get('search', 'precursor accuracy unit')
     rel = utils.relative(unit)
-    parent_isotope_mass_er = settings.getboolean('search',  'parent mass isotope error')
     return {'rel': rel, 'aa_mass': aa_mass, 'acc_l': acc_l, 'acc_r': acc_r, 'acc_frag': acc_frag,
-            'unit': unit, 'nmods': nmods, 'maxmods': maxmods,'parent_isotope_mass_er': parent_isotope_mass_er, 'settings': settings}
+            'unit': unit, 'nmods': nmods, 'maxmods': maxmods,  'settings': settings}
 
 def peptide_processor_iter_isoforms(peptide, **kwargs):
     nmods, maxmods = op.itemgetter('nmods', 'maxmods')(kwargs)
@@ -280,19 +279,16 @@ def peptide_processor(peptide, **kwargs):
     rel = kwargs['rel']
     acc_l = kwargs['acc_l']
     acc_r = kwargs['acc_r']
-    parent_isotope_mass_er = kwargs['parent_isotope_mass_er']  
     settings = kwargs['settings']
+    shifts_and_pime = utils.get_shifts_and_pime(settings)
     dm_l = acc_l * m / 1.0e6 if rel else acc_l# * c FIXME
     dm_r = acc_r * m / 1.0e6 if rel else acc_r# * c FIXME
-    start = nmasses.searchsorted(m - dm_l)
-    end = nmasses.searchsorted(m + dm_r)
-    if start == end: return None
-    cand_idx = idx[start:end]
-    
-    if parent_isotope_mass_er:
-        start_i = nmasses.searchsorted(m - dm_l + mass.nist_mass['C'][13][0] - mass.nist_mass['C'][12][0])
-        end_i = nmasses.searchsorted(m + dm_l + mass.nist_mass['C'][13][0] - mass.nist_mass['C'][12][0])  
-        cand_idx = np.hstack((cand_idx, idx[start_i:end_i]))
+    cand_idx = []
+    for i in shifts_and_pime:
+        start = nmasses.searchsorted(m + i - dm_l)
+        end = nmasses.searchsorted(m + i + dm_r)       
+        if start != end:
+            cand_idx.extend(idx[start:end])
 
     cand_spectra = spectra[cand_idx]
     if settings.has_option('scoring', 'condition'):
@@ -391,7 +387,6 @@ def process_peptides(fname, settings):
             c.append((-score, mseq, 't' if seq in utils.seen_target else 'd', s['ch'][nidx], val['info'][idx], val['info'][idx].pop('sumI'), val['info'][idx].pop('fragmentMT')))
             c[-1][4]['mzdiff'] = {'Th': (s['nm'][nidx] - pnm) / c[-1][3]}
             c[-1][4]['mzdiff']['ppm'] = 1e6 * (s['nm'][nidx] - pnm) / pnm
-            print c[-1][4]['mzdiff']
             evalues.append(-1./score if -score else 1e6)
         c = np.array(c, dtype=dtype)
         yield {'spectrum': s, 'candidates': c, 'e-values': evalues}

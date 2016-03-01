@@ -448,6 +448,9 @@ def get_title(spectrum):
     if 'params' in spectrum:
         return spectrum['params']['title']
 
+def get_precursor_mz(spectrum):
+    return spectrum['params']['pepmass'][0]
+
 def get_output(results, settings):
     show_empty = settings.getboolean('output', 'show empty')
     score_threshold = settings.getfloat('output', 'score threshold')
@@ -456,9 +459,13 @@ def get_output(results, settings):
     acc_l = settings.getfloat('output', 'precursor accuracy left')
     acc_r = settings.getfloat('output', 'precursor accuracy right')
     rel = settings.get('output', 'precursor accuracy unit') == 'ppm'
-    key = ['Th', 'ppm'][rel]
+    shifts_and_pime = get_shifts_and_pime(settings)
+    
     count = 0
     for result in results:
+        mz = get_precursor_mz(result['spectrum'])
+        dm_l = acc_l * mz / 1.0e6 if rel else acc_l# * c FIXME
+        dm_r = acc_r * mz / 1.0e6 if rel else acc_r# * c FIXME
         count += 1
         c = result['candidates']
         c = c[c['score'] > score_threshold]
@@ -468,15 +475,28 @@ def get_output(results, settings):
                 sum(m.sum() for m in c_[4]['match'].values()) >= min_matched
                 for c_ in c], dtype=bool)
             c = c[mask]
-        mask = np.array([-acc_l < c_[4]['mzdiff'][key] < acc_r for c_ in c], dtype=bool)
-        c = c[mask]
+        mask = []
+        for c_ in c:
+            mask.append(any(-dm_l < c_[4]['mzdiff']['Th'] - sh_ / c_[3] < dm_r for sh_ in shifts_and_pime))
+            if not mask[-1]:
+                print c_[4]['mzdiff']['Th']
+        c = c[np.array(mask, dtype=bool)]
+    
         if (not c.size) and not show_empty:
             continue
         result['candidates'] = c[:num_candidates]
         yield result
     print 'Unfiltered results:', count
-
-
+    
+def get_shifts_and_pime(settings):
+    pime = settings.getint('search',  'parent mass isotope error') 
+    shifts =[float(x) for x in settings.get('search', 'shifts').split(',')]
+    dM = mass.nist_mass['C'][13][0] - mass.nist_mass['C'][12][0]
+    shifts_and_pime = shifts[:]
+    for i in range(pime):
+        shifts_and_pime += [x + (i + 1) * dM for x in shifts]
+    return shifts_and_pime
+    
 def write_pepxml(inputfile, settings, results):
     from lxml import etree
     from time import strftime
