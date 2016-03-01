@@ -288,7 +288,7 @@ def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, **kwargs):
                         **kwargs))
         marr = np.array(ms)
         marr.sort()
-        peaks[ion_type] = marr
+        peaks[ion_type, charge] = marr
     return peaks
 
 def get_expmass(spectrum, settings):

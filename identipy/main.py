@@ -307,7 +307,6 @@ def peptide_processor(peptide, **kwargs):
     results = [scoring._hyperscore(copy(s), theor, kwargs['acc_frag']) for s in cand_spectra] # FIXME (use score from settings?)
     
     results = [(x.pop('score'), utils.get_title(s), x, m) for x, s in zip(results, cand_spectra)]
-
     results.sort(reverse=True)
     # results = np.array(results, dtype=[('score', np.float32), ('title', np.str_, 30), ('spectrum', np.object_), ('info', np.object_)])
     return peptide, results
@@ -390,8 +389,9 @@ def process_peptides(fname, settings):
             pnm = val['info'][idx]['pep_nm']
             nidx = min(range(len(s['nm'])), key=lambda i: abs(s['nm'][i]-pnm))
             c.append((-score, mseq, 't' if seq in utils.seen_target else 'd', s['ch'][nidx], val['info'][idx], val['info'][idx].pop('sumI'), val['info'][idx].pop('fragmentMT')))
-            c[-1][4]['mzdiff'] = {'Th': s['nm'][nidx] - pnm}
-            c[-1][4]['mzdiff']['ppm'] = 1e6 * c[-1][4]['mzdiff']['Th'] / pnm
+            c[-1][4]['mzdiff'] = {'Th': (s['nm'][nidx] - pnm) / c[-1][3]}
+            c[-1][4]['mzdiff']['ppm'] = 1e6 * (s['nm'][nidx] - pnm) / pnm
+            print c[-1][4]['mzdiff']
             evalues.append(-1./score if -score else 1e6)
         c = np.array(c, dtype=dtype)
         yield {'spectrum': s, 'candidates': c, 'e-values': evalues}
