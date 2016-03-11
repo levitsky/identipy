@@ -1,5 +1,5 @@
 import re
-from pyteomics import mass, electrochem as ec, auxiliary as aux, parser, fasta
+from pyteomics import mass, electrochem as ec, auxiliary as aux, parser, fasta, mgf, mzml
 import sys
 from itertools import combinations
 import numpy as np
@@ -30,6 +30,20 @@ def custom_split_label(mod):
             return mod[:j], '-', '['
         else:
             return mod[:j], mod[j:], ''
+
+def iterate_spectra(fname):
+    ftype = fname.rsplit('.', 1)[-1].lower()
+    if ftype == 'mgf':
+        with mgf.read(fname) as f:
+            for x in f:
+                yield x
+    elif ftype == 'mzml':
+        with mzml.read(fname) as f:
+            for x in f:
+                if x['ms level'] > 1:
+                    yield x
+    else:
+        raise ValueError('Unrecognized file type: {}'.format(ftype))
 
 def peptide_gen(settings):
     prefix = settings.get('input', 'decoy prefix')
