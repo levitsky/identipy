@@ -1,6 +1,7 @@
 import os
 from .spectrum_centric import *
 from .peptide_centric import *
+from . import utils
 
 
 def process_file(fname, settings):
@@ -12,7 +13,7 @@ def process_file(fname, settings):
         iterate = settings.get('misc', 'iterate')
         ftype = fname.rsplit('.', 1)[-1].lower()
         if iterate == 'spectra':
-            spectra = iterate_spectra(fname)
+            spectra = utils.iterate_spectra(fname)
             return process_spectra(spectra, settings)
         elif iterate == 'peptides':
             utils.seen_target.clear()
