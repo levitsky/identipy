@@ -464,8 +464,8 @@ def get_output(results, settings):
     count = 0
     for result in results:
         mz = get_precursor_mz(result['spectrum'])
-        dm_l = acc_l * mz / 1.0e6 if rel else acc_l# * c FIXME
-        dm_r = acc_r * mz / 1.0e6 if rel else acc_r# * c FIXME
+        dm_l = acc_l * mz / 1.0e6 if rel else acc_l
+        dm_r = acc_r * mz / 1.0e6 if rel else acc_r
         count += 1
         c = result['candidates']
         c = c[c['score'] > score_threshold]
@@ -477,9 +477,7 @@ def get_output(results, settings):
             c = c[mask]
         mask = []
         for c_ in c:
-            mask.append(any(-dm_l < c_[4]['mzdiff']['Th'] - sh_ / c_[3] < dm_r for sh_ in shifts_and_pime))
-            if not mask[-1]:
-                print c_[4]['mzdiff']['Th']
+            mask.append(any(-dm_l < (c_[4]['mzdiff']['Da'] - sh_) / c_[3] < dm_r for sh_ in shifts_and_pime))
         c = c[np.array(mask, dtype=bool)]
     
         if (not c.size) and not show_empty:
@@ -489,7 +487,7 @@ def get_output(results, settings):
     print 'Unfiltered results:', count
     
 def get_shifts_and_pime(settings):
-    pime = settings.getint('search',  'parent mass isotope error') 
+    pime = settings.getint('search',  'precursor isotope mass error') 
     shifts =[float(x) for x in settings.get('search', 'shifts').split(',')]
     dM = mass.nist_mass['C'][13][0] - mass.nist_mass['C'][12][0]
     shifts_and_pime = shifts[:]
@@ -669,7 +667,7 @@ def write_pepxml(inputfile, settings, results):
                     tmp3.set('tot_num_ions', '7')  # ???
                     neutral_mass_theor = cmass.fast_mass(sequence, aa_mass=aa_mass)
                     tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
-                    tmp3.set('massdiff', str(candidate[4]['mzdiff']['Th']))
+                    tmp3.set('massdiff', str(candidate[4]['mzdiff']['Da']))
                     tmp3.set('num_tol_term', '2')  # ???
                     tmp3.set('num_missed_cleavages', str(len(parser.cleave(sequence, get_enzyme(enzyme), 0)) - 1))
                     tmp3.set('is_rejected', '0')  # ???
