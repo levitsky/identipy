@@ -87,7 +87,7 @@ def peptide_processor(peptide, **kwargs):
         end = nmasses.searchsorted(m + i + dm_r)       
         if start != end:
             cand_idx.extend(idx[start:end])
-
+    cand_idx = list(set(cand_idx))
     cand_spectra = spectra[cand_idx]
     if settings.has_option('scoring', 'condition'):
         cond = settings.get('scoring', 'condition')
