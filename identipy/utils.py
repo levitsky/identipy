@@ -470,9 +470,16 @@ def get_output(results, settings):
     score_threshold = settings.getfloat('output', 'score threshold')
     min_matched = settings.getint('output', 'minimum matched')
     num_candidates = settings.getint('output', 'candidates') or None
-    acc_l = settings.getfloat('output', 'precursor accuracy left')
-    acc_r = settings.getfloat('output', 'precursor accuracy right')
-    rel = settings.get('output', 'precursor accuracy unit') == 'ppm'
+    try:
+        acc_l = settings.getfloat('output', 'precursor accuracy left')
+        acc_r = settings.getfloat('output', 'precursor accuracy right')
+        rel = settings.get('output', 'precursor accuracy unit') == 'ppm'
+    except ValueError:
+        print 'Using [search] parameters for [output]'
+        acc_l = settings.getfloat('search', 'precursor accuracy left')
+        acc_r = settings.getfloat('search', 'precursor accuracy right')
+        rel = settings.get('search', 'precursor accuracy unit') == 'ppm'
+
     shifts_and_pime = get_shifts_and_pime(settings)
     
     count = 0
