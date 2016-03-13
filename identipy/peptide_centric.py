@@ -57,8 +57,10 @@ def prepare_peptide_processor(fname, settings):
     acc_frag = settings.getfloat('search', 'product accuracy')
     unit = settings.get('search', 'precursor accuracy unit')
     rel = utils.relative(unit)
+
+    fcharge = settings.getint('scoring', 'maximum fragment charge')
     return {'rel': rel, 'aa_mass': aa_mass, 'acc_l': acc_l, 'acc_r': acc_r, 'acc_frag': acc_frag,
-            'unit': unit, 'nmods': nmods, 'maxmods': maxmods,  'settings': settings}
+            'unit': unit, 'nmods': nmods, 'maxmods': maxmods, 'fragcharge': fcharge, 'settings': settings}
 
 def peptide_processor_iter_isoforms(peptide, **kwargs):
     nmods, maxmods = op.itemgetter('nmods', 'maxmods')(kwargs)
@@ -97,7 +99,7 @@ def peptide_processor(peptide, **kwargs):
         cond = utils.import_(cond)
     if cond:
         cand_spectra = [c for c in cand_spectra if cond(c, seqm, settings)]
-    theor = utils.theor_spectrum(seqm, maxcharge=1, aa_mass=kwargs['aa_mass'])
+    theor = utils.theor_spectrum(seqm, maxcharge=kwargs['fragcharge'], aa_mass=kwargs['aa_mass'])
     results = [scoring._hyperscore(copy(s), theor, kwargs['acc_frag']) for s in cand_spectra] # FIXME (use score from settings?)
     
     results = [(x.pop('score'), utils.get_title(s), x, m) for x, s in zip(results, cand_spectra)]
