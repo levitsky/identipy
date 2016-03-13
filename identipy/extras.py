@@ -3,7 +3,7 @@ from pyteomics import achrom, auxiliary as aux, parser, mass
 from main import *
 from scoring import get_fragment_mass_tol
 import numpy as np
-from utils import get_info, get_aa_mass, get_output, get_enzyme
+from utils import get_info, get_aa_mass, get_output, get_enzyme, get_output
 try:
     from pyteomics import cmass
 except ImportError:
@@ -76,10 +76,13 @@ def charge_optimization(results, settings):
     return settings
 
 def precursor_mass_optimization(results, settings):
+    settings_nopime = copy(settings)
+    settings_nopime.set('search', 'precursor isotope mass error', '0')
+    settings_nopime.set('search', 'shifts', '0')
+    results = get_output(results, settings_nopime)
+
     settings = copy(settings)
-    
-    massdif = np.array([(cmass.fast_mass(str(res['candidates'][0][1]), charge=0, aa_mass=get_aa_mass(settings)) -
-        get_info(res['spectrum'], res, settings)[0]) / get_info(res['spectrum'], res, settings)[0] * 1e6 for res in results])
+    massdif = np.array([res['candidates'][0][4]['mzdiff']['ppm'] for res in results])
 
     best_par_mt_l = min(massdif[massdif > scoreatpercentile(massdif, 0.5)])
     best_par_mt_r = max(massdif[massdif < scoreatpercentile(massdif, 99.5)])
