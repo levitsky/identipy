@@ -501,7 +501,7 @@ def get_output(results, settings):
     print 'Unfiltered results:', count
     
 def get_shifts_and_pime(settings):
-    pime = settings.getint('search',  'precursor isotope mass error') 
+    pime = settings.getint('search', 'precursor isotope mass error') 
     shifts =[float(x) for x in settings.get('search', 'shifts').split(',')]
     dM = mass.nist_mass['C'][13][0] - mass.nist_mass['C'][12][0]
     shifts_and_pime = shifts[:]
