@@ -289,9 +289,9 @@ def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, **kwargs):
     if not maxcharge:
         maxcharge = 1 + int(ec.charge(peptide, pH=2))
     for ion_type in types:
-        ms = []
-        for i in range(1, len(peptide) - 1):
-            for charge in range(1, maxcharge + 1):
+        for charge in range(1, maxcharge + 1):
+            ms = []
+            for i in range(1, len(peptide) - 1):
                 if ion_type[0] in 'abc':
                     ms.append(cmass.fast_mass(
                         str(peptide)[:i], ion_type=ion_type, charge=charge,
@@ -300,9 +300,9 @@ def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, **kwargs):
                     ms.append(cmass.fast_mass(
                         str(peptide)[i:], ion_type=ion_type, charge=charge,
                         **kwargs))
-        marr = np.array(ms)
-        marr.sort()
-        peaks[ion_type, charge] = marr
+            marr = np.array(ms)
+            marr.sort()
+            peaks[ion_type, charge] = marr
     return peaks
 
 def get_expmass(spectrum, settings):
