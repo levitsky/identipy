@@ -60,7 +60,11 @@ def prepare_peptide_processor(fname, settings):
 
     fcharge = settings.getint('scoring', 'maximum fragment charge')
     return {'rel': rel, 'aa_mass': aa_mass, 'acc_l': acc_l, 'acc_r': acc_r, 'acc_frag': acc_frag,
-            'unit': unit, 'nmods': nmods, 'maxmods': maxmods, 'fragcharge': fcharge, 'settings': settings}
+            'unit': unit, 'nmods': nmods, 'maxmods': maxmods, 'fragcharge': fcharge,
+            'sapime': utils.get_shifts_and_pime(settings),
+            'ch_range': range(settings.getint('search', 'minimum charge'),
+                1 + settings.getint('search', 'maximum charge')),
+            'settings': settings}
 
 def peptide_processor_iter_isoforms(peptide, **kwargs):
     nmods, maxmods = op.itemgetter('nmods', 'maxmods')(kwargs)
@@ -80,16 +84,24 @@ def peptide_processor(peptide, **kwargs):
     acc_l = kwargs['acc_l']
     acc_r = kwargs['acc_r']
     settings = kwargs['settings']
-    shifts_and_pime = utils.get_shifts_and_pime(settings)
-    dm_l = acc_l * m / 1.0e6 if rel else acc_l# * c FIXME
-    dm_r = acc_r * m / 1.0e6 if rel else acc_r# * c FIXME
+    shifts_and_pime = kwargs['sapime']
+    theor = {}
     cand_idx = []
-    for i in shifts_and_pime:
-        start = nmasses.searchsorted(m + i - dm_l)
-        end = nmasses.searchsorted(m + i + dm_r)       
-        if start != end:
-            cand_idx.extend(idx[start:end])
-    cand_idx = list(set(cand_idx))
+    for c in kwargs['ch_range']:
+        dm_l = acc_l * m / 1.0e6 if rel else acc_l * c
+        dm_r = acc_r * m / 1.0e6 if rel else acc_r * c
+        mask = charges == c
+        for i in shifts_and_pime:
+            masses = nmasses[mask].copy()
+            ix = idx[mask]
+            start = masses.searchsorted(m + i - dm_l)
+            end = masses.searchsorted(m + i + dm_r)       
+            if start != end:
+                cand_idx.extend(ix[start:end])
+
+        maxcharge = max(1, min(kwargs['fragcharge'], c-1) if kwargs['fragcharge'] else c-1)
+        theor[c] = utils.theor_spectrum(seqm, maxcharge=maxcharge, aa_mass=kwargs['aa_mass'])
+    cand_idx = np.unique(np.array(cand_idx, dtype=int))
     cand_spectra = spectra[cand_idx]
     if settings.has_option('scoring', 'condition'):
         cond = settings.get('scoring', 'condition')
@@ -98,9 +110,11 @@ def peptide_processor(peptide, **kwargs):
     if isinstance(cond, str) and cond.strip():
         cond = utils.import_(cond)
     if cond:
-        cand_spectra = [c for c in cand_spectra if cond(c, seqm, settings)]
-    theor = utils.theor_spectrum(seqm, maxcharge=kwargs['fragcharge'], aa_mass=kwargs['aa_mass'])
-    results = [scoring._hyperscore(copy(s), theor, kwargs['acc_frag']) for s in cand_spectra] # FIXME (use score from settings?)
+        i = [j for j, c in enumerate(cand_spectra) if cond(c, seqm, settings)]
+        cand_spectra = cand_spectra[j]
+        cand_idx = cand_idx[j]
+
+    results = [scoring._hyperscore(copy(spectra[j]), theor[charges[j]], kwargs['acc_frag']) for j in cand_idx] # FIXME (use score from settings?)
     
     results = [(x.pop('score'), utils.get_title(s), x, m) for x, s in zip(results, cand_spectra)]
     results.sort(reverse=True)
