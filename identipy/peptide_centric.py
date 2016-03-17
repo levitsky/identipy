@@ -14,33 +14,22 @@ except ImportError:
 def prepare_peptide_processor(fname, settings):
     global spectra
     global nmasses
-    global charges
-    global idx
-    global t2i
-    spectra = []
-    nmasses = []
-    charges = []
-    idx = []
-    t2i = {}
+    spectra = {}
+    nmasses = {}
     print 'Reading spectra ...'
     for spec in utils.iterate_spectra(fname):
         ps = utils.preprocess_spectrum(spec, settings)
         if ps is not None:
-            spectra.append(ps)
-    for i, s in enumerate(spectra):
-        t2i[utils.get_title(s)] = i
-        for m, c in utils.neutral_masses(s, settings):
-            charges.append(c)
-            nmasses.append(m)
-            s.setdefault('nm', []).append(m)
-            s.setdefault('ch', []).append(c)
-            idx.append(i)
-    print len(spectra), 'spectra pass quality criteria.'
-    i = np.argsort(nmasses)
-    nmasses = np.array(nmasses)[i]
-    charges = np.array(charges)[i]
-    idx = np.array(idx)[i]
-    spectra = np.array(spectra)
+            for m, c in utils.neutral_masses(ps, settings):
+                nmasses.setdefault(c, []).append(m)
+                spectra.setdefault(c, []).append(ps)
+                ps.setdefault('nm', []).append(m)
+                ps.setdefault('ch', []).append(c)
+    print sum(map(len, spectra.itervalues())), 'spectra pass quality criteria.'
+    for c in list(spectra):
+        i = np.argsort(nmasses[c])
+        nmasses[c] = np.array(nmasses[c])[i]
+        spectra[c] = np.array(spectra[c])[i]
 
     utils.set_mod_dict(settings)
 
@@ -59,11 +48,19 @@ def prepare_peptide_processor(fname, settings):
     rel = utils.relative(unit)
 
     fcharge = settings.getint('scoring', 'maximum fragment charge')
+    if settings.has_option('scoring', 'condition'):
+        cond = settings.get('scoring', 'condition')
+    else:
+        cond = None
+    if isinstance(cond, str) and cond.strip():
+        cond = utils.import_(cond)
+
     return {'rel': rel, 'aa_mass': aa_mass, 'acc_l': acc_l, 'acc_r': acc_r, 'acc_frag': acc_frag,
             'unit': unit, 'nmods': nmods, 'maxmods': maxmods, 'fragcharge': fcharge,
             'sapime': utils.get_shifts_and_pime(settings),
             'ch_range': range(settings.getint('search', 'minimum charge'),
                 1 + settings.getint('search', 'maximum charge')),
+            'cond': cond,
             'settings': settings}
 
 def peptide_processor_iter_isoforms(peptide, **kwargs):
@@ -86,45 +83,33 @@ def peptide_processor(peptide, **kwargs):
     settings = kwargs['settings']
     shifts_and_pime = kwargs['sapime']
     theor = {}
-    cand_idx = []
+    cand_spectra = {}
     for c in kwargs['ch_range']:
         dm_l = acc_l * m / 1.0e6 if rel else acc_l * c
         dm_r = acc_r * m / 1.0e6 if rel else acc_r * c
-        mask = charges == c
-        for i in shifts_and_pime:
-            masses = nmasses[mask].copy()
-            ix = idx[mask]
-            start = masses.searchsorted(m + i - dm_l)
-            end = masses.searchsorted(m + i + dm_r)       
-            if start != end:
-                cand_idx.extend(ix[start:end])
+        idx = set()
+        for shift in shifts_and_pime:
+            start = nmasses[c].searchsorted(m + shift - dm_l)
+            end   = nmasses[c].searchsorted(m + shift + dm_r)
+            idx.update(range(start, end))
+        if kwargs['cond']:
+            idx = {i for i in idx if cond(spectra[c][i], seqm, settings)}
 
-        maxcharge = max(1, min(kwargs['fragcharge'], c-1) if kwargs['fragcharge'] else c-1)
-        theor[c] = utils.theor_spectrum(seqm, maxcharge=maxcharge, aa_mass=kwargs['aa_mass'])
-    cand_idx = np.unique(np.array(cand_idx, dtype=int))
-    cand_spectra = spectra[cand_idx]
-    if settings.has_option('scoring', 'condition'):
-        cond = settings.get('scoring', 'condition')
-    else:
-        cond = None
-    if isinstance(cond, str) and cond.strip():
-        cond = utils.import_(cond)
-    if cond:
-        i = [j for j, c in enumerate(cand_spectra) if cond(c, seqm, settings)]
-        cand_spectra = cand_spectra[j]
-        cand_idx = cand_idx[j]
+        if idx:
+            cand_spectra[c] = spectra[c][list(idx)]
+            maxcharge = max(1, min(kwargs['fragcharge'], c-1) if kwargs['fragcharge'] else c-1)
+            theor[c] = utils.theor_spectrum(seqm, maxcharge=maxcharge, aa_mass=kwargs['aa_mass'])
 
-    results = [scoring._hyperscore(copy(spectra[j]), theor[charges[j]], kwargs['acc_frag']) for j in cand_idx] # FIXME (use score from settings?)
-    
-    results = [(x.pop('score'), utils.get_title(s), x, m) for x, s in zip(results, cand_spectra)]
+    results = []
+    for c, cand in cand_spectra.iteritems():
+        for s in cand:
+            score = scoring._hyperscore(copy(s), theor[c], kwargs['acc_frag']) # FIXME (use score from settings?)
+            results.append((score.pop('score'), utils.get_title(s), score, m, s))
     results.sort(reverse=True)
     # results = np.array(results, dtype=[('score', np.float32), ('title', np.str_, 30), ('spectrum', np.object_), ('info', np.object_)])
     return peptide, results
 
 def process_peptides(fname, settings):
-    # global spec_scores
-    # global spec_top_scores
-    # global spec_top_seqs
 
     spec_results = defaultdict(dict)
     spec_scores = {}
@@ -143,8 +128,7 @@ def process_peptides(fname, settings):
         for x in y:
             if x is not None:
                 peptide, result = x
-                for score, spec_t, info, m in result:
-                    spec = spectra[t2i[spec_t]]
+                for score, spec_t, info, m, spec in result:
                     score = float(score)
                     info['pep_nm'] = m
                     spec_results[spec_t]['spectrum'] = spec
