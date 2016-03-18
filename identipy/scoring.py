@@ -99,7 +99,6 @@ def hyperscore(spectrum, peptide, charge, settings):
     """A simple implementation of X!Tandem's Hyperscore."""
     
     acc = settings.getfloat('search', 'product accuracy')
-#   charge = max(1, max(c for m, c in neutral_masses(spectrum, settings)) - 1)
     theor = theor_spectrum(peptide, maxcharge=1,#max(1, charge-1),
             aa_mass=get_aa_mass(settings))
     return _hyperscore(spectrum, theor, acc)
@@ -116,7 +115,7 @@ def _hyperscore(spectrum, theoretical, acc):
     if '__KDTree' not in spectrum:
         spectrum['__KDTree'] = cKDTree(mz_array.reshape((mz_array.size, 1)))
 
-    dist_total = []
+    dist_all = []
     for ion, fragments in theoretical.iteritems():
         n = fragments.size
         dist, ind = spectrum['__KDTree'].query(fragments.reshape((n, 1)),
@@ -128,16 +127,15 @@ def _hyperscore(spectrum, theoretical, acc):
         sumi = spectrum['intensity array'][ind[mask]].sum()
         sumI += sumi
         score += sumi / spectrum['norm']
-        dist_total.extend(dist[mask])
+        dist_all.extend(dist[mask])
         match[ion] = mask
     if not total_matched:
-        return {'score': 0, 'match': None, 'sumI': 0, 'fragmentMT': 0}
+        return {'score': 0, 'match': None, 'sumI': 0, 'dist': []}
     for m in mult:
         score *= m
     sumI = np.log10(sumI)
-    fMT = np.median(dist_total)
 
-    return {'score': score, 'match': match, 'sumI': sumI, 'fragmentMT': fMT}
+    return {'score': score, 'match': match, 'sumI': sumI, 'dist': dist_all}
 
 def survival_hist(scores):
     X_axis = Y_axis = None
