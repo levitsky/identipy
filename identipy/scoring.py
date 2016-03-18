@@ -105,8 +105,8 @@ def hyperscore(spectrum, peptide, charge, settings):
     return _hyperscore(spectrum, theor, acc)
 
 def _hyperscore(spectrum, theoretical, acc):
-    int_array = spectrum.setdefault('normalized intensity array',
-            spectrum['intensity array'] * 100 / spectrum['intensity array'].max())
+    if 'norm' not in spectrum:
+        spectrum['norm'] = spectrum['intensity array'].max() / 100.
     mz_array = spectrum['m/z array']
     score = 0
     mult = []
@@ -125,10 +125,11 @@ def _hyperscore(spectrum, theoretical, acc):
         nmatched = mask.sum()
         total_matched += nmatched
         mult.append(factorial(nmatched))
-        score += int_array[ind[mask]].sum()
-        match[ion] = mask
-        sumI += spectrum['intensity array'][ind[mask]].sum()
+        sumi = spectrum['intensity array'][ind[mask]].sum()
+        sumI += sumi
+        score += sumi / spectrum['norm']
         dist_total.extend(dist[mask])
+        match[ion] = mask
     if not total_matched:
         return {'score': 0, 'match': None, 'sumI': 0, 'fragmentMT': 0}
     for m in mult:
