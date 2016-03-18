@@ -7,4 +7,4 @@ if settings.getint('performance', 'processes') != 1:
     print "Setting the number of processes to 1."
 cProfile.run(
     '''r = list(ip.process_file('test.mgf', settings))
-    ''', 'profiler3.out')
+    ''', 'profiler4.out')

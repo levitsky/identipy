@@ -421,8 +421,8 @@ def multimap(n, func, it, **kw):
             for s in it:
                 qin.put(s)
                 count += 1
-                if count > 500000:
-                    print 'Loaded 500000 items. Ending cycle.'
+                if count > 5000000:
+                    print 'Loaded 5000000 items. Ending cycle.'
                     break
             for _ in range(n):
                 qin.put(None)

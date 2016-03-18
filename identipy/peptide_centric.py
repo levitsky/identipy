@@ -14,12 +14,15 @@ except ImportError:
 def prepare_peptide_processor(fname, settings):
     global spectra
     global nmasses
+    global t2s
     spectra = {}
     nmasses = {}
+    t2s = {}
     print 'Reading spectra ...'
     for spec in utils.iterate_spectra(fname):
         ps = utils.preprocess_spectrum(spec, settings)
         if ps is not None:
+            t2s[utils.get_title(ps)] = ps
             for m, c in utils.neutral_masses(ps, settings):
                 nmasses.setdefault(c, []).append(m)
                 spectra.setdefault(c, []).append(ps)
@@ -103,8 +106,8 @@ def peptide_processor(peptide, **kwargs):
     results = []
     for c, cand in cand_spectra.iteritems():
         for s in cand:
-            score = scoring._hyperscore(copy(s), theor[c], kwargs['acc_frag']) # FIXME (use score from settings?)
-            results.append((score.pop('score'), utils.get_title(s), score, m, s))
+            score = scoring._hyperscore(s, theor[c], kwargs['acc_frag']) # FIXME (use score from settings?)
+            results.append((score.pop('score'), utils.get_title(s), score, m))
     results.sort(reverse=True)
     # results = np.array(results, dtype=[('score', np.float32), ('title', np.str_, 30), ('spectrum', np.object_), ('info', np.object_)])
     return peptide, results
@@ -128,10 +131,10 @@ def process_peptides(fname, settings):
         for x in y:
             if x is not None:
                 peptide, result = x
-                for score, spec_t, info, m, spec in result:
+                for score, spec_t, info, m in result:
                     score = float(score)
                     info['pep_nm'] = m
-                    spec_results[spec_t]['spectrum'] = spec
+                    spec_results[spec_t]['spectrum'] = t2s[spec_t]
 #               spec_results[spec_t].setdefault('scores', []).append(score) FIXME write histogram
                     spec_results[spec_t].setdefault('sequences', [])
                     spec_results[spec_t].setdefault('top_scores', [])
