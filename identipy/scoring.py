@@ -122,12 +122,13 @@ def _hyperscore(spectrum, theoretical, acc):
             distance_upper_bound=acc)
         mask = (dist != np.inf)
         nmatched = mask.sum()
-        total_matched += nmatched
-        mult.append(factorial(nmatched))
-        sumi = spectrum['intensity array'][ind[mask]].sum()
-        sumI += sumi
-        score += sumi / spectrum['norm']
-        dist_all.extend(dist[mask])
+        if nmatched:
+            total_matched += nmatched
+            mult.append(factorial(nmatched))
+            sumi = spectrum['intensity array'][ind[mask]].sum()
+            sumI += sumi
+            score += sumi / spectrum['norm']
+            dist_all.extend(dist[mask])
         match[ion] = mask
     if not total_matched:
         return {'score': 0, 'match': None, 'sumI': 0, 'dist': []}
