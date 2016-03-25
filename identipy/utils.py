@@ -77,7 +77,7 @@ def prot_peptides(prot_seq, settings, is_decoy):
         forms = []
         if minlen <= len(pep) <= maxlen and parser.fast_valid(pep):
             forms.append(pep)
-        if prot_seq == 'M' and prot_seq.startswith(pep):
+        if prot_seq[0] == 'M' and prot_seq.startswith(pep):
             if minlen <= len(pep) - 1 <= maxlen:
                 forms.append(pep[1:])
             if minlen <= len(pep) - 2 <= maxlen:
