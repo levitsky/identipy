@@ -113,7 +113,7 @@ def peptide_processor(peptide, **kwargs):
 
         if idx:
             cand_idx[c] = idx
-            theor[c] = utils.theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'])
+            theor[c] = utils.theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=True)
 
     results = []
     for fc, ind in cand_idx.iteritems():

@@ -118,7 +118,7 @@ def _hyperscore(spectrum, theoretical, acc):
     dist_all = []
     for ion, fragments in theoretical.iteritems():
         n = fragments.size
-        dist, ind = spectrum['__KDTree'].query(fragments.reshape((n, 1)),
+        dist, ind = spectrum['__KDTree'].query(fragments,
             distance_upper_bound=acc)
         mask = (dist != np.inf)
         nmatched = mask.sum()

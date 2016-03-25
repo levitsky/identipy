@@ -284,7 +284,7 @@ def get_info(spectrum, result, settings, aa_mass=None):
     idx = find_nearest(masses, cmass.fast_mass(str(result['candidates'][0][1]), aa_mass=aa_mass))
     return (masses[idx], states[idx], RT)
 
-def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, **kwargs):
+def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, reshape=False, **kwargs):
     peaks = {}
     pl = len(peptide) - 1
     if not maxcharge:
@@ -303,7 +303,11 @@ def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, **kwargs):
                         str(peptide)[i:], ion_type=ion_type, charge=charge,
                         **kwargs))
             marr = np.array(ms)
-            marr.sort()
+            if not reshape:
+                marr.sort()
+            else:
+                n = marr.size
+                marr = marr.reshape((n, 1))
             peaks[ion_type, charge] = marr
     return peaks
 
