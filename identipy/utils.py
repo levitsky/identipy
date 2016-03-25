@@ -286,13 +286,15 @@ def get_info(spectrum, result, settings, aa_mass=None):
 
 def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, **kwargs):
     peaks = {}
+    pl = len(peptide) - 1
     if not maxcharge:
         maxcharge = 1 + int(ec.charge(peptide, pH=2))
-    for ion_type in types:
-        for charge in range(1, maxcharge + 1):
+    for charge in range(1, maxcharge + 1):
+        for ion_type in types:
+            ion_type_check = ion_type[0] in 'abc'
             ms = []
-            for i in range(1, len(peptide) - 1):
-                if ion_type[0] in 'abc':
+            for i in range(1, pl):
+                if ion_type_check:
                     ms.append(cmass.fast_mass(
                         str(peptide)[:i], ion_type=ion_type, charge=charge,
                         **kwargs))
