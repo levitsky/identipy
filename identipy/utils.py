@@ -1,7 +1,8 @@
 import re
-from pyteomics import mass, electrochem as ec, auxiliary as aux, parser, fasta, mgf, mzml
+from pyteomics import mass, electrochem as ec, auxiliary as aux, fasta, mgf, mzml, parser
 import sys
-from itertools import combinations
+from itertools import combinations, chain
+from collections import deque
 import numpy as np
 from multiprocessing import Queue, Process, cpu_count
 from string import punctuation
@@ -12,6 +13,27 @@ try:
     from pyteomics import cmass
 except ImportError:
     cmass = mass
+
+
+def custom_cleave(sequence, rule, missed_cleavages=0, min_length=None, **kwargs):
+    "Based on pyteomics cleave"
+    peptides = set()
+    cslen = 1
+    cslen_max = missed_cleavages+2
+    tmp_range = list(range(cslen_max - 1))
+    cleavage_sites = deque([0], maxlen=cslen_max)
+
+    for i in chain([x.end() for x in re.finditer(rule, sequence)],
+                   [None]):
+        cleavage_sites.append(i)
+        if cslen < cslen_max:
+            cslen += 1
+        for j in tmp_range[:cslen - 1]:
+            seq = sequence[cleavage_sites[j]:cleavage_sites[-1]]
+            if seq:
+                if min_length is None or parser.length(seq, **kwargs) >= min_length:
+                    peptides.add(seq)
+    return peptides
 
 def custom_split_label(mod):
     j = 0
@@ -70,25 +92,29 @@ seen_target = set()
 seen_decoy = set()
 def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy):
 
-    peptides = parser.cleave(prot_seq, enzyme, mc)
+    dont_use_fast_valid = parser.fast_valid(prot_seq)
+    peptides = custom_cleave(prot_seq, enzyme, mc)
     for pep in peptides:
-        forms = []
-        if pep in seen_target or pep in seen_decoy or parser.fast_valid(pep):
-            plen = len(pep)
-            if minlen <= plen <= maxlen:
-                forms.append(pep)
-            if prot_seq[0] == 'M' and prot_seq.startswith(pep):
-                if minlen <= plen - 1 <= maxlen:
-                    forms.append(pep[1:])
-                if minlen <= plen - 2 <= maxlen:
-                    forms.append(pep[2:])
-        for f in forms:
-            if f not in seen_target and f not in seen_decoy:
-                if is_decoy:
-                    seen_decoy.add(f)
-                else:
-                    seen_target.add(f)
-                yield f
+        plen = len(pep)
+        if minlen <= plen <= maxlen + 2:
+            forms = []
+            if dont_use_fast_valid or pep in seen_target or pep in seen_decoy or parser.fast_valid(pep):
+                # plen = len(pep)
+                # if minlen <= plen <= maxlen:
+                if plen <= maxlen:
+                    forms.append(pep)
+                if prot_seq[0] == 'M' and prot_seq.startswith(pep):
+                    if minlen <= plen - 1 <= maxlen:
+                        forms.append(pep[1:])
+                    if minlen <= plen - 2 <= maxlen:
+                        forms.append(pep[2:])
+            for f in forms:
+                if f not in seen_target and f not in seen_decoy:
+                    if is_decoy:
+                        seen_decoy.add(f)
+                    else:
+                        seen_target.add(f)
+                    yield f
 
 
 def normalize_mods(sequence, settings):
@@ -699,7 +725,7 @@ def write_pepxml(inputfile, settings, results):
                     tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
                     tmp3.set('massdiff', str(candidate[4]['mzdiff']['Da']))
                     tmp3.set('num_tol_term', '2')  # ???
-                    tmp3.set('num_missed_cleavages', str(len(parser.cleave(sequence, get_enzyme(enzyme), 0)) - 1))
+                    tmp3.set('num_missed_cleavages', str(len(custom_cleave(sequence, get_enzyme(enzyme), 0)) - 1))
                     tmp3.set('is_rejected', '0')  # ???
 
                     if num_tot_proteins > 1:
