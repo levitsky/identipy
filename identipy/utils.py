@@ -47,8 +47,12 @@ def iterate_spectra(fname):
 
 def peptide_gen(settings):
     prefix = settings.get('input', 'decoy prefix')
+    enzyme = get_enzyme(settings.get('search', 'enzyme'))
+    mc = settings.getint('search', 'number of missed cleavages')
+    minlen = settings.getint('search', 'peptide minimum length')
+    maxlen = settings.getint('search', 'peptide maximum length')
     for prot in prot_gen(settings):
-        for pep in prot_peptides(prot[1], settings, is_decoy=prot[0].startswith(prefix)):
+        for pep in prot_peptides(prot[1], enzyme, mc, minlen, maxlen, is_decoy=prot[0].startswith(prefix)):
             yield pep
 
 def prot_gen(settings):
@@ -64,24 +68,20 @@ def prot_gen(settings):
 
 seen_target = set()
 seen_decoy = set()
-def prot_peptides(prot_seq, settings, is_decoy):
-    
-    mods = settings.get('modifications', 'variable')
-    enzyme = get_enzyme(settings.get('search', 'enzyme'))
-    mc = settings.getint('search', 'number of missed cleavages')
-    minlen = settings.getint('search', 'peptide minimum length')
-    maxlen = settings.getint('search', 'peptide maximum length')
+def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy):
 
     peptides = parser.cleave(prot_seq, enzyme, mc)
     for pep in peptides:
         forms = []
-        if minlen <= len(pep) <= maxlen and parser.fast_valid(pep):
-            forms.append(pep)
-        if prot_seq[0] == 'M' and prot_seq.startswith(pep):
-            if minlen <= len(pep) - 1 <= maxlen:
-                forms.append(pep[1:])
-            if minlen <= len(pep) - 2 <= maxlen:
-                forms.append(pep[2:])
+        if pep in seen_target or pep in seen_decoy or parser.fast_valid(pep):
+            plen = len(pep)
+            if minlen <= plen <= maxlen:
+                forms.append(pep)
+            if prot_seq[0] == 'M' and prot_seq.startswith(pep):
+                if minlen <= plen - 1 <= maxlen:
+                    forms.append(pep[1:])
+                if minlen <= plen - 2 <= maxlen:
+                    forms.append(pep[2:])
         for f in forms:
             if f not in seen_target and f not in seen_decoy:
                 if is_decoy:
@@ -544,6 +544,9 @@ def write_pepxml(inputfile, settings, results):
 
     filename = path.join(outpath, path.splitext(path.basename(inputfile))[0] + path.extsep + 'pep' + path.extsep + 'xml')
     enzyme = settings.get('search', 'enzyme')
+    mc = settings.getint('search', 'number of missed cleavages')
+    minlen = settings.getint('search', 'peptide minimum length')
+    maxlen = settings.getint('search', 'peptide maximum length')
     prefix = settings.get('input', 'decoy prefix')
     search_engine = 'IdentiPy'
     database = settings.get('input', 'database')
@@ -617,7 +620,7 @@ def write_pepxml(inputfile, settings, results):
     for desc, prot in prot_gen(settings):
         dbinfo = desc.split(' ')[0]
         prots[dbinfo] = desc
-        for pep in prot_peptides(prot, settings, desc.startswith(prefix)):
+        for pep in prot_peptides(prot, enzyme, mc, minlen, maxlen, desc.startswith(prefix)):
             if pep in peptides:
                 pept_prot.setdefault(pep, []).append(dbinfo)
 
