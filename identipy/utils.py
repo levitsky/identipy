@@ -1,8 +1,7 @@
 import re
 from pyteomics import mass, electrochem as ec, auxiliary as aux, fasta, mgf, mzml, parser
 import sys
-from itertools import combinations, chain
-from collections import deque
+from itertools import combinations
 import numpy as np
 from multiprocessing import Queue, Process, cpu_count
 from string import punctuation
@@ -13,27 +12,6 @@ try:
     from pyteomics import cmass
 except ImportError:
     cmass = mass
-
-
-def custom_cleave(sequence, rule, missed_cleavages=0, min_length=None, **kwargs):
-    "Based on pyteomics cleave"
-    peptides = set()
-    cslen = 1
-    cslen_max = missed_cleavages+2
-    tmp_range = list(range(cslen_max - 1))
-    cleavage_sites = deque([0], maxlen=cslen_max)
-
-    for i in chain([x.end() for x in re.finditer(rule, sequence)],
-                   [None]):
-        cleavage_sites.append(i)
-        if cslen < cslen_max:
-            cslen += 1
-        for j in tmp_range[:cslen - 1]:
-            seq = sequence[cleavage_sites[j]:cleavage_sites[-1]]
-            if seq:
-                if min_length is None or parser.length(seq, **kwargs) >= min_length:
-                    peptides.add(seq)
-    return peptides
 
 def custom_split_label(mod):
     j = 0
@@ -56,7 +34,7 @@ def custom_split_label(mod):
 def iterate_spectra(fname):
     ftype = fname.rsplit('.', 1)[-1].lower()
     if ftype == 'mgf':
-        with mgf.read(fname) as f:
+        with mgf.read(fname, skip_charges=True) as f:
             for x in f:
                 yield x
     elif ftype == 'mzml':
@@ -93,7 +71,7 @@ seen_decoy = set()
 def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy):
 
     dont_use_fast_valid = parser.fast_valid(prot_seq)
-    peptides = custom_cleave(prot_seq, enzyme, mc)
+    peptides = parser.cleave(prot_seq, enzyme, mc)
     for pep in peptides:
         plen = len(pep)
         if minlen <= plen <= maxlen + 2:
@@ -344,12 +322,12 @@ def get_expmass(spectrum, settings):
     if settings.has_option('search', 'minimum unknown charge'):
         min_ucharge = settings.getint('search', 'minimum unknown charge')
     else:
-        min_ucharge = 1 #TODO remove?
+        min_ucharge = mincharge
 
     if settings.has_option('search', 'maximum unknown charge'):
         max_ucharge = settings.getint('search', 'maximum unknown charge')
     else:
-        max_ucharge = 3 #TODO remove?
+        max_ucharge = maxcharge
 
     if 'params' in spectrum:
         exp_mass = spectrum['params']['pepmass'][0]
@@ -725,7 +703,7 @@ def write_pepxml(inputfile, settings, results):
                     tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
                     tmp3.set('massdiff', str(candidate[4]['mzdiff']['Da']))
                     tmp3.set('num_tol_term', '2')  # ???
-                    tmp3.set('num_missed_cleavages', str(len(custom_cleave(sequence, get_enzyme(enzyme), 0)) - 1))
+                    tmp3.set('num_missed_cleavages', str(len(parser.cleave(sequence, get_enzyme(enzyme), 0)) - 1))
                     tmp3.set('is_rejected', '0')  # ???
 
                     if num_tot_proteins > 1:
