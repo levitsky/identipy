@@ -619,7 +619,7 @@ def write_pepxml(inputfile, settings, results):
     for desc, prot in prot_gen(settings):
         dbinfo = desc.split(' ')[0]
         prots[dbinfo] = desc
-        for pep in prot_peptides(prot, enzyme, mc, minlen, maxlen, desc.startswith(prefix)):
+        for pep in prot_peptides(prot, get_enzyme(enzyme), mc, minlen, maxlen, desc.startswith(prefix)):
             if pep in peptides:
                 pept_prot.setdefault(pep, []).append(dbinfo)
 
