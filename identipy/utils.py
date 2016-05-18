@@ -34,7 +34,7 @@ def custom_split_label(mod):
 def iterate_spectra(fname):
     ftype = fname.rsplit('.', 1)[-1].lower()
     if ftype == 'mgf':
-        with mgf.read(fname, skip_charges=True) as f:
+        with mgf.read(fname, read_charges=False) as f:
             for x in f:
                 yield x
     elif ftype == 'mzml':
