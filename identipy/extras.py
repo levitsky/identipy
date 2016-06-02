@@ -34,7 +34,7 @@ def get_subset(results, settings, fdr=0.01):
     return subset
 
 def optimization(fname, settings):
-    settings = copy(settings)
+    settings = settings.copy()
     settings.set('misc', 'first stage', '')
     settings.set('scoring', 'e-values for candidates', 1)
 
@@ -59,7 +59,7 @@ def optimization(fname, settings):
 
 
 def charge_optimization(results, settings):
-    settings = copy(settings)
+    settings = settings.copy()
     chargestates = np.array([get_info(res['spectrum'], res, settings)[1] for res in results])
     mincharge = chargestates.min()
     maxcharge = chargestates.max()
@@ -76,12 +76,12 @@ def charge_optimization(results, settings):
     return settings
 
 def precursor_mass_optimization(results, settings):
-    settings_nopime = copy(settings)
+    settings_nopime = settings.copy()
     settings_nopime.set('search', 'precursor isotope mass error', '0')
     settings_nopime.set('search', 'shifts', '0')
     results = get_output(results, settings_nopime)
 
-    settings = copy(settings)
+    settings = settings.copy()
     massdif = np.array([res['candidates'][0][4]['mzdiff']['ppm'] for res in results])
 
     best_par_mt_l = min(massdif[massdif > scoreatpercentile(massdif, 0.5)])
@@ -93,7 +93,7 @@ def precursor_mass_optimization(results, settings):
     return settings
 
 def missed_cleavages_optimization(results, settings):
-    settings = copy(settings)
+    settings = settings.copy()
     missedcleavages = np.array([parser.num_sites(str(res['candidates'][0][1]), get_enzyme(str(settings.get('search', 'enzyme'))))
         for res in results])
     best_missedcleavages = missedcleavages.max()
@@ -105,7 +105,7 @@ def missed_cleavages_optimization(results, settings):
     return settings
 
 def fragment_mass_optimization(results, settings):
-    settings = copy(settings)
+    settings = settings.copy()
     fragmassdif = np.array([get_fragment_mass_tol(res['spectrum'], str(res['candidates'][0][1]), settings)['fmt'] for res in results])
     step = FDbinSize(fragmassdif)
     lside, rside = 0, 1
@@ -125,7 +125,7 @@ def fragment_mass_optimization(results, settings):
 
 
 def rt_filtering(results, settings):
-    settings = copy(settings)
+    settings = settings.copy()
     RTexp, seqs = zip(*[(utils.get_RT(res['spectrum']), res['candidates'][0][1]) for res in results])
     seqs = [list(s) for s in seqs] # FIXME: add terminal groups
     RTexp = [float(x) for x in RTexp]

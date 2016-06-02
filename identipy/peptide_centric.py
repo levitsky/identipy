@@ -1,6 +1,5 @@
 import numpy as np
 from string import punctuation
-from copy import copy
 from collections import defaultdict
 import operator as op
 from bisect import bisect

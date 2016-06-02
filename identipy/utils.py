@@ -260,19 +260,27 @@ def convert_tandem_cleave_rule_to_regexp(cleavage_rule):
                 out_rules.append('(?=[%s])' % (cut, ))
     return '|'.join(out_rules)
 
-class CustomRawConfigParser(RawConfigParser):
+class CustomRawConfigParser(RawConfigParser, object):
     def get(self, section, option):
-        val = RawConfigParser.get(self, section, option)
+        val = super(CustomRawConfigParser, self).get(section, option)
         if isinstance(val, basestring):
             return val[::-1].split('|', 1)[-1][::-1]
         return val
 
     def get_choices(self, section, option):
-        val = RawConfigParser.get(self, section, option)
+        val = super(CustomRawConfigParser, self).get(section, option)
         if isinstance(val, basestring) and len(val.split('|')) > 1:
             return val[::-1].split('|', 1)[0][::-1]
         else:
             return ''
+
+    def copy(self):
+        new_config = CustomRawConfigParser()
+        for section in self.sections():
+            new_config.add_section(section)
+            for name, value in self.items(section):
+                new_config.set(section, name, value)
+        return new_config
 
 
 def find_nearest(array, value):
