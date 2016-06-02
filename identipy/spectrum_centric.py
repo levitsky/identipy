@@ -5,7 +5,6 @@ import os
 from tempfile import NamedTemporaryFile
 import ast
 import hashlib
-from copy import copy
 from string import punctuation
 from . import scoring, utils
 
@@ -159,7 +158,7 @@ def spectrum_processor(settings):
 
     mode = settings.get('performance', 'pre-calculation')
     if mode == 'some':  # work with numpy arrays
-        settings = copy(settings)
+        settings = settings.copy()
         utils.set_mod_dict(settings)
 
         if not settings.has_option('performance', 'arrays'):
