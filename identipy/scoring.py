@@ -61,39 +61,41 @@ def get_fragment_mass_tol(spectrum, peptide, settings):
     return new_params
 
 
-def morpheusscore(spectrum, peptide, charge, settings):
-    """A simple implementation of Morpheus's score."""
+def _morpheusscore(spectrum, theor, acc):
     int_array = spectrum['intensity array']
-#   int_array = int_array / int_array.max() * 100
-    acc = settings.getfloat('search', 'product accuracy')
-#   charge = max(1, max(c for _, c in neutral_masses(spectrum, settings)) - 1)
-    theor = theor_spectrum(peptide, maxcharge=1, aa_mass=get_aa_mass(settings))
     score = 0
     total_matched = 0
     sumI = 0
     match = {}
+    dist_all = []
     if '__KDTree' not in spectrum:
         spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape(
             (spectrum['m/z array'].size, 1)))
 
-    dist_total = []
     for ion, fragments in theor.items():
         n = fragments.size
         dist, ind = spectrum['__KDTree'].query(fragments.reshape((n, 1)),
             distance_upper_bound=acc)
         mask = (dist != np.inf)
         nmatched = mask.sum()
-        total_matched += nmatched
+        if nmatched:
+            total_matched += nmatched
+            sumi = spectrum['intensity array'][ind[mask]].sum()
+            sumI += sumi
+            score += sumi
+            dist_all.extend(dist[mask])
         match[ion] = mask
-        score += int_array[ind[mask]].sum()
         sumI += spectrum['intensity array'][ind[mask]].sum()
-        dist_total.extend(dist[mask])
     if not total_matched:
-        return {'score': 0, 'match': None, 'sumI': 0, 'fragmentMT': 0}
+        return {'score': 0, 'match': None, 'sumI': 0, 'dist': []}
     sumI = np.log10(sumI)
-    fMT = np.median(dist_total)
-    return {'score': total_matched + score / int_array.sum(), 'match': match, 'sumI': sumI, 'fragmentMT': fMT}
+    return {'score': total_matched + score / int_array.sum(), 'match': match, 'sumI': sumI, 'dist': dist_all}
 
+def morpheusscore(spectrum, peptide, charge, settings):
+    """A simple implementation of Morpheus score."""
+    acc = settings.getfloat('search', 'product accuracy')
+    theor = theor_spectrum(peptide, maxcharge=1, aa_mass=get_aa_mass(settings))
+    return _morpheusscore(spectrum, theor, acc)
 
 def hyperscore(spectrum, peptide, charge, settings):
     """A simple implementation of X!Tandem's Hyperscore."""
