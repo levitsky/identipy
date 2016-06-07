@@ -8,6 +8,7 @@ from . import scoring, utils
 try:
     from pyteomics import cmass
 except ImportError:
+    print '[ Warning ] cmass could not be imported'
     cmass = mass
 
 def prepare_peptide_processor(fname, settings):
@@ -68,10 +69,12 @@ def prepare_peptide_processor(fname, settings):
     if isinstance(cond, str) and cond.strip():
         cond = utils.import_(cond)
 
+    score = utils.import_(settings.get('scoring', 'score'))
+
     return {'rel': rel, 'aa_mass': aa_mass, 'acc_l': acc_l, 'acc_r': acc_r, 'acc_frag': acc_frag,
             'unit': unit, 'nmods': nmods, 'maxmods': maxmods, 
             'sapime': utils.get_shifts_and_pime(settings),
-            'cond': cond,
+            'cond': cond, 'score': score,
             'settings': settings}
 
 def peptide_processor_iter_isoforms(peptide, **kwargs):
@@ -118,7 +121,7 @@ def peptide_processor(peptide, **kwargs):
     for fc, ind in cand_idx.iteritems():
         for i in ind:
             s = spectra[fc][i]
-            score = scoring._hyperscore(s, theor[fc], kwargs['acc_frag']) # FIXME (use score from settings?)
+            score = kwargs['score'](s, theor[fc], kwargs['acc_frag']) # FIXME (?)
             results.append((score.pop('score'), utils.get_title(s), score, m, charges[fc][i]))
     results.sort(reverse=True)
     # results = np.array(results, dtype=[('score', np.float32), ('title', np.str_, 30), ('spectrum', np.object_), ('info', np.object_)])
