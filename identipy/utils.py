@@ -327,10 +327,14 @@ def get_expmass(spectrum, settings):
     maxcharge = settings.getint('search', 'maximum charge') or None
     mincharge = settings.getint('search', 'minimum charge') or None
 
-    minu = settings.getint('search', 'minimum unknown charge')
-    min_ucharge = minu if minu else mincharge
-    maxu = settings.getint('search', 'maximum unknown charge')
-    max_ucharge = maxu if maxu else maxcharge
+    if settings.has_option('search', 'minimum unknown charge'):
+        min_ucharge = settings.getint('search', 'minimum unknown charge')
+    else:
+        min_ucharge = mincharge
+    if settings.has_option('search', 'maximum unknown charge'):
+        max_ucharge = settings.getint('search', 'maximum unknown charge')
+    else:
+        max_ucharge = maxcharge
 
 
     if 'params' in spectrum:
