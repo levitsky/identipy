@@ -61,7 +61,7 @@ def get_fragment_mass_tol(spectrum, peptide, settings):
     return new_params
 
 
-def _morpheusscore(spectrum, theor, acc):
+def morpheusscore(spectrum, theor, acc):
     int_array = spectrum['intensity array']
     score = 0
     total_matched = 0
@@ -91,21 +91,7 @@ def _morpheusscore(spectrum, theor, acc):
     sumI = np.log10(sumI)
     return {'score': total_matched + score / int_array.sum(), 'match': match, 'sumI': sumI, 'dist': dist_all}
 
-def morpheusscore(spectrum, peptide, charge, settings):
-    """A simple implementation of Morpheus score."""
-    acc = settings.getfloat('search', 'product accuracy')
-    theor = theor_spectrum(peptide, maxcharge=1, aa_mass=get_aa_mass(settings))
-    return _morpheusscore(spectrum, theor, acc)
-
-def hyperscore(spectrum, peptide, charge, settings):
-    """A simple implementation of X!Tandem's Hyperscore."""
-    
-    acc = settings.getfloat('search', 'product accuracy')
-    theor = theor_spectrum(peptide, maxcharge=1,#max(1, charge-1),
-            aa_mass=get_aa_mass(settings))
-    return _hyperscore(spectrum, theor, acc)
-
-def _hyperscore(spectrum, theoretical, acc):
+def hyperscore(spectrum, theoretical, acc):
     if 'norm' not in spectrum:
         spectrum['norm'] = spectrum['intensity array'].max() / 100.
     mz_array = spectrum['m/z array']
