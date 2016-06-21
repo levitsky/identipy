@@ -1,5 +1,4 @@
 import os
-from .spectrum_centric import *
 from .peptide_centric import *
 from . import utils
 
@@ -10,17 +9,10 @@ def process_file(fname, settings):
     if stage1:
         return double_run(fname, settings, utils.import_(stage1))
     else:
-        iterate = settings.get('misc', 'iterate')
         ftype = fname.rsplit('.', 1)[-1].lower()
-        if iterate == 'spectra':
-            spectra = utils.iterate_spectra(fname)
-            return process_spectra(spectra, settings)
-        elif iterate == 'peptides':
-            utils.seen_target.clear()
-            utils.seen_decoy.clear()
-            return process_peptides(fname, settings)
-        else:
-            raise ValueError('iterate must be "spectra" or "peptides"')
+        utils.seen_target.clear()
+        utils.seen_decoy.clear()
+        return process_peptides(fname, settings)
 
 def double_run(fname, settings, stage1):
     print '[double run] stage 1 starting ...'
@@ -33,7 +25,6 @@ def settings(fname=None, default_name=os.path.join(
         os.path.dirname(os.path.abspath(__file__)), 'default.cfg')):
     """Read a configuration file and return a :py:class:`RawConfigParser` object.
     """
-
     raw_config = utils.CustomRawConfigParser(dict_type=dict, allow_no_value=True)
     if default_name:
         raw_config.read(default_name)
