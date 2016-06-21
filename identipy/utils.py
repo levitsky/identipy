@@ -68,7 +68,7 @@ def prot_gen(settings):
 
 seen_target = set()
 seen_decoy = set()
-def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy):
+def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_peptides=False):
 
     dont_use_fast_valid = parser.fast_valid(prot_seq)
     peptides = parser.cleave(prot_seq, enzyme, mc)
@@ -77,8 +77,6 @@ def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy):
         if minlen <= plen <= maxlen + 2:
             forms = []
             if dont_use_fast_valid or pep in seen_target or pep in seen_decoy or parser.fast_valid(pep):
-                # plen = len(pep)
-                # if minlen <= plen <= maxlen:
                 if plen <= maxlen:
                     forms.append(pep)
                 if prot_seq[0] == 'M' and prot_seq.startswith(pep):
@@ -87,13 +85,15 @@ def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy):
                     if minlen <= plen - 2 <= maxlen:
                         forms.append(pep[2:])
             for f in forms:
-                if f not in seen_target and f not in seen_decoy:
-                    if is_decoy:
-                        seen_decoy.add(f)
-                    else:
-                        seen_target.add(f)
+                if dont_use_seen_peptides:
                     yield f
-
+                else:
+                    if f not in seen_target and f not in seen_decoy:
+                        if is_decoy:
+                            seen_decoy.add(f)
+                        else:
+                            seen_target.add(f)
+                        yield f
 
 def normalize_mods(sequence, settings):
     leg = settings.get('misc', 'legend')
@@ -631,7 +631,7 @@ def write_pepxml(inputfile, settings, results):
     for desc, prot in prot_gen(settings):
         dbinfo = desc.split(' ')[0]
         prots[dbinfo] = desc
-        for pep in prot_peptides(prot, get_enzyme(enzyme), mc, minlen, maxlen, desc.startswith(prefix)):
+        for pep in prot_peptides(prot, get_enzyme(enzyme), mc, minlen, maxlen, desc.startswith(prefix), dont_use_seen_peptides=True):
             if pep in peptides:
                 pept_prot.setdefault(pep, []).append(dbinfo)
 
@@ -719,6 +719,7 @@ def write_pepxml(inputfile, settings, results):
                                 tmp4 = etree.Element('alternative_protein')
                                 tmp4.set('protein', prots[proteins[idx]].split(' ', 1)[0])
                                 tmp4.set('protein_descr', prots[proteins[idx]].split(' ', 1)[1])
+                                tmp4.set('num_tol_term', '2') # ???
                                 tmp3.append(copy(tmp4))
 
                     try:
