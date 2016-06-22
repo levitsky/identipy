@@ -303,17 +303,14 @@ def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, reshape=False, **k
         maxcharge = 1 + int(ec.charge(peptide, pH=2))
     for charge in range(1, maxcharge + 1):
         for ion_type in types:
-            ion_type_check = ion_type[0] in 'abc'
+            nterminal = ion_type[0] in 'abc'
             ms = []
             for i in range(1, pl):
-                if ion_type_check:
-                    ms.append(cmass.fast_mass(
-                        str(peptide)[:i], ion_type=ion_type, charge=charge,
-                        **kwargs))
+                if nterminal:
+                    part = peptide[:i]
                 else:
-                    ms.append(cmass.fast_mass(
-                        str(peptide)[i:], ion_type=ion_type, charge=charge,
-                        **kwargs))
+                    part = peptide[i:]
+                ms.append(cmass.fast_mass(part, ion_type=ion_type, charge=charge, **kwargs))
             marr = np.array(ms)
             if not reshape:
                 marr.sort()
@@ -542,7 +539,8 @@ def write_pepxml(inputfile, settings, results):
         outpath = settings.get('output', 'path')
     else:
         outpath = path.dirname(inputfile)
-
+    
+    set_mod_dict(settings)
     db = settings.get('input', 'database')
     add_decoy = settings.getboolean('input', 'add decoy')
     prefix = settings.get('input', 'decoy prefix')
