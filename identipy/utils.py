@@ -305,7 +305,7 @@ def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, reshape=False, **k
         for ion_type in types:
             nterminal = ion_type[0] in 'abc'
             ms = []
-            for i in range(1, pl):
+            for i in range(1, pl+1):
                 if nterminal:
                     part = peptide[:i]
                 else:
