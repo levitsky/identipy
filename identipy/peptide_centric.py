@@ -16,7 +16,9 @@ def prepare_peptide_processor(fname, settings):
     global nmasses
     global t2s
     global charges
+    global best_res
     spectra = {}
+    best_res = {}
     nmasses = {}
     t2s = {}
     charges = {}
@@ -122,7 +124,10 @@ def peptide_processor(peptide, **kwargs):
         for i in ind:
             s = spectra[fc][i]
             score = kwargs['score'](s, theor[fc], kwargs['acc_frag']) # FIXME (?)
-            results.append((score.pop('score'), utils.get_title(s), score, m, charges[fc][i]))
+            sc = score.pop('score')
+            st = utils.get_title(s)
+            if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
+                results.append((sc, st, score, m, charges[fc][i]))
     results.sort(reverse=True)
     # results = np.array(results, dtype=[('score', np.float32), ('title', np.str_, 30), ('spectrum', np.object_), ('info', np.object_)])
     return peptide, results
@@ -133,7 +138,7 @@ def process_peptides(fname, settings):
     peps = utils.peptide_gen(settings)
     kwargs = prepare_peptide_processor(fname, settings)
     func = peptide_processor_iter_isoforms
-    nc = settings.getint('output', 'candidates') or None
+    kwargs['min_matched'] = settings.getint('output', 'minimum matched')
     print 'Running the search ...'
     n = settings.getint('performance', 'processes')
     leg = {}
@@ -144,24 +149,30 @@ def process_peptides(fname, settings):
             if x is not None:
                 peptide, result = x
                 for score, spec_t, info, m, c in result:
-                    info['pep_nm'] = m
-                    info['charge'] = c
                     spec_results[spec_t]['spectrum'] = t2s[spec_t]
+                    top_scores = spec_results[spec_t].setdefault('top_scores', 0)
+                    if -score <= top_scores:
+                        best_res[spec_t] = -score
+                        info['pep_nm'] = m
+                        info['charge'] = c
+                        spec_results[spec_t]['top_scores'] = -score
+                        spec_results[spec_t]['sequences'] = peptide
+                        spec_results[spec_t]['info'] = info
+
 #               spec_results[spec_t].setdefault('scores', []).append(score) FIXME write histogram
-
-                    top_seqs   = spec_results[spec_t].setdefault('sequences', [])
-                    top_scores = spec_results[spec_t].setdefault('top_scores', [])
-                    top_info   = spec_results[spec_t].setdefault('info', [])
-
-                    i = bisect(top_scores, -score)
-                    if nc is None or i < nc:
-                        top_scores.insert(i, -score)
-                        top_seqs.insert(i, peptide)
-                        top_info.insert(i, info)
-                        if nc is not None and len(top_scores) > nc:
-                            top_scores.pop()
-                            top_seqs.pop()
-                            top_info.pop()
+#
+#                     top_seqs   = spec_results[spec_t].setdefault('sequences', '')
+#                     top_info   = spec_results[spec_t].setdefault('info', [])
+#
+#                     i = bisect(top_scores, -score)
+#                     if nc is None or i < nc:
+#                         top_scores.insert(i, -score)
+#                         top_seqs.insert(i, peptide)
+#                         top_info.insert(i, info)
+#                         if nc is not None and len(top_scores) > nc:
+#                             top_scores.pop()
+#                             top_seqs.pop()
+#                             top_info.pop()
     maxlen = settings.getint('search', 'peptide maximum length')
     dtype = np.dtype([('score', np.float64),
         ('seq', np.str_, maxlen), ('note', np.str_, 1),
@@ -171,18 +182,19 @@ def process_peptides(fname, settings):
         s = val['spectrum']
         c = []
         evalues = []
-        for idx, score in enumerate(val['top_scores']):
-            mseq = val['sequences'][idx]
-            seq = mseq
-            info = val['info'][idx]
-            for x in set(mseq).intersection(punctuation):
-                seq = seq.replace(x, leg[x][1])
-            pnm = info['pep_nm']
-            c.append((-score, mseq, 't' if seq in utils.seen_target else 'd',
-                info['charge'], info, info.pop('sumI'), np.median(info.pop('dist'))))
-            c[-1][4]['mzdiff'] = {'Da': s['nm'][info['charge']] - pnm}
-            c[-1][4]['mzdiff']['ppm'] = 1e6 * c[-1][4]['mzdiff']['Da'] / pnm
-            evalues.append(-1./score if -score else 1e6)
+        score = val['top_scores']
+        # for idx, score in enumerate(val['top_scores']):
+        mseq = val['sequences']#[idx]
+        seq = mseq
+        info = val['info']#[idx]
+        for x in set(mseq).intersection(punctuation):
+            seq = seq.replace(x, leg[x][1])
+        pnm = info['pep_nm']
+        c.append((-score, mseq, 't' if seq in utils.seen_target else 'd',
+            info['charge'], info, info.pop('sumI'), np.median(info.pop('dist'))))
+        c[-1][4]['mzdiff'] = {'Da': s['nm'][info['charge']] - pnm}
+        c[-1][4]['mzdiff']['ppm'] = 1e6 * c[-1][4]['mzdiff']['Da'] / pnm
+        evalues.append(-1./score if -score else 1e6)
         c = np.array(c, dtype=dtype)
         yield {'spectrum': s, 'candidates': c, 'e-values': evalues}
 
