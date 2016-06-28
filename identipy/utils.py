@@ -306,13 +306,20 @@ def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, reshape=False, **k
         for ion_type in types:
             nterminal = ion_type[0] in 'abc'
             ms = []
-            for i in range(1, pl+1):
-                if nterminal:
-                    part = peptide[:i]
-                else:
-                    part = peptide[i:]
-                ms.append(cmass.fast_mass(part, ion_type=ion_type, charge=charge, **kwargs))
-            marr = np.array(ms)
+            if nterminal:
+                maxpart = peptide[:-1]
+                maxmass = cmass.fast_mass(maxpart, ion_type=ion_type, charge=charge, **kwargs)
+                marr = np.zeros((pl, ), dtype=float)
+                marr[0] = maxmass
+                for i in range(1, pl):
+                    marr[i] = marr[i-1] - kwargs['aa_mass'][maxpart[-i]]/charge
+            else:
+                maxpart = peptide[1:]
+                maxmass = cmass.fast_mass(maxpart, ion_type=ion_type, charge=charge, **kwargs)
+                marr = np.zeros((pl, ), dtype=float)
+                marr[pl-1] = maxmass
+                for i in range(pl-2, -1, -1):
+                    marr[i] = marr[i+1] - kwargs['aa_mass'][maxpart[-(i+2)]]/charge
             if not reshape:
                 marr.sort()
             else:
