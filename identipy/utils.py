@@ -155,6 +155,7 @@ def preprocess_spectrum(spectrum, settings):
     idx = np.nonzero(spectrum['m/z array'] >= settings.getfloat('search', 'product minimum m/z'))
     spectrum['intensity array'] = spectrum['intensity array'][idx]
     spectrum['m/z array'] = spectrum['m/z array'][idx]
+    spectrum['intensity array'] = spectrum['intensity array'].astype(np.int64)
 
     if minpeaks and spectrum['intensity array'].size < minpeaks:
         return None
@@ -435,8 +436,8 @@ def multimap(n, func, it, **kw):
             for s in it:
                 qin.put(s)
                 count += 1
-                if count > 5000000:
-                    print 'Loaded 5000000 items. Ending cycle.'
+                if count > 50000:
+                    print 'Loaded 50000 items. Ending cycle.'
                     break
             for _ in range(n):
                 qin.put(None)
@@ -482,8 +483,8 @@ def get_precursor_mz(spectrum):
 def get_output(results, settings):
     show_empty = settings.getboolean('output', 'show empty')
     score_threshold = settings.getfloat('output', 'score threshold')
-    min_matched = settings.getint('output', 'minimum matched')
-    num_candidates = settings.getint('output', 'candidates') or None
+    # min_matched = settings.getint('output', 'minimum matched')
+    # num_candidates = settings.getint('output', 'candidates') or None
     try:
         acc_l = settings.getfloat('output', 'precursor accuracy left')
         acc_r = settings.getfloat('output', 'precursor accuracy right')
@@ -504,12 +505,12 @@ def get_output(results, settings):
         count += 1
         c = result['candidates']
         c = c[c['score'] > score_threshold]
-        if min_matched:
-            mask = np.array([
-                c_[4]['match'] is not None and
-                sum(m.sum() for m in c_[4]['match'].values()) >= min_matched
-                for c_ in c], dtype=bool)
-            c = c[mask]
+        # if min_matched:
+        #     mask = np.array([
+        #         c_[4]['match'] is not None and
+        #         sum(m.sum() for m in c_[4]['match'].values()) >= min_matched
+        #         for c_ in c], dtype=bool)
+        #     c = c[mask]
         mask = []
         for c_ in c:
             mask.append(any(-dm_l < (c_[4]['mzdiff']['Da'] - sh_) / c_[3] < dm_r for sh_ in shifts_and_pime))
@@ -517,7 +518,7 @@ def get_output(results, settings):
     
         if (not c.size) and not show_empty:
             continue
-        result['candidates'] = c[:num_candidates]
+        result['candidates'] = c#c[:num_candidates]
         yield result
     print 'Unfiltered results:', count
     
@@ -623,7 +624,9 @@ def write_pepxml(inputfile, settings, results):
     peptides = set()
     for x in results:
         peptides.update(re.sub(r'[^A-Z]', '', normalize_mods(x['candidates'][i][1], settings)) for i in range(
-                settings.getint('output', 'candidates') or len(x['candidates'])))
+            1 or len(x['candidates'])))
+        # peptides.update(re.sub(r'[^A-Z]', '', normalize_mods(x['candidates'][i][1], settings)) for i in range(
+        #         settings.getint('output', 'candidates') or len(x['candidates'])))
     seen_target.clear()
     seen_decoy.clear()
     for desc, prot in prot_gen(settings):

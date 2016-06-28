@@ -87,9 +87,9 @@ def morpheusscore(spectrum, theor, acc):
         match[ion] = mask
         sumI += spectrum['intensity array'][ind[mask]].sum()
     if not total_matched:
-        return {'score': 0, 'match': None, 'sumI': 0, 'dist': []}
+        return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
     sumI = np.log10(sumI)
-    return {'score': total_matched + score / int_array.sum(), 'match': match, 'sumI': sumI, 'dist': dist_all}
+    return {'score': total_matched + score / int_array.sum(), 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched}
 
 def hyperscore(spectrum, theoretical, acc):
     if 'norm' not in spectrum:
@@ -119,12 +119,12 @@ def hyperscore(spectrum, theoretical, acc):
             dist_all.extend(dist[mask])
         match[ion] = mask
     if not total_matched:
-        return {'score': 0, 'match': None, 'sumI': 0, 'dist': []}
+        return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
     for m in mult:
         score *= m
     sumI = np.log10(sumI)
 
-    return {'score': score, 'match': match, 'sumI': sumI, 'dist': dist_all}
+    return {'score': score, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched}
 
 def survival_hist(scores):
     X_axis = Y_axis = None
