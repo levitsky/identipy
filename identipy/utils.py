@@ -305,7 +305,6 @@ def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, reshape=False, **k
     for charge in range(1, maxcharge + 1):
         for ion_type in types:
             nterminal = ion_type[0] in 'abc'
-            ms = []
             if nterminal:
                 maxpart = peptide[:-1]
                 maxmass = cmass.fast_mass(maxpart, ion_type=ion_type, charge=charge, **kwargs)
