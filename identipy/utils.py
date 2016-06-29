@@ -147,6 +147,7 @@ def preprocess_spectrum(spectrum, settings):
     maxpeaks = settings.getint('scoring', 'maximum peaks')
     minpeaks = settings.getint('scoring', 'minimum peaks')
     dynrange = settings.getfloat('scoring', 'dynamic range')
+    acc = settings.getfloat('search', 'product accuracy')
 
     _, states = get_expmass(spectrum, settings)
     if not states:
@@ -174,7 +175,10 @@ def preprocess_spectrum(spectrum, settings):
         j = np.argsort(spectrum['m/z array'][i])
         spectrum['intensity array'] = spectrum['intensity array'][i][j]
         spectrum['m/z array'] = spectrum['m/z array'][i][j]
-    
+
+    tmp = spectrum['m/z array'] / acc
+    spectrum['fastset'] = set(tmp.astype(int))
+
     if minpeaks and spectrum['intensity array'].size < minpeaks:
         return None
     return spectrum
@@ -297,8 +301,39 @@ def get_info(spectrum, result, settings, aa_mass=None):
     idx = find_nearest(masses, cmass.fast_mass(str(result['candidates'][0][1]), aa_mass=aa_mass))
     return (masses[idx], states[idx], RT)
 
-def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, reshape=False, **kwargs):
+# def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, reshape=False, **kwargs):
+#     peaks = {}
+#     pl = len(peptide) - 1
+#     if not maxcharge:
+#         maxcharge = 1 + int(ec.charge(peptide, pH=2))
+#     for charge in range(1, maxcharge + 1):
+#         for ion_type in types:
+#             nterminal = ion_type[0] in 'abc'
+#             if nterminal:
+#                 maxpart = peptide[:-1]
+#                 maxmass = cmass.fast_mass(maxpart, ion_type=ion_type, charge=charge, **kwargs)
+#                 marr = np.zeros((pl, ), dtype=float)
+#                 marr[0] = maxmass
+#                 for i in range(1, pl):
+#                     marr[i] = marr[i-1] - kwargs['aa_mass'][maxpart[-i]]/charge
+#             else:
+#                 maxpart = peptide[1:]
+#                 maxmass = cmass.fast_mass(maxpart, ion_type=ion_type, charge=charge, **kwargs)
+#                 marr = np.zeros((pl, ), dtype=float)
+#                 marr[pl-1] = maxmass
+#                 for i in range(pl-2, -1, -1):
+#                     marr[i] = marr[i+1] - kwargs['aa_mass'][maxpart[-(i+2)]]/charge
+#             if not reshape:
+#                 marr.sort()
+#             else:
+#                 n = marr.size
+#                 marr = marr.reshape((n, 1))
+#             peaks[ion_type, charge] = marr
+#     return peaks
+
+def theor_spectrum(peptide, acc_frag, types=('b', 'y'), maxcharge=None, reshape=False, **kwargs):
     peaks = {}
+    theoretical_set = set()
     pl = len(peptide) - 1
     if not maxcharge:
         maxcharge = 1 + int(ec.charge(peptide, pH=2))
@@ -319,13 +354,18 @@ def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, reshape=False, **k
                 marr[pl-1] = maxmass
                 for i in range(pl-2, -1, -1):
                     marr[i] = marr[i+1] - kwargs['aa_mass'][maxpart[-(i+2)]]/charge
+
+            tmp = marr / acc_frag
+            tmp = tmp.astype(int)
+            tmp = np.concatenate((tmp, tmp-1, tmp+1))
+            theoretical_set.update(tmp)
             if not reshape:
                 marr.sort()
             else:
                 n = marr.size
                 marr = marr.reshape((n, 1))
             peaks[ion_type, charge] = marr
-    return peaks
+    return peaks, theoretical_set
 
 def get_expmass(spectrum, settings):
     maxcharge = settings.getint('search', 'maximum charge') or None
