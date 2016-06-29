@@ -141,7 +141,7 @@ def peptide_processor(peptide, **kwargs):
 
         for i in ind:
             s = spectra[fc][i]
-            if hyperscore_fast(s['fastset'], theoretical_set[c], kwargs['min_matched']):
+            if hyperscore_fast(s['fastset'], theoretical_set[fc], kwargs['min_matched']):
                 score = kwargs['score'](s, theor[fc], kwargs['acc_frag'])  # FIXME (?)
                 sc = score.pop('score')
                 st = utils.get_title(s)
