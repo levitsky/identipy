@@ -324,15 +324,10 @@ def get_expmass(spectrum, settings):
     maxcharge = settings.getint('search', 'maximum charge') or None
     mincharge = settings.getint('search', 'minimum charge') or None
 
-    if settings.has_option('search', 'minimum unknown charge'):
-        min_ucharge = settings.getint('search', 'minimum unknown charge')
-    else:
-        min_ucharge = mincharge
-    if settings.has_option('search', 'maximum unknown charge'):
-        max_ucharge = settings.getint('search', 'maximum unknown charge')
-    else:
-        max_ucharge = maxcharge
-
+    minu = settings.getint('search', 'minimum unknown charge')
+    min_ucharge = max(minu, mincharge) if minu else mincharge
+    maxu = settings.getint('search', 'maximum unknown charge')
+    max_ucharge = min(maxu, maxcharge) if maxu else maxcharge
 
     if 'params' in spectrum:
         exp_mass = spectrum['params']['pepmass'][0]
@@ -535,11 +530,17 @@ def write_pepxml(inputfile, settings, results):
     from time import strftime
     from os import path
 
-    if settings.has_option('output', 'path'):
-        outpath = settings.get('output', 'path')
+    if settings.has_option('output', 'directory'):
+        outdir = settings.get('output', 'directory')
     else:
-        outpath = path.dirname(inputfile)
-    
+        outdir = path.dirname(inputfile)
+
+    if settings.has_option('output', 'filename'):
+        basename = settings.get('output', 'filename')
+    else:
+        basename = path.splitext(path.basename(inputfile))[0] + path.extsep + 'pep' + path.extsep + 'xml'
+
+    filename = path.join(outdir, basename)
     set_mod_dict(settings)
     db = settings.get('input', 'database')
     add_decoy = settings.getboolean('input', 'add decoy')
@@ -551,7 +552,6 @@ def write_pepxml(inputfile, settings, results):
         settings.set('input', 'database', ft.name)
         settings.set('input', 'add decoy', 'no')
 
-    filename = path.join(outpath, path.splitext(path.basename(inputfile))[0] + path.extsep + 'pep' + path.extsep + 'xml')
     enzyme = settings.get('search', 'enzyme')
     mc = settings.getint('search', 'number of missed cleavages')
     minlen = settings.getint('search', 'peptide minimum length')
@@ -562,214 +562,214 @@ def write_pepxml(inputfile, settings, results):
     missed_cleavages = settings.getint('search', 'number of missed cleavages')
     fmods = settings.get('modifications', 'fixed')
 
-    output = open(filename, 'w')
-    line1 = '<?xml version="1.0" encoding="UTF-8"?>\n\
-    <?xml-stylesheet type="text/xsl" href="pepXML_std.xsl"?>\n'
-    output.write(line1)
+    with open(filename, 'w') as output:
+        line1 = '<?xml version="1.0" encoding="UTF-8"?>\n\
+        <?xml-stylesheet type="text/xsl" href="pepXML_std.xsl"?>\n'
+        output.write(line1)
 
-    root = etree.Element('msms_pipeline_analysis')
-    root.set("date", strftime("%Y:%m:%d:%H:%M:%S"))
-    root.set("summary_xml", '')
-    root.set("xmlns", 'http://regis-web.systemsbiology.net/pepXML')
-    # TODO
-    #root.set("xmlns:xsi", 'http://www.w3.org/2001/XMLSchema-instance')
-    #root.set("xsi:schemaLocation", 'http://sashimi.sourceforge.net/schema_revision/pepXML/pepXML_v117.xsd')
+        root = etree.Element('msms_pipeline_analysis')
+        root.set("date", strftime("%Y:%m:%d:%H:%M:%S"))
+        root.set("summary_xml", '')
+        root.set("xmlns", 'http://regis-web.systemsbiology.net/pepXML')
+        # TODO
+        #root.set("xmlns:xsi", 'http://www.w3.org/2001/XMLSchema-instance')
+        #root.set("xsi:schemaLocation", 'http://sashimi.sourceforge.net/schema_revision/pepXML/pepXML_v117.xsd')
 
-    child1 = etree.Element('msms_run_summary')
-    child1.set("base_name", filename)
-    child1.set("search_engine", search_engine)
-    child1.set("raw_data_type", "raw")  # ?
-    child1.set("raw_data", ".?")  # ?
-    root.append(child1)
+        child1 = etree.Element('msms_run_summary')
+        child1.set("base_name", filename)
+        child1.set("search_engine", search_engine)
+        child1.set("raw_data_type", "raw")  # ?
+        child1.set("raw_data", ".?")  # ?
+        root.append(child1)
 
-    child2 = etree.Element('sample_enzyme')
-    child2.set('name', enzyme)
-    child1.append(child2)
+        child2 = etree.Element('sample_enzyme')
+        child2.set('name', enzyme)
+        child1.append(child2)
 
-    child3 = etree.Element('specificity')
-    child3.set("cut", "KR")
-    child3.set("no_cut", "P")
-    child3.set("sence", "C")
+        child3 = etree.Element('specificity')
+        child3.set("cut", "KR")
+        child3.set("no_cut", "P")
+        child3.set("sence", "C")
 
-    child2.append(child3)
+        child2.append(child3)
 
-    child4 = etree.Element('search_summary')
-    child4.set('base_name', filename)
-    child4.set('search_engine', search_engine)
-    child4.set('precursor_mass_type', 'monoisotopic')
-    child4.set('fragment_mass_type', 'monoisotopic')
-    child4.set('search_id', '1')
+        child4 = etree.Element('search_summary')
+        child4.set('base_name', filename)
+        child4.set('search_engine', search_engine)
+        child4.set('precursor_mass_type', 'monoisotopic')
+        child4.set('fragment_mass_type', 'monoisotopic')
+        child4.set('search_id', '1')
 
-    child1.append(child4)
+        child1.append(child4)
 
-    child5 = etree.Element('search_database')
-    child5.set('local_path', database)
-    child5.set('type', 'AA')
+        child5 = etree.Element('search_database')
+        child5.set('local_path', database)
+        child5.set('type', 'AA')
 
-    child4.append(copy(child5))
+        child4.append(copy(child5))
 
-    child5 = etree.Element('enzymatic_search_constraint')
-    child5.set('enzyme', enzyme)
-    child5.set('max_num_internal_cleavages', str(missed_cleavages))
-    child5.set('min_number_termini', '2')
+        child5 = etree.Element('enzymatic_search_constraint')
+        child5.set('enzyme', enzyme)
+        child5.set('max_num_internal_cleavages', str(missed_cleavages))
+        child5.set('min_number_termini', '2')
 
-    child4.append(copy(child5))
+        child4.append(copy(child5))
 
-    results = [x for x in results if x['candidates'].size]
-    results = list(get_output(results, settings))
-    print 'Accumulated results:', len(results)
-    pept_prot = dict()
-    prots = dict()
-    peptides = set()
-    for x in results:
-        peptides.update(re.sub(r'[^A-Z]', '', normalize_mods(x['candidates'][i][1], settings)) for i in range(
-                settings.getint('output', 'candidates') or len(x['candidates'])))
-    seen_target.clear()
-    seen_decoy.clear()
-    for desc, prot in prot_gen(settings):
-        dbinfo = desc.split(' ')[0]
-        prots[dbinfo] = desc
-        for pep in prot_peptides(prot, get_enzyme(enzyme), mc, minlen, maxlen, desc.startswith(prefix)):
-            if pep in peptides:
-                pept_prot.setdefault(pep, []).append(dbinfo)
+        results = [x for x in results if x['candidates'].size]
+        results = list(get_output(results, settings))
+        print 'Accumulated results:', len(results)
+        pept_prot = dict()
+        prots = dict()
+        peptides = set()
+        for x in results:
+            peptides.update(re.sub(r'[^A-Z]', '', normalize_mods(x['candidates'][i][1], settings)) for i in range(
+                    settings.getint('output', 'candidates') or len(x['candidates'])))
+        seen_target.clear()
+        seen_decoy.clear()
+        for desc, prot in prot_gen(settings):
+            dbinfo = desc.split(' ')[0]
+            prots[dbinfo] = desc
+            for pep in prot_peptides(prot, get_enzyme(enzyme), mc, minlen, maxlen, desc.startswith(prefix)):
+                if pep in peptides:
+                    pept_prot.setdefault(pep, []).append(dbinfo)
 
-    if settings.has_option('misc', 'aa_mass'):
-        aa_mass = settings.get('misc', 'aa_mass')
-    else:
-        aa_mass = get_aa_mass(settings)
+        if settings.has_option('misc', 'aa_mass'):
+            aa_mass = settings.get('misc', 'aa_mass')
+        else:
+            aa_mass = get_aa_mass(settings)
 
-    vmods = set()
-    variablemods =  settings.get('modifications', 'variable')
-    if variablemods:
-        for k, v in variablemods.items():
-            for aa in v:
-                vmods.add(k + aa)
-                vmods.add(aa + k)
+        vmods = set()
+        variablemods =  settings.get('modifications', 'variable')
+        if variablemods:
+            for k, v in variablemods.items():
+                for aa in v:
+                    vmods.add(k + aa)
+                    vmods.add(aa + k)
 
-    leg = {}
-    if settings.has_option('misc', 'legend'):
-        leg = settings.get('misc', 'legend')
+        leg = {}
+        if settings.has_option('misc', 'legend'):
+            leg = settings.get('misc', 'legend')
 
-    ntermcleavage = settings.getfloat('modifications', 'protein nterm cleavage')
-    ctermcleavage = settings.getfloat('modifications', 'protein cterm cleavage')
+        ntermcleavage = settings.getfloat('modifications', 'protein nterm cleavage')
+        ctermcleavage = settings.getfloat('modifications', 'protein cterm cleavage')
 
-    for idx, result in enumerate(results):
-        if result['candidates'].size:
-            tmp = etree.Element('spectrum_query')
-            spectrum = result['spectrum']
-            try:
-                tmp.set('spectrum', spectrum['params']['title'])
-            except:
-                tmp.set('spectrum', spectrum['spectrum title'])
-            tmp.set('start_scan', str(idx))  # ???
-            tmp.set('end_scan', str(idx))  # ???
-            tmp.set('index', str(idx))  # ???
+        for idx, result in enumerate(results):
+            if result['candidates'].size:
+                tmp = etree.Element('spectrum_query')
+                spectrum = result['spectrum']
+                try:
+                    tmp.set('spectrum', spectrum['params']['title'])
+                except:
+                    tmp.set('spectrum', spectrum['spectrum title'])
+                tmp.set('start_scan', str(idx))  # ???
+                tmp.set('end_scan', str(idx))  # ???
+                tmp.set('index', str(idx))  # ???
 
-            neutral_mass, charge_state, RT = get_info(spectrum, result, settings, aa_mass)
-            tmp.set('precursor_neutral_mass', str(neutral_mass))
-            tmp.set('assumed_charge', str(int(charge_state)))
-            if RT:
-                tmp.set('retention_time_sec', str(RT))
+                neutral_mass, charge_state, RT = get_info(spectrum, result, settings, aa_mass)
+                tmp.set('precursor_neutral_mass', str(neutral_mass))
+                tmp.set('assumed_charge', str(int(charge_state)))
+                if RT:
+                    tmp.set('retention_time_sec', str(RT))
 
-            tmp2 = etree.Element('search_result')
-            result['candidates'] = result['candidates'][:len(result['e-values'])]
+                tmp2 = etree.Element('search_result')
+                result['candidates'] = result['candidates'][:len(result['e-values'])]
 
-            flag = 1
-            for i, candidate in enumerate(result['candidates']):
-                match = candidate[4]['match']
-                if match is None: break
-                tmp3 = etree.Element('search_hit')
-                tmp3.set('hit_rank', str(i + 1))
-                mod_sequence = str(candidate[1])
-                mod_sequence = normalize_mods(mod_sequence, settings)
+                flag = 1
+                for i, candidate in enumerate(result['candidates']):
+                    match = candidate[4]['match']
+                    if match is None: break
+                    tmp3 = etree.Element('search_hit')
+                    tmp3.set('hit_rank', str(i + 1))
+                    mod_sequence = str(candidate[1])
+                    mod_sequence = normalize_mods(mod_sequence, settings)
 
-                sequence = re.sub(r'[^A-Z]', '', mod_sequence)
-                if sequence not in pept_prot:
-                    flag = 0
-                    print 'WTF'
-                    print sequence
-                    print mod_sequence
-                    sys.stdout.flush()
-                    break
-                else:
-                    tmp3.set('peptide', sequence)
-                    tmp3.set('peptide_prev_aa', 'K')  # ???
-                    tmp3.set('peptide_next_aa', 'K')  # ???
-                    proteins = pept_prot[re.sub(r'[^A-Z]', '', sequence)]
+                    sequence = re.sub(r'[^A-Z]', '', mod_sequence)
+                    if sequence not in pept_prot:
+                        flag = 0
+                        print 'WTF'
+                        print sequence
+                        print mod_sequence
+                        sys.stdout.flush()
+                        break
+                    else:
+                        tmp3.set('peptide', sequence)
+                        tmp3.set('peptide_prev_aa', 'K')  # ???
+                        tmp3.set('peptide_next_aa', 'K')  # ???
+                        proteins = pept_prot[re.sub(r'[^A-Z]', '', sequence)]
 
-                    tmp3.set('protein', prots[proteins[0]].split(' ', 1)[0])
-                    tmp3.set('protein_descr', prots[proteins[0]].split(' ', 1)[1])
+                        tmp3.set('protein', prots[proteins[0]].split(' ', 1)[0])
+                        tmp3.set('protein_descr', prots[proteins[0]].split(' ', 1)[1])
 
-                    num_tot_proteins = len(proteins)
-                    tmp3.set('num_tot_proteins', str(num_tot_proteins))
-                    tmp3.set('num_matched_ions', str(sum(v.sum() for v in match.values())))
-                    tmp3.set('tot_num_ions', '7')  # ???
-                    neutral_mass_theor = cmass.fast_mass(sequence, aa_mass=aa_mass)
-                    tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
-                    tmp3.set('massdiff', str(candidate[4]['mzdiff']['Da']))
-                    tmp3.set('num_tol_term', '2')  # ???
-                    tmp3.set('num_missed_cleavages', str(len(parser.cleave(sequence, get_enzyme(enzyme), 0)) - 1))
-                    tmp3.set('is_rejected', '0')  # ???
+                        num_tot_proteins = len(proteins)
+                        tmp3.set('num_tot_proteins', str(num_tot_proteins))
+                        tmp3.set('num_matched_ions', str(sum(v.sum() for v in match.values())))
+                        tmp3.set('tot_num_ions', '7')  # ???
+                        neutral_mass_theor = cmass.fast_mass(sequence, aa_mass=aa_mass)
+                        tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
+                        tmp3.set('massdiff', str(candidate[4]['mzdiff']['Da']))
+                        tmp3.set('num_tol_term', '2')  # ???
+                        tmp3.set('num_missed_cleavages', str(len(parser.cleave(sequence, get_enzyme(enzyme), 0)) - 1))
+                        tmp3.set('is_rejected', '0')  # ???
 
-                    if num_tot_proteins > 1:
-                        for idx in range(len(proteins)):
-                            if idx != 0:
-                                tmp4 = etree.Element('alternative_protein')
-                                tmp4.set('protein', prots[proteins[idx]].split(' ', 1)[0])
-                                tmp4.set('protein_descr', prots[proteins[idx]].split(' ', 1)[1])
-                                tmp3.append(copy(tmp4))
+                        if num_tot_proteins > 1:
+                            for idx in range(len(proteins)):
+                                if idx != 0:
+                                    tmp4 = etree.Element('alternative_protein')
+                                    tmp4.set('protein', prots[proteins[idx]].split(' ', 1)[0])
+                                    tmp4.set('protein_descr', prots[proteins[idx]].split(' ', 1)[1])
+                                    tmp3.append(copy(tmp4))
 
-                    try:
-                        aalist = parser.parse(mod_sequence)
-                    except:
-                        aalist = [a[::-1] for a in parser.parse(mod_sequence[::-1])][::-1]
-                    tmp4 = etree.Element('modification_info')
-                    ntermmod = 0
-                    for idx, aminoacid in enumerate(aalist):
-                        if aminoacid in fmods or aminoacid in vmods:
-                            if aminoacid.endswith('-') and idx == 0:
-                                ntermmod = 1
-                                tmp4.set('mod_nterm_mass', str(str(aa_mass.get(aminoacid) + ntermcleavage)))
-                            elif aminoacid.startswith('-') and idx == len(aalist) - 1:
-                                tmp4.set('mod_cterm_mass', str(aa_mass.get(aminoacid) + ctermcleavage))
-                            else:
-                                tmp5 = etree.Element('mod_aminoacid_mass')
-                                tmp5.set('position', str(idx + 1 - ntermmod))
-                                tmp5.set('mass', str(aa_mass.get(aminoacid)))
-                                tmp4.append(copy(tmp5))
-                    tmp3.append(copy(tmp4))
+                        try:
+                            aalist = parser.parse(mod_sequence)
+                        except:
+                            aalist = [a[::-1] for a in parser.parse(mod_sequence[::-1])][::-1]
+                        tmp4 = etree.Element('modification_info')
+                        ntermmod = 0
+                        for idx, aminoacid in enumerate(aalist):
+                            if aminoacid in fmods or aminoacid in vmods:
+                                if aminoacid.endswith('-') and idx == 0:
+                                    ntermmod = 1
+                                    tmp4.set('mod_nterm_mass', str(str(aa_mass.get(aminoacid) + ntermcleavage)))
+                                elif aminoacid.startswith('-') and idx == len(aalist) - 1:
+                                    tmp4.set('mod_cterm_mass', str(aa_mass.get(aminoacid) + ctermcleavage))
+                                else:
+                                    tmp5 = etree.Element('mod_aminoacid_mass')
+                                    tmp5.set('position', str(idx + 1 - ntermmod))
+                                    tmp5.set('mass', str(aa_mass.get(aminoacid)))
+                                    tmp4.append(copy(tmp5))
+                        tmp3.append(copy(tmp4))
 
-                    tmp4 = etree.Element('search_score')
-                    tmp4.set('name', 'hyperscore')
-                    tmp4.set('value', str(candidate[0]))
-                    tmp3.append(copy(tmp4))
+                        tmp4 = etree.Element('search_score')
+                        tmp4.set('name', 'hyperscore')
+                        tmp4.set('value', str(candidate[0]))
+                        tmp3.append(copy(tmp4))
 
-                    tmp4 = etree.Element('search_score')
-                    tmp4.set('name', 'nextscore')
-                    tmp4.set('value', str(candidate[0]))
-                    tmp3.append(copy(tmp4))
+                        tmp4 = etree.Element('search_score')
+                        tmp4.set('name', 'nextscore')
+                        tmp4.set('value', str(candidate[0]))
+                        tmp3.append(copy(tmp4))
 
-                    tmp4 = etree.Element('search_score')
-                    tmp4.set('name', 'expect')
-                    tmp4.set('value', str(result['e-values'][i]))
-                    tmp3.append(copy(tmp4))
+                        tmp4 = etree.Element('search_score')
+                        tmp4.set('name', 'expect')
+                        tmp4.set('value', str(result['e-values'][i]))
+                        tmp3.append(copy(tmp4))
 
-                    tmp4 = etree.Element('search_score')
-                    tmp4.set('name', 'sumI')
-                    tmp4.set('value', str(candidate[5]))
-                    tmp3.append(copy(tmp4))
+                        tmp4 = etree.Element('search_score')
+                        tmp4.set('name', 'sumI')
+                        tmp4.set('value', str(candidate[5]))
+                        tmp3.append(copy(tmp4))
 
-                    tmp4 = etree.Element('search_score')
-                    tmp4.set('name', 'fragmentMT')
-                    tmp4.set('value', str(candidate[6]))
-                    tmp3.append(copy(tmp4))
+                        tmp4 = etree.Element('search_score')
+                        tmp4.set('name', 'fragmentMT')
+                        tmp4.set('value', str(candidate[6]))
+                        tmp3.append(copy(tmp4))
 
-                    tmp2.append(copy(tmp3))
-            if flag:
-                tmp.append(copy(tmp2))
-                child1.append(copy(tmp))
+                        tmp2.append(copy(tmp3))
+                if flag:
+                    tmp.append(copy(tmp2))
+                    child1.append(copy(tmp))
 
-    s = etree.tostring(root, pretty_print=True)
-    output.write(s)
+        s = etree.tostring(root, pretty_print=True)
+        output.write(s)
 
-    output.close()
+    print 'Output written to {} ({} bytes)'.format(filename, path.getsize(filename))
