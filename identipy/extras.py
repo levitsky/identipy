@@ -36,6 +36,7 @@ def get_subset(results, settings, fdr=0.01):
 def optimization(fname, settings):
     settings = settings.copy()
     settings.set('misc', 'first stage', '')
+    efc = settings.get('scoring', 'e-values for candidates')
     settings.set('scoring', 'e-values for candidates', 1)
 
     results = process_file(fname, settings)
@@ -55,6 +56,7 @@ def optimization(fname, settings):
                 charge_optimization, missed_cleavages_optimization]
     for func in functions:
         settings = func(filtered, settings)
+    settings.set('scoring', 'e-values for candidates', efc)
     return settings
 
 
