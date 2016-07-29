@@ -156,7 +156,7 @@ def preprocess_spectrum(spectrum, settings):
     idx = np.nonzero(spectrum['m/z array'] >= settings.getfloat('search', 'product minimum m/z'))
     spectrum['intensity array'] = spectrum['intensity array'][idx]
     spectrum['m/z array'] = spectrum['m/z array'][idx]
-    spectrum['intensity array'] = spectrum['intensity array'].astype(np.int64)
+    spectrum['intensity array'] = spectrum['intensity array'].astype(np.float32)
 
     if minpeaks and spectrum['intensity array'].size < minpeaks:
         return None
