@@ -522,9 +522,14 @@ def get_RT(spectrum):
 def get_title(spectrum):
     if 'params' in spectrum:
         return spectrum['params']['title']
+    else:
+        return spectrum['id']
 
 def get_precursor_mz(spectrum):
-    return spectrum['params']['pepmass'][0]
+    try:
+        return spectrum['params']['pepmass'][0]
+    except:
+        return spectrum['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z']
 
 def get_output(results, settings):
     show_empty = settings.getboolean('output', 'show empty')
@@ -706,10 +711,7 @@ def write_pepxml(inputfile, settings, results):
         if result['candidates'].size:
             tmp = etree.Element('spectrum_query')
             spectrum = result['spectrum']
-            try:
-                tmp.set('spectrum', spectrum['params']['title'])
-            except:
-                tmp.set('spectrum', spectrum['spectrum title'])
+            tmp.set('spectrum', get_title(spectrum))
             tmp.set('start_scan', str(idx))  # ???
             tmp.set('end_scan', str(idx))  # ???
             tmp.set('index', str(idx))  # ???
