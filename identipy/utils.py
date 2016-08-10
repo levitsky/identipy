@@ -508,7 +508,7 @@ def allow_all(*args):
 def get_RT(spectrum):
     if 'params' in spectrum:
         try:
-            return float(spectrum['params']['rtinseconds']) / 60
+            return float(spectrum['params']['rtinseconds'])# / 60
         except:
             try:
                 return float(spectrum['params']['title'].split(',')[-1].strip().split()[0])
