@@ -62,6 +62,7 @@ def prepare_peptide_processor(fname, settings):
     unit = settings.get('search', 'precursor accuracy unit')
     rel = utils.relative(unit)
 
+    strip = settings.getboolean('scoring', 'skip unlikely fragments')
     if settings.has_option('scoring', 'condition'):
         cond = settings.get('scoring', 'condition')
     else:
@@ -74,7 +75,7 @@ def prepare_peptide_processor(fname, settings):
     return {'rel': rel, 'aa_mass': aa_mass, 'acc_l': acc_l, 'acc_r': acc_r, 'acc_frag': acc_frag,
             'unit': unit, 'nmods': nmods, 'maxmods': maxmods, 
             'sapime': utils.get_shifts_and_pime(settings),
-            'cond': cond, 'score': score,
+            'cond': cond, 'score': score, 'strip': strip,
             'settings': settings}
 
 def peptide_processor_iter_isoforms(peptide, **kwargs):
@@ -115,16 +116,15 @@ def peptide_processor(peptide, **kwargs):
 
         if idx:
             cand_idx[c] = idx
-            theor[c] = utils.theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=True)
+            theor[c] = utils.theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=(not kwargs['strip']))
 
     results = []
     for fc, ind in cand_idx.iteritems():
         for i in ind:
             s = spectra[fc][i]
-            score = kwargs['score'](s, theor[fc], kwargs['acc_frag']) # FIXME (?)
+            score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], charge=charges[fc][i], strip=kwargs['strip']) # FIXME (?)
             results.append((score.pop('score'), utils.get_title(s), score, m, charges[fc][i]))
     results.sort(reverse=True)
-    # results = np.array(results, dtype=[('score', np.float32), ('title', np.str_, 30), ('spectrum', np.object_), ('info', np.object_)])
     return peptide, results
 
 def process_peptides(fname, settings):
