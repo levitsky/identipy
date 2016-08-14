@@ -1,4 +1,4 @@
-from .utils import neutral_masses, theor_spectrum, get_aa_mass
+from .utils import neutral_masses, theor_spectrum, get_aa_mass, get_precursor_mz
 from scipy.spatial import cKDTree
 import numpy as np
 from math import factorial
@@ -61,7 +61,7 @@ def get_fragment_mass_tol(spectrum, peptide, settings):
     return new_params
 
 
-def morpheusscore(spectrum, theor, acc):
+def morpheusscore(spectrum, theor, acc, **kwargs):
     int_array = spectrum['intensity array']
     score = 0
     total_matched = 0
@@ -91,20 +91,32 @@ def morpheusscore(spectrum, theor, acc):
     sumI = np.log10(sumI)
     return {'score': total_matched + score / int_array.sum(), 'match': match, 'sumI': sumI, 'dist': dist_all}
 
-def hyperscore(spectrum, theoretical, acc):
+def hyperscore(spectrum, theoretical, acc, **kwargs):
     if 'norm' not in spectrum:
         spectrum['norm'] = spectrum['intensity array'].max() / 100.
+    abc = {1: 1, 2: 0.4, 3: 0.5, 4: 0.4, 5: 0.3}
+    xyz = {1: 1, 2: 0.9, 3: 0.6, 4: 0.5, 5: 0.3}
     mz_array = spectrum['m/z array']
     score = 0
     mult = []
     match = {}
     total_matched = 0
     sumI = 0
+    strip = kwargs.get('strip')
+    pc = kwargs.get('charge', 1)
+    pmz = get_precursor_mz(spectrum)
     if '__KDTree' not in spectrum:
         spectrum['__KDTree'] = cKDTree(mz_array.reshape((mz_array.size, 1)))
 
     dist_all = []
     for ion, fragments in theoretical.iteritems():
+        if strip:
+            if ion[1] == 1:
+                bound = (abc if ion[0] in 'abc' else xyz)[pc]
+                j = fragments.searchsorted(bound * pmz * pc)
+                fragments = fragments[:j]
+            fragments = fragments.reshape((-1, 1))
+
         n = fragments.size
         dist, ind = spectrum['__KDTree'].query(fragments,
             distance_upper_bound=acc)
