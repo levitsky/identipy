@@ -187,6 +187,7 @@ def rt_filtering(results, settings):
                     kk = k[:-1]
             elif len(k) > 1:
                 kk = k
+            print k, '->', kk
             RC_dict_new[v] = RC_dict_new[kk]
 
     RC_dict['aa'] = RC_dict_new
