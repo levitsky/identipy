@@ -209,6 +209,7 @@ def set_mod_dict(settings):
                 mod_dict.setdefault(mod, []).append(aa)
             settings.set('modifications', 'variable', mod_dict)
         settings.set('misc', 'legend', legend)
+        print 'Setting legend:', legend
 
 def get_enzyme(enzyme):
     if enzyme in parser.expasy_rules:
@@ -783,10 +784,14 @@ def write_pepxml(inputfile, settings, results):
                                 tmp4.set('num_tol_term', '2') # ???
                                 tmp3.append(copy(tmp4))
 
+                    labels = parser.std_labels + [la.rstrip('[]') for la in leg if len(la) > 1]
+#                   print 'Labels:', labels
                     try:
-                        aalist = parser.parse(mod_sequence)
-                    except:
-                        aalist = [a[::-1] for a in parser.parse(mod_sequence[::-1])][::-1]
+                        aalist = parser.parse(mod_sequence, labels=labels)
+                    except Exception as e:
+                        print 'Problematic sequence:', mod_sequence
+                        print e
+                        aalist = [a[::-1] for a in parser.parse(mod_sequence[::-1], labels=labels)][::-1]
                     tmp4 = etree.Element('modification_info')
                     ntermmod = 0
                     for idx, aminoacid in enumerate(aalist):
