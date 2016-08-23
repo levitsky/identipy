@@ -61,7 +61,7 @@ def prot_gen(settings):
     prefix = settings.get('input', 'decoy prefix')
     mode = settings.get('input', 'decoy method')
 
-    read = [fasta.read, lambda f: fasta.decoy_db(f, mode=mode, prefix=prefix)][add_decoy]
+    read = [fasta.read, lambda f: fasta.decoy_db(f, mode=mode, prefix=prefix)][add_decoy and is_db_target_only(db, prefix)]
     with read(db) as f:
         for p in f:
             yield p
@@ -531,6 +531,17 @@ def get_precursor_mz(spectrum):
     except:
         return spectrum['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z']
 
+
+def is_db_target_only(db, decoy_prefix):
+    balance = 0
+    for prot in fasta.read(db):
+        if prot[0].startswith(decoy_prefix):
+            balance -= 1
+        else:
+            balance += 1
+    return balance
+
+
 def get_output(results, settings):
     show_empty = settings.getboolean('output', 'show empty')
     score_threshold = settings.getfloat('output', 'score threshold')
@@ -591,13 +602,14 @@ def write_pepxml(inputfile, settings, results):
         outpath = settings.get('output', 'path')
     else:
         outpath = path.dirname(inputfile)
-    
+
+
     set_mod_dict(settings)
     db = settings.get('input', 'database')
     add_decoy = settings.getboolean('input', 'add decoy')
     prefix = settings.get('input', 'decoy prefix')
     mode = settings.get('input', 'decoy method')
-    if add_decoy:
+    if add_decoy and is_db_target_only(db, prefix):
         ft = tempfile.NamedTemporaryFile(mode='w')
         fasta.write_decoy_db(db, ft, mode=mode, prefix=prefix)
         settings.set('input', 'database', ft.name)
