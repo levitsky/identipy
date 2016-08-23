@@ -128,11 +128,41 @@ def fragment_mass_optimization(results, settings):
 
 def rt_filtering(results, settings):
     settings = settings.copy()
+    if settings.has_option('misc', 'legend'):
+        legend = settings.get('misc', 'legend')
+    else:
+        legend = None
     RTexp, seqs = zip(*[(utils.get_RT(res['spectrum']), res['candidates'][0][1]) for res in results])
-    seqs = [list(s) for s in seqs] # FIXME: add terminal groups
+    if legend is not None:
+        stdl = set(parser.std_labels)
+        newseqs = []
+        for s in seqs:
+            if parser.fast_valid(s):
+                newseqs.append(list(s))
+            else:
+                seq = []
+                c, n = False, False
+                for c in s:
+                    if c in stdl:
+                        seq.append(c)
+                    else:
+                        mod, res, term = legend[c]
+                        if res == '-':
+                            if term == '[':
+                                seq.append(mod+'-')
+                                n = True
+                            else:
+                                seq.append('-'+mod)
+                                c = True
+                        else:
+                            seq.append(mod+res)
+                    if not n: seq.append(parser.std_nterm)
+                    if not c: seq.append(parser.std_cterm)
+                newseqs.append(seq)
+        seqs = newseqs
     RTexp = [float(x) for x in RTexp]
     if np.allclose(RTexp, 0):
-        print 'RT is missing. Turn off RT optimization'
+        print 'RT is missing. Skipping RT optimization.'
         return settings
     RC_def = achrom.RCs_gilar_rp
     xdict = {}
@@ -147,7 +177,21 @@ def rt_filtering(results, settings):
         if x[1] == None:
             x[1] = x[0] * a + b
         RC_dict_new[key] = x[1]
+    if legend is not None:
+        for k, v in legend.items():
+            if len(k) == 1: continue
+            if k[-1] in '[]':
+                if k[-2] == '-':
+                    kk = ('-' + k[-2:]) if k[-1] == ']' else (k[-2:] + '-')
+                else:
+                    kk = k[:-1]
+            elif len(k) > 1:
+                kk = k
+            print k, '->', kk
+            RC_dict_new[v] = RC_dict_new[kk]
+
     RC_dict['aa'] = RC_dict_new
+
     print RC_dict
     rtexp = np.array([np.mean(x) for x in RTexp])
     rttheor = np.array([achrom.calculate_RT(pep, RC_dict, raise_no_mod=False)
