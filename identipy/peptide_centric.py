@@ -141,12 +141,15 @@ def peptide_processor(peptide, **kwargs):
 
         for i in ind:
             s = spectra[fc][i]
-            if hyperscore_fast(s['fastset'], theoretical_set[fc], kwargs['min_matched']):
-                score = kwargs['score'](s, theor[fc], kwargs['acc_frag'])  # FIXME (?)
-                sc = score.pop('score')
+            hf = hyperscore_fast(s['fastset'], theoretical_set[fc], kwargs['min_matched'])
+            if hf[0]:
                 st = utils.get_title(s)
-                if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
-                    results.append((sc, st, score, m, charges[fc][i]))
+                if -hf[1] <= best_res.get(st, 0):
+                    score = kwargs['score'](s, theor[fc], kwargs['acc_frag'])  # FIXME (?)
+                    sc = score.pop('score')
+                    # st = utils.get_title(s)
+                    if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
+                        results.append((sc, st, score, m, charges[fc][i]))
 
     results.sort(reverse=True)
     # results = np.array(results, dtype=[('score', np.float32), ('title', np.str_, 30), ('spectrum', np.object_), ('info', np.object_)])
