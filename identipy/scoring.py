@@ -92,10 +92,11 @@ def morpheusscore(spectrum, theor, acc):
     return {'score': total_matched + score / int_array.sum(), 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched}
 
 def hyperscore_fast(spectrum_fastset, theoretical_set, min_matched):
-    if len(spectrum_fastset.intersection(theoretical_set)) >= min_matched:
-        return True
+    matched_approx = len(spectrum_fastset.intersection(theoretical_set))
+    if matched_approx >= min_matched:
+        return matched_approx, factorial(matched_approx) * (100 * matched_approx)
     else:
-        return False
+        return 0, 0
 
 def hyperscore(spectrum, theoretical, acc):
     if 'norm' not in spectrum:
