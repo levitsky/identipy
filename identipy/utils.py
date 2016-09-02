@@ -60,11 +60,18 @@ def prot_gen(settings):
     add_decoy = settings.getboolean('input', 'add decoy')
     prefix = settings.get('input', 'decoy prefix')
     mode = settings.get('input', 'decoy method')
+    snp = settings.getint('search', 'snp')
 
     read = [fasta.read, lambda f: fasta.decoy_db(f, mode=mode, prefix=prefix)][add_decoy and is_db_target_only(db, prefix)]
     with read(db) as f:
-        for p in f:
-            yield p
+        if not snp:
+            for p in f:
+                yield p
+        else:
+            for p in f:
+                for snpprot in custom_snp(p[1]):
+                    desc = p[0].split(' ')
+                    yield (desc[0] + '_' + snpprot[1] + ' ' + desc[1], snpprot[0])
 
 seen_target = set()
 seen_decoy = set()
@@ -105,6 +112,16 @@ def normalize_mods(sequence, settings):
                 else:
                     sequence = sequence.replace(char, ''.join(leg[char][:2]))
     return sequence
+
+def custom_snp(peptide):
+    yield peptide, 'wild'
+    j = len(peptide) - 1
+    while j >= 0:
+        for aa in parser.std_amino_acids:
+            if aa != 'L' and aa != peptide[j] and not (aa == 'I' and peptide[j] == 'L'):
+                aa_label = '%sto%sat%s' % (peptide[j], aa, str(j))
+                yield peptide[:j] + aa + peptide[j+1:], aa_label
+        j -= 1
 
 def custom_isoforms(peptide, variable_mods, maxmods=2, nterm=False, cterm=False):
     if not variable_mods:
@@ -626,6 +643,7 @@ def write_pepxml(inputfile, settings, results):
     database = settings.get('input', 'database')
     missed_cleavages = settings.getint('search', 'number of missed cleavages')
     fmods = settings.get('modifications', 'fixed')
+    snp = settings.getint('search', 'snp')
 
     output = open(filename, 'w')
     line1 = '<?xml version="1.0" encoding="UTF-8"?>\n\
@@ -775,7 +793,7 @@ def write_pepxml(inputfile, settings, results):
                     tmp3.set('num_missed_cleavages', str(len(parser.cleave(sequence, get_enzyme(enzyme), 0)) - 1))
                     tmp3.set('is_rejected', '0')  # ???
 
-                    if num_tot_proteins > 1:
+                    if num_tot_proteins > 1 and (not snp or 'wild' not in prots[proteins[0]].split(' ', 1)[0]):
                         for idx in range(len(proteins)):
                             if idx != 0:
                                 tmp4 = etree.Element('alternative_protein')
