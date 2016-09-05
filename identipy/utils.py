@@ -557,7 +557,7 @@ def is_db_target_only(db, decoy_prefix):
             balance -= 1
         else:
             balance += 1
-    return balance
+    return bool(balance)
 
 
 def get_output(results, settings):
