@@ -75,7 +75,7 @@ def prot_gen(settings):
 
 seen_target = set()
 seen_decoy = set()
-def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_peptides=False):
+def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_peptides=False, snp=False, iswild=False):
 
     dont_use_fast_valid = parser.fast_valid(prot_seq)
     peptides = parser.cleave(prot_seq, enzyme, mc)
@@ -92,7 +92,7 @@ def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_
                     if minlen <= plen - 2 <= maxlen:
                         forms.append(pep[2:])
             for f in forms:
-                if dont_use_seen_peptides:
+                if dont_use_seen_peptides and (not snp or not iswild):
                     yield f
                 else:
                     if f not in seen_target and f not in seen_decoy:
@@ -714,7 +714,11 @@ def write_pepxml(inputfile, settings, results):
     for desc, prot in prot_gen(settings):
         dbinfo = desc.split(' ')[0]
         prots[dbinfo] = desc
-        for pep in prot_peptides(prot, get_enzyme(enzyme), mc, minlen, maxlen, desc.startswith(prefix), dont_use_seen_peptides=True):
+        if snp:
+            iswild = 'wild' in desc.split(' ', 1)[0]
+        else:
+            iswild = False
+        for pep in prot_peptides(prot, get_enzyme(enzyme), mc, minlen, maxlen, desc.startswith(prefix), dont_use_seen_peptides=True, snp=snp, iswild=iswild):
             if pep in peptides:
                 pept_prot.setdefault(pep, []).append(dbinfo)
 
