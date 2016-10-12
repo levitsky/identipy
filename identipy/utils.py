@@ -83,7 +83,7 @@ def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_
         plen = len(pep)
         if minlen <= plen <= maxlen + 2:
             forms = []
-            if dont_use_fast_valid or pep in seen_target or pep in seen_decoy or parser.fast_valid(pep):
+            if (not snp or (iswild or (pep not in seen_target and pep not in seen_decoy))) and (dont_use_fast_valid or pep in seen_target or pep in seen_decoy or parser.fast_valid(pep)):
                 if plen <= maxlen:
                     forms.append(pep)
                 if prot_seq[0] == 'M' and prot_seq.startswith(pep):
