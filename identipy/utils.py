@@ -784,7 +784,11 @@ def write_pepxml(inputfile, settings, results):
                     proteins = pept_prot[re.sub(r'[^A-Z]', '', sequence)]
 
                     tmp3.set('protein', prots[proteins[0]].split(' ', 1)[0])
-                    tmp3.set('protein_descr', prots[proteins[0]].split(' ', 1)[1])
+                    try:
+                        protein_descr = prots[proteins[0]].split(' ', 1)[1]
+                    except:
+                        protein_descr = ''
+                    tmp3.set('protein_descr', protein_descr)
 
                     num_tot_proteins = len(proteins)
                     tmp3.set('num_tot_proteins', str(num_tot_proteins))
@@ -802,7 +806,11 @@ def write_pepxml(inputfile, settings, results):
                             if idx != 0:
                                 tmp4 = etree.Element('alternative_protein')
                                 tmp4.set('protein', prots[proteins[idx]].split(' ', 1)[0])
-                                tmp4.set('protein_descr', prots[proteins[idx]].split(' ', 1)[1])
+                                try:
+                                    protein_descr = prots[proteins[idx]].split(' ', 1)[1]
+                                except:
+                                    protein_descr = ''
+                                tmp4.set('protein_descr', protein_descr)
                                 tmp4.set('num_tol_term', '2') # ???
                                 tmp3.append(copy(tmp4))
 
