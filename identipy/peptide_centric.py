@@ -148,7 +148,7 @@ def peptide_processor(peptide, **kwargs):
                     score = kwargs['score'](s, theor[fc], kwargs['acc_frag'])  # FIXME (?)
                     sc = score.pop('score')
                     # st = utils.get_title(s)
-                    if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
+                    if -sc <= best_res.get(st, 0) and score['total_matched'] >= kwargs['min_matched']:
                         results.append((sc, st, score, m, charges[fc][i]))
 
     results.sort(reverse=True)

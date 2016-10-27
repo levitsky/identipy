@@ -8,6 +8,8 @@ from string import punctuation
 from copy import copy
 from ConfigParser import RawConfigParser
 import tempfile
+from os import path
+
 try:
     from pyteomics import cmass
 except ImportError:
@@ -319,36 +321,6 @@ def get_info(spectrum, result, settings, aa_mass=None):
     idx = find_nearest(masses, cmass.fast_mass(str(result['candidates'][0][1]), aa_mass=aa_mass))
     return (masses[idx], states[idx], RT)
 
-# def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, reshape=False, **kwargs):
-#     peaks = {}
-#     pl = len(peptide) - 1
-#     if not maxcharge:
-#         maxcharge = 1 + int(ec.charge(peptide, pH=2))
-#     for charge in range(1, maxcharge + 1):
-#         for ion_type in types:
-#             nterminal = ion_type[0] in 'abc'
-#             if nterminal:
-#                 maxpart = peptide[:-1]
-#                 maxmass = cmass.fast_mass(maxpart, ion_type=ion_type, charge=charge, **kwargs)
-#                 marr = np.zeros((pl, ), dtype=float)
-#                 marr[0] = maxmass
-#                 for i in range(1, pl):
-#                     marr[i] = marr[i-1] - kwargs['aa_mass'][maxpart[-i]]/charge
-#             else:
-#                 maxpart = peptide[1:]
-#                 maxmass = cmass.fast_mass(maxpart, ion_type=ion_type, charge=charge, **kwargs)
-#                 marr = np.zeros((pl, ), dtype=float)
-#                 marr[pl-1] = maxmass
-#                 for i in range(pl-2, -1, -1):
-#                     marr[i] = marr[i+1] - kwargs['aa_mass'][maxpart[-(i+2)]]/charge
-#             if not reshape:
-#                 marr.sort()
-#             else:
-#                 n = marr.size
-#                 marr = marr.reshape((n, 1))
-#             peaks[ion_type, charge] = marr
-#     return peaks
-
 def theor_spectrum(peptide, acc_frag, types=('b', 'y'), maxcharge=None, reshape=False, **kwargs):
     peaks = {}
     theoretical_set = set()
@@ -611,18 +583,16 @@ def get_shifts_and_pime(settings):
         shifts_and_pime += [x + (i + 1) * dM for x in shifts]
     return shifts_and_pime
     
-def write_pepxml(inputfile, settings, results):
-    from lxml import etree
-    from time import strftime
-    from os import path
-
+def get_outpath(inputfile, settings, suffix):
     if settings.has_option('output', 'path'):
         outpath = settings.get('output', 'path')
     else:
         outpath = path.dirname(inputfile)
+    filename = path.join(outpath, path.splitext(path.basename(inputfile))[0] + suffix)
+    print 'Output file:', filename
+    return filename
 
-
-    set_mod_dict(settings)
+def ensure_decoy(settings):
     db = settings.get('input', 'database')
     add_decoy = settings.getboolean('input', 'add decoy')
     prefix = settings.get('input', 'decoy prefix')
@@ -633,80 +603,20 @@ def write_pepxml(inputfile, settings, results):
         settings.set('input', 'database', ft.name)
         settings.set('input', 'add decoy', 'no')
 
-    filename = path.join(outpath, path.splitext(path.basename(inputfile))[0] + path.extsep + 'pep' + path.extsep + 'xml')
+
+def build_pept_prot(settings, results):
+    pept_prot = dict()
+    prots = dict()
+    peptides = set()
     enzyme = settings.get('search', 'enzyme')
     mc = settings.getint('search', 'number of missed cleavages')
     minlen = settings.getint('search', 'peptide minimum length')
     maxlen = settings.getint('search', 'peptide maximum length')
     prefix = settings.get('input', 'decoy prefix')
-    search_engine = 'IdentiPy'
-    database = settings.get('input', 'database')
-    missed_cleavages = settings.getint('search', 'number of missed cleavages')
-    fmods = settings.get('modifications', 'fixed')
     snp = settings.getint('search', 'snp')
 
-    output = open(filename, 'w')
-    line1 = '<?xml version="1.0" encoding="UTF-8"?>\n\
-    <?xml-stylesheet type="text/xsl" href="pepXML_std.xsl"?>\n'
-    output.write(line1)
-
-    root = etree.Element('msms_pipeline_analysis')
-    root.set("date", strftime("%Y:%m:%d:%H:%M:%S"))
-    root.set("summary_xml", '')
-    root.set("xmlns", 'http://regis-web.systemsbiology.net/pepXML')
-    # TODO
-    #root.set("xmlns:xsi", 'http://www.w3.org/2001/XMLSchema-instance')
-    #root.set("xsi:schemaLocation", 'http://sashimi.sourceforge.net/schema_revision/pepXML/pepXML_v117.xsd')
-
-    child1 = etree.Element('msms_run_summary')
-    child1.set("base_name", filename)
-    child1.set("search_engine", search_engine)
-    child1.set("raw_data_type", "raw")  # ?
-    child1.set("raw_data", ".?")  # ?
-    root.append(child1)
-
-    child2 = etree.Element('sample_enzyme')
-    child2.set('name', enzyme)
-    child1.append(child2)
-
-    child3 = etree.Element('specificity')
-    child3.set("cut", "KR")
-    child3.set("no_cut", "P")
-    child3.set("sence", "C")
-
-    child2.append(child3)
-
-    child4 = etree.Element('search_summary')
-    child4.set('base_name', filename)
-    child4.set('search_engine', search_engine)
-    child4.set('precursor_mass_type', 'monoisotopic')
-    child4.set('fragment_mass_type', 'monoisotopic')
-    child4.set('search_id', '1')
-
-    child1.append(child4)
-
-    child5 = etree.Element('search_database')
-    child5.set('local_path', database)
-    child5.set('type', 'AA')
-
-    child4.append(copy(child5))
-
-    child5 = etree.Element('enzymatic_search_constraint')
-    child5.set('enzyme', enzyme)
-    child5.set('max_num_internal_cleavages', str(missed_cleavages))
-    child5.set('min_number_termini', '2')
-
-    child4.append(copy(child5))
-
-    results = [x for x in results if x['candidates'].size]
-    results = list(get_output(results, settings))
-    print 'Accumulated results:', len(results)
-    pept_prot = dict()
-    prots = dict()
-    peptides = set()
     for x in results:
-        peptides.update(re.sub(r'[^A-Z]', '', normalize_mods(x['candidates'][i][1], settings)) for i in range(
-            1 or len(x['candidates'])))
+        peptides.add(re.sub(r'[^A-Z]', '', normalize_mods(x['candidates'][0][1], settings)))
         # peptides.update(re.sub(r'[^A-Z]', '', normalize_mods(x['candidates'][i][1], settings)) for i in range(
         #         settings.getint('output', 'candidates') or len(x['candidates'])))
     seen_target.clear()
@@ -722,6 +632,20 @@ def write_pepxml(inputfile, settings, results):
             if pep in peptides:
                 pept_prot.setdefault(pep, []).append(dbinfo)
 
+    return pept_prot, prots
+
+def write_csv(inputfile, settings, results):
+    df = dataframe(inputfile, settings, results)
+    fname = get_outpath(inputfile, settings, '.csv')
+    df.to_csv(fname, index=False)
+
+def dataframe(inputfile, settings, results):
+    import pandas as pd
+
+    results = list(get_output(results, settings))
+    print 'Accumulated results:', len(results)
+    ensure_decoy(settings)
+    pept_prot, prots = build_pept_prot(settings, results)
     if settings.has_option('misc', 'aa_mass'):
         aa_mass = settings.get('misc', 'aa_mass')
     else:
@@ -739,11 +663,172 @@ def write_pepxml(inputfile, settings, results):
     if settings.has_option('misc', 'legend'):
         leg = settings.get('misc', 'legend')
 
-    ntermcleavage = settings.getfloat('modifications', 'protein nterm cleavage')
-    ctermcleavage = settings.getfloat('modifications', 'protein cterm cleavage')
-
-    for idx, result in enumerate(results):
+    enzyme = settings.get('search', 'enzyme')
+    snp = settings.getint('search', 'snp')
+    columns = ['Title', 'Assumed charge', 'RT', 'Rank', 'Matched ions', 'Total ions', 'Calculated mass',
+                'Mass difference', 'Missed cleavages', 'Proteins', '# proteins', 'Sequence', 'Modified sequence',
+                'Hyperscore', 'Expect', 'sumI', 'fragmentMT']
+    rows = []
+    for result in results:
         if result['candidates'].size:
+            row = []
+            spectrum = result['spectrum']
+            row.append(get_title(spectrum))
+            neutral_mass, charge_state, RT = get_info(spectrum, result, settings, aa_mass)
+            row.append(charge_state)
+            row.append(RT)
+            result['candidates'] = result['candidates'][:len(result['e-values'])]
+
+            flag = 1
+            for i, candidate in enumerate(result['candidates'], 1):
+                match = candidate[4]['match']
+                if match is None: break
+                row.append(i)
+                mod_sequence = normalize_mods(candidate[1], settings)
+
+                sequence = re.sub(r'[^A-Z]', '', mod_sequence)
+                if sequence not in pept_prot:
+                    flag = 0
+                    print 'WTF'
+                    print sequence
+                    print mod_sequence
+                    sys.stdout.flush()
+                    break
+                else:
+                    allproteins = pept_prot[re.sub(r'[^A-Z]', '', sequence)]
+#                   try:
+#                       protein_descr = prots[proteins[0]].split(' ', 1)[1]
+#                   except:
+#                       protein_descr = ''
+#                   row['Description'] = protein_descr
+
+                    row.append(sum(v.sum() for v in match.values()))
+                    row.append(candidate[4]['total_matched'])
+                    neutral_mass_theor = cmass.fast_mass(sequence, aa_mass=aa_mass)
+                    row.append(neutral_mass_theor)
+                    row.append(candidate[4]['mzdiff']['Da'])
+#                   row['num_tol_term'] = '2')  # ???)
+                    row.append(parser.num_sites(sequence, get_enzyme(enzyme)))
+
+                    proteins = [allproteins[0]]
+                    if len(allproteins) > 1:
+                        if snp: 
+                            wilds = any('wild' in prots[p].split(' ', 1)[0] for p in allproteins)
+                        for prot in allproteins[1:]:
+                            d = prots[prot].split(' ', 1)[0]
+                            if (not snp or not wilds or 'wild' in d):
+                                proteins.append(prot)
+
+                    row.append(';'.join(proteins))
+                    row.append(len(proteins))
+
+                    row.append(sequence)
+                    row.append(mod_sequence)
+
+                    row.append(candidate[0])
+                    row.append(result['e-values'][i-1])
+                    row.append(candidate[5])
+                    row.append(candidate[6])
+
+                    rows.append(row)
+    df = pd.DataFrame(rows)
+    df.columns = columns
+    return df
+
+def write_pepxml(inputfile, settings, results):
+    from lxml import etree
+    from time import strftime
+
+    filename = get_outpath(inputfile, settings, '.pep.xml')
+
+    set_mod_dict(settings)
+    ensure_decoy(settings)
+    enzyme = settings.get('search', 'enzyme')
+    search_engine = 'IdentiPy'
+    database = settings.get('input', 'database')
+    missed_cleavages = settings.getint('search', 'number of missed cleavages')
+    fmods = settings.get('modifications', 'fixed')
+    snp = settings.getint('search', 'snp')
+
+    with open(filename, 'w') as output:
+        line1 = '<?xml version="1.0" encoding="UTF-8"?>\n\
+        <?xml-stylesheet type="text/xsl" href="pepXML_std.xsl"?>\n'
+        output.write(line1)
+
+        root = etree.Element('msms_pipeline_analysis')
+        root.set("date", strftime("%Y:%m:%d:%H:%M:%S"))
+        root.set("summary_xml", '')
+        root.set("xmlns", 'http://regis-web.systemsbiology.net/pepXML')
+        # TODO
+        #root.set("xmlns:xsi", 'http://www.w3.org/2001/XMLSchema-instance')
+        #root.set("xsi:schemaLocation", 'http://sashimi.sourceforge.net/schema_revision/pepXML/pepXML_v117.xsd')
+
+        child1 = etree.Element('msms_run_summary')
+        child1.set("base_name", filename)
+        child1.set("search_engine", search_engine)
+        child1.set("raw_data_type", "raw")  # ?
+        child1.set("raw_data", ".?")  # ?
+        root.append(child1)
+
+        child2 = etree.Element('sample_enzyme')
+        child2.set('name', enzyme)
+        child1.append(child2)
+
+        child3 = etree.Element('specificity')
+        child3.set("cut", "KR")
+        child3.set("no_cut", "P")
+        child3.set("sence", "C")
+
+        child2.append(child3)
+
+        child4 = etree.Element('search_summary')
+        child4.set('base_name', filename)
+        child4.set('search_engine', search_engine)
+        child4.set('precursor_mass_type', 'monoisotopic')
+        child4.set('fragment_mass_type', 'monoisotopic')
+        child4.set('search_id', '1')
+
+        child1.append(child4)
+
+        child5 = etree.Element('search_database')
+        child5.set('local_path', database)
+        child5.set('type', 'AA')
+
+        child4.append(copy(child5))
+
+        child5 = etree.Element('enzymatic_search_constraint')
+        child5.set('enzyme', enzyme)
+        child5.set('max_num_internal_cleavages', str(missed_cleavages))
+        child5.set('min_number_termini', '2')
+
+        child4.append(copy(child5))
+
+        results = [x for x in results if x['candidates'].size]
+        results = list(get_output(results, settings))
+        print 'Accumulated results:', len(results)
+        pept_prot, prots = build_pept_prot(settings, results)
+        
+        if settings.has_option('misc', 'aa_mass'):
+            aa_mass = settings.get('misc', 'aa_mass')
+        else:
+            aa_mass = get_aa_mass(settings)
+
+        vmods = set()
+        variablemods =  settings.get('modifications', 'variable')
+        if variablemods:
+            for k, v in variablemods.items():
+                for aa in v:
+                    vmods.add(k + aa)
+                    vmods.add(aa + k)
+
+        leg = {}
+        if settings.has_option('misc', 'legend'):
+            leg = settings.get('misc', 'legend')
+
+        ntermcleavage = settings.getfloat('modifications', 'protein nterm cleavage')
+        ctermcleavage = settings.getfloat('modifications', 'protein cterm cleavage')
+
+        for idx, result in enumerate(results):
             tmp = etree.Element('spectrum_query')
             spectrum = result['spectrum']
             tmp.set('spectrum', get_title(spectrum))
@@ -793,21 +878,24 @@ def write_pepxml(inputfile, settings, results):
                     num_tot_proteins = len(proteins)
                     tmp3.set('num_tot_proteins', str(num_tot_proteins))
                     tmp3.set('num_matched_ions', str(sum(v.sum() for v in match.values())))
-                    tmp3.set('tot_num_ions', '7')  # ???
+                    tmp3.set('tot_num_ions', str(candidate[4]['total_matched']))
                     neutral_mass_theor = cmass.fast_mass(sequence, aa_mass=aa_mass)
                     tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
                     tmp3.set('massdiff', str(candidate[4]['mzdiff']['Da']))
                     tmp3.set('num_tol_term', '2')  # ???
-                    tmp3.set('num_missed_cleavages', str(len(parser.cleave(sequence, get_enzyme(enzyme), 0)) - 1))
+                    tmp3.set('num_missed_cleavages', str(parser.num_sites(sequence, get_enzyme(enzyme))))
                     tmp3.set('is_rejected', '0')  # ???
 
-                    if num_tot_proteins > 1 and (not snp or 'wild' not in prots[proteins[0]].split(' ', 1)[0]):
-                        for idx in range(len(proteins)):
-                            if idx != 0:
+                    if num_tot_proteins > 1:
+                        if snp: 
+                            wilds = any('wild' in prots[p].split(' ', 1)[0] for p in proteins)
+                        for prot in proteins[1:]:
+                            d = prots[prot].split(' ', 1)[0]
+                            if (not snp or not wilds or 'wild' in d):
                                 tmp4 = etree.Element('alternative_protein')
-                                tmp4.set('protein', prots[proteins[idx]].split(' ', 1)[0])
+                                tmp4.set('protein', d)
                                 try:
-                                    protein_descr = prots[proteins[idx]].split(' ', 1)[1]
+                                    protein_descr = prots[prot].split(' ', 1)[1]
                                 except:
                                     protein_descr = ''
                                 tmp4.set('protein_descr', protein_descr)
@@ -868,7 +956,11 @@ def write_pepxml(inputfile, settings, results):
                 tmp.append(copy(tmp2))
                 child1.append(copy(tmp))
 
-    s = etree.tostring(root, pretty_print=True)
-    output.write(s)
+        s = etree.tostring(root, pretty_print=True)
+        output.write(s)
 
-    output.close()
+def write_output(inputfile, settings, results):
+    formats = {'pepxml': write_pepxml, 'csv': write_csv}
+    of = settings.get('output', 'format')
+    writer = formats[re.sub(r'[^a-z]', '', of.lower())]
+    return writer(inputfile, settings, results)
