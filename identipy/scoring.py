@@ -45,11 +45,11 @@ def get_fragment_mass_tol(spectrum, peptide, settings):
             distance_upper_bound=acc)
         mask = (dist != np.inf)
         int_array_total = np.append(int_array_total, int_array[ind[mask]])
-        dist_total = np.append(dist_total, dist[dist != np.inf])
+        dist_total = np.append(dist_total, dist[mask] / spectrum['m/z array'][ind[mask]] * 1e6)
 
     new_params = {}
     if dist_total.size:
-        new_params['fmt'] = 2 * np.median(dist_total)
+        new_params['fmt'] = dist_total#2 * np.median(dist_total)
     else:
         new_params['fmt'] = None
     if int_array_total.size:
@@ -92,16 +92,22 @@ def morpheusscore(spectrum, theor, acc):
     return {'score': total_matched + score / int_array.sum(), 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched}
 
 def hyperscore_fast(spectrum_fastset, theoretical_set, min_matched):
-    matched_approx = len(spectrum_fastset.intersection(theoretical_set))
+    matched_approx_b = len(spectrum_fastset.intersection(theoretical_set['b']))
+    matched_approx_y = len(spectrum_fastset.intersection(theoretical_set['y']))
+    # matched_approx = len(spectrum_fastset.intersection(theoretical_set))
+    matched_approx = matched_approx_b + matched_approx_y
     if matched_approx >= min_matched:
-        return matched_approx, factorial(matched_approx) * (100 * matched_approx)
+        return matched_approx, factorial(matched_approx_b) * factorial(matched_approx_y)# * (100 * matched_approx)
+        # return matched_approx, factorial(matched_approx_b) * (100 * matched_approx_b) + factorial(matched_approx_y) * (100 * matched_approx_y)
+        # return matched_approx, factorial(matched_approx) * (100 * matched_approx)
     else:
         return 0, 0
 
-def hyperscore(spectrum, theoretical, acc):
+def hyperscore(spectrum, theoretical, acc, acc_ppm):
     if 'norm' not in spectrum:
-        spectrum['norm'] = spectrum['intensity array'].max() / 100.
+        spectrum['norm'] = spectrum['Isum']#spectrum['intensity array'].sum()#spectrum['intensity array'].max() / 100.
     mz_array = spectrum['m/z array']
+    # lmz_ar = len(spectrum['m/z array'])
     score = 0
     mult = []
     match = {}
@@ -112,26 +118,25 @@ def hyperscore(spectrum, theoretical, acc):
 
     dist_all = []
     for ion, fragments in theoretical.iteritems():
-        n = fragments.size
-        dist, ind = spectrum['__KDTree'].query(fragments,
-            distance_upper_bound=acc)
-        mask = (dist != np.inf)
-        nmatched = mask.sum()
+        dist, ind = spectrum['__KDTree'].query(fragments, distance_upper_bound=acc)
+        mask1 = (dist != np.inf)
+        mask2 = (dist[mask1] / spectrum['m/z array'][ind[mask1]] * 1e6 <= acc_ppm)
+        nmatched = mask2.sum()
         if nmatched:
             total_matched += nmatched
             mult.append(factorial(nmatched))
-            sumi = spectrum['intensity array'][ind[mask]].sum()
+            sumi = spectrum['intensity array'][ind[mask1][mask2]].sum()
             sumI += sumi
-            score += sumi / spectrum['norm']
-            dist_all.extend(dist[mask])
-        match[ion] = mask
+            score += sumi / spectrum['norm']# * factorial(nmatched)
+            dist_all.extend(dist[mask1][mask2])
+        match[ion] = mask2
     if not total_matched:
         return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
     for m in mult:
         score *= m
     sumI = np.log10(sumI)
 
-    return {'score': score, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched}
+    return {'score': score, 'match': match, 'sumI': spectrum['intensity array'].sum() / spectrum['norm'], 'dist': dist_all, 'total_matched': total_matched}
 
 def survival_hist(scores):
     X_axis = Y_axis = None

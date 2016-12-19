@@ -2,6 +2,7 @@ import re
 from pyteomics import mass, electrochem as ec, auxiliary as aux, fasta, mgf, mzml, parser
 import sys
 from itertools import combinations
+from collections import defaultdict
 import numpy as np
 from multiprocessing import Queue, Process, cpu_count
 from string import punctuation
@@ -193,11 +194,14 @@ def preprocess_spectrum(spectrum, settings):
         spectrum['intensity array'] = spectrum['intensity array'][i][j]
         spectrum['m/z array'] = spectrum['m/z array'][i][j]
 
-    tmp = spectrum['m/z array'] / acc
-    spectrum['fastset'] = set(tmp.astype(int))
 
     if minpeaks and spectrum['intensity array'].size < minpeaks:
         return None
+
+    tmp = spectrum['m/z array'] / acc
+    spectrum['fastset'] = set(tmp.astype(int))
+    spectrum['Isum'] = spectrum['intensity array'].sum()
+
     return spectrum
 
 def relative(unit):
@@ -351,7 +355,8 @@ def get_info(spectrum, result, settings, aa_mass=None):
 
 def theor_spectrum(peptide, acc_frag, types=('b', 'y'), maxcharge=None, reshape=False, **kwargs):
     peaks = {}
-    theoretical_set = set()
+    theoretical_set = defaultdict(set)#set()
+    # theoretical_set = set()
     pl = len(peptide) - 1
     if not maxcharge:
         maxcharge = 1 + int(ec.charge(peptide, pH=2))
@@ -376,7 +381,8 @@ def theor_spectrum(peptide, acc_frag, types=('b', 'y'), maxcharge=None, reshape=
             tmp = marr / acc_frag
             tmp = tmp.astype(int)
             tmp = np.concatenate((tmp, tmp-1, tmp+1))
-            theoretical_set.update(tmp)
+            # theoretical_set.update(tmp)
+            theoretical_set[ion_type].update(tmp)
             if not reshape:
                 marr.sort()
             else:
@@ -491,6 +497,39 @@ def multimap(n, func, it, **kw):
         qin = Queue()
         qout = Queue()
         count = 0
+        # endflag = 0
+
+        # procs = []
+        # for _ in range(n):
+        #     p = Process(target=worker, args=(qin, qout))
+        #     p.start()
+        #     procs.append(p)
+
+        # while True:
+        #     for s in it:
+        #         qin.put(s)
+        #         count += 1
+        #         if count > 50000:
+        #             print 'Loaded 50000 items. Ending cycle.'
+        #             break
+        #     endflag = 1
+        #
+        #     if not count:
+        #         print 'No items left. Exiting.'
+        #         break
+        #
+        #     while (endflag and count) or count > 15000:
+        #         yield qout.get()
+        #         count -= 1
+        #
+        #     print 'Cycle finished.'
+        #
+        # for _ in range(n):
+        #     qin.put(None)
+        #
+        # for p in procs:
+        #     p.join()
+
         while True:
             procs = []
             for _ in range(n):
@@ -500,8 +539,8 @@ def multimap(n, func, it, **kw):
             for s in it:
                 qin.put(s)
                 count += 1
-                if count > 50000:
-                    print 'Loaded 50000 items. Ending cycle.'
+                if count > 500000:
+                    print 'Loaded 500000 items. Ending cycle.'
                     break
             for _ in range(n):
                 qin.put(None)
