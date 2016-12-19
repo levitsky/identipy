@@ -108,7 +108,11 @@ def missed_cleavages_optimization(results, settings):
 
 def fragment_mass_optimization(results, settings):
     settings = settings.copy()
-    fragmassdif = np.array([get_fragment_mass_tol(res['spectrum'], str(res['candidates'][0][1]), settings)['fmt'] for res in results])
+#    fragmassdif = np.array([get_fragment_mass_tol(res['spectrum'], str(res['candidates'][0][1]), settings)['fmt'] for res in results])
+    fragmassdif = []
+    for res in results:
+        fragmassdif.extend(get_fragment_mass_tol(res['spectrum'], str(res['candidates'][0][1]), settings)['fmt'])
+    fragmassdif = np.array(fragmassdif)
     step = FDbinSize(fragmassdif)
     lside, rside = 0, 1
     mt_h, _ = np.histogram(fragmassdif, bins=np.arange(lside, rside, step))
@@ -119,10 +123,11 @@ def fragment_mass_optimization(results, settings):
             break
 #   threshold = mt_h.size * step
 #   fragmassdif = fragmassdif[fragmassdif <= threshold]
-    best_frag_mt = max(fragmassdif[fragmassdif < scoreatpercentile(fragmassdif, 97.5)])
+    # best_frag_mt = max(fragmassdif[fragmassdif < scoreatpercentile(fragmassdif, 97.5)])
+    best_frag_mt = scoreatpercentile(fragmassdif, 50) * 3
 
-    print 'NEW FRAGMENT MASS TOLERANCE = %s' % (best_frag_mt, )
-    settings.set('search', 'product accuracy', best_frag_mt)
+    print 'NEW FRAGMENT MASS TOLERANCE ppm = %s' % (best_frag_mt, )
+    settings.set('search', 'product accuracy ppm', best_frag_mt)
     return settings
 
 
