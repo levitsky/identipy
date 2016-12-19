@@ -63,6 +63,10 @@ def prepare_peptide_processor(fname, settings):
     acc_r = settings.getfloat('search', 'precursor accuracy right')
     acc_frag = settings.getfloat('search', 'product accuracy')
     acc_frag_ppm = settings.getfloat('search', 'product accuracy ppm')
+    try:
+        fast_first_stage = settings.getint('misc', 'fast first stage')
+    except:
+        fast_first_stage = 0
     unit = settings.get('search', 'precursor accuracy unit')
     rel = utils.relative(unit)
 
@@ -76,7 +80,7 @@ def prepare_peptide_processor(fname, settings):
     score = utils.import_(settings.get('scoring', 'score'))
 
     return {'rel': rel, 'aa_mass': aa_mass, 'acc_l': acc_l, 'acc_r': acc_r, 'acc_frag': acc_frag, 'acc_frag_ppm': acc_frag_ppm,
-            'unit': unit, 'nmods': nmods, 'maxmods': maxmods, 
+            'unit': unit, 'nmods': nmods, 'maxmods': maxmods, 'fast first stage': fast_first_stage,
             'sapime': utils.get_shifts_and_pime(settings),
             'cond': cond, 'score': score,
             'settings': settings}
@@ -146,8 +150,12 @@ def peptide_processor(peptide, **kwargs):
             if hf[0]:
                 st = utils.get_title(s)
                 if -hf[1] <= best_res.get(st, 0):
-                    score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'])#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
-                    sc = score.pop('score')
+                    if kwargs['fast first stage']:
+                        sc = hf[1]
+                        score = {'match': [], 'sumI': 1, 'dist': [], 'total_matched': 999}
+                    else:
+                        score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'])#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
+                        sc = score.pop('score')
                     # st = utils.get_title(s)
                     if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
                         results.append((sc, st, score, m, charges[fc][i]))
