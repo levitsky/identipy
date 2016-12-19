@@ -16,8 +16,10 @@ def process_file(fname, settings):
 
 def double_run(fname, settings, stage1):
     print '[double run] stage 1 starting ...'
+    settings.set('misc', 'fast first stage', 1)
     new_settings = stage1(fname, settings)
     print '[double run] stage 2 starting ...'
+    new_settings.set('misc', 'fast first stage', 0)
     return process_file(fname, new_settings)
 
 
