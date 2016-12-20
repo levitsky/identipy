@@ -174,7 +174,7 @@ def rt_filtering(results, settings):
     xdict = {}
     for key, val in RC_def['aa'].items():
         xdict[key] = [val, None]
-    RC_dict = achrom.get_RCs_vary_lcp(seqs, RTexp)
+    RC_dict = utils.get_RCs_vary_lcp(seqs, RTexp)
     RC_dict_new = dict()
     for key, val in RC_dict['aa'].items():
         xdict.setdefault(key, [val, None])[1] = val

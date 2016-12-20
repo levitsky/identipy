@@ -51,13 +51,13 @@ def get_fragment_mass_tol(spectrum, peptide, settings):
     if dist_total.size:
         new_params['fmt'] = dist_total#2 * np.median(dist_total)
     else:
-        new_params['fmt'] = None
-    if int_array_total.size:
-        new_params['dynamic range'] = int_array_total
-    else:
-        new_params['dynamic range'] = []
-    if new_params['dynamic range'].size:
-        new_params['maximum peaks'] = int_array_total
+        new_params['fmt'] = []
+    # if int_array_total.size:
+    #     new_params['dynamic range'] = int_array_total
+    # else:
+    #     new_params['dynamic range'] = []
+    # if new_params['dynamic range'].size:
+    #     new_params['maximum peaks'] = int_array_total
     return new_params
 
 

@@ -2,7 +2,7 @@ import re
 from pyteomics import mass, electrochem as ec, auxiliary as aux, fasta, mgf, mzml, parser
 import sys
 from itertools import combinations
-from collections import defaultdict
+from collections import defaultdict, Counter
 import numpy as np
 from multiprocessing import Queue, Process, cpu_count
 from string import punctuation
@@ -13,6 +13,120 @@ try:
     from pyteomics import cmass
 except ImportError:
     cmass = mass
+
+def get_RCs(sequences, RTs, lcp = -0.21,
+            term_aa = False, **kwargs):
+
+    labels = kwargs.get('labels')
+    peptide_lengths = kwargs.get('lengths', np.log([len(peptide) for peptide in sequences]))
+    peptide_dicts = sequences#[Counter(peptide) for peptide in sequences]
+
+    detected_amino_acids = {aa for peptide_dict in peptide_dicts
+                                for aa in peptide_dict}
+
+    # Determine retention coefficients using multidimensional linear
+    # regression.
+    composition_array = []
+    for idx, pdict in enumerate(peptide_dicts):
+        loglen = peptide_lengths[idx]#np.log(parser.length(pdict))
+        composition_array.append([pdict.get(aa, 0.)
+             * (1. + lcp * loglen)
+               for aa in detected_amino_acids] + [1.])
+
+    # Add normalizing conditions for terminal retention coefficients. The
+    # condition we are using here is quite arbitrary. It implies that the sum
+    # of N- or C-terminal RCs minus the sum of corresponding internal RCs must
+    # be equal to zero.
+    if term_aa:
+        for term_label in ['nterm', 'cterm']:
+            normalizing_peptide = []
+            for aa in detected_amino_acids:
+                if aa.startswith(term_label):
+                    normalizing_peptide.append(1.0)
+                elif (term_label+aa) in detected_amino_acids:
+                    normalizing_peptide.append(-1.0)
+                else:
+                    normalizing_peptide.append(0.0)
+            normalizing_peptide.append(0.0)
+            composition_array.append(normalizing_peptide)
+            RTs.append(0.0)
+
+    # Use least square linear regression.
+    RCs, res, rank, s = np.linalg.lstsq(np.array(composition_array),
+                                           np.array(RTs))
+
+    # Remove normalizing elements from the RTs vector.
+    if term_aa:
+        for term_label in ['nterm', 'cterm']:
+            RTs.pop()
+
+    # Form output.
+    RC_dict = {}
+    RC_dict['aa'] = dict(
+        zip(list(detected_amino_acids),
+            RCs[:len(detected_amino_acids)]))
+    RC_dict['aa'][parser.std_nterm] = 0.0
+    RC_dict['aa'][parser.std_cterm] = 0.0
+    RC_dict['const'] = RCs[len(detected_amino_acids)]
+    RC_dict['lcp'] = lcp
+
+    # Find remaining terminal RCs.
+    if term_aa:
+        for term_label in ['nterm', 'cterm']:
+            # Check if there are terminal RCs remaining undefined.
+            undefined_term_RCs = [aa for aa in RC_dict['aa']
+                                if aa[1:5] != 'term'
+                                and term_label + aa not in RC_dict['aa']]
+            if not undefined_term_RCs:
+                continue
+
+            # Find a linear relationship between internal and terminal RCs.
+            defined_term_RCs = [aa for aa in RC_dict['aa']
+                              if aa[1:5] != 'term'
+                              and term_label + aa in RC_dict['aa']]
+
+            a, b, r, stderr = aux.linear_regression(
+                [RC_dict['aa'][aa] for aa in defined_term_RCs],
+                [RC_dict['aa'][term_label+aa] for aa in defined_term_RCs])
+
+            # Define missing terminal RCs using this linear equation.
+            for aa in undefined_term_RCs:
+                RC_dict['aa'][term_label + aa] = a * RC_dict['aa'][aa] + b
+
+    return RC_dict
+
+def get_RCs_vary_lcp(sequences, RTs,
+                term_aa = False,
+                lcp_range = (-1.0, 1.0),
+                **kwargs):
+
+    labels = kwargs.get('labels')
+
+    best_r = -1.1
+    best_RC_dict = {}
+    lcp_accuracy = kwargs.get('lcp_accuracy', 0.1)
+
+    min_lcp = lcp_range[0]
+    max_lcp = lcp_range[1]
+    step = (max_lcp - min_lcp) / 10.0
+    peptide_lengths = np.log([len(peptide) for peptide in sequences])
+    peptide_dicts = [Counter(peptide) for peptide in sequences]
+    while step > lcp_accuracy:
+        lcp_grid = np.arange(min_lcp, max_lcp,
+                                (max_lcp - min_lcp) / 10.0)
+        for lcp in lcp_grid:
+            RC_dict = get_RCs(peptide_dicts, RTs, lcp, term_aa, labels=labels, lengths=peptide_lengths)
+            regression_coeffs = aux.linear_regression(
+                RTs,
+                [calculate_RT(peptide, RC_dict) for peptide in peptide_dicts])
+            if regression_coeffs[2] > best_r:
+                best_r = regression_coeffs[2]
+                best_RC_dict = dict(RC_dict)
+        min_lcp = best_RC_dict['lcp'] - step
+        max_lcp = best_RC_dict['lcp'] + step
+        step = (max_lcp - min_lcp) / 10.0
+
+    return best_RC_dict
 
 def calculate_RT(peptide, RC_dict, raise_no_mod=True):
     plen = len(peptide)
