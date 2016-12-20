@@ -210,7 +210,7 @@ def rt_filtering(results, settings):
     heights, edges = np.histogram(deltaRT, bins=np.arange(deltaRT.min(), deltaRT.max()+h, h))
 
     def condition(spectrum, cand, _):
-        b = np.digitize(utils.get_RT(spectrum) - calculate_RT(cand, RC_dict),
+        b = np.digitize(spectrum['RT'] - calculate_RT(cand, RC_dict),
                 edges)
 
         return b and b < edges.size and heights[b-1]

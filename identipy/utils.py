@@ -341,6 +341,7 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
     tmp = spectrum['m/z array'] / acc
     spectrum['fastset'] = set(tmp.astype(int))
     spectrum['Isum'] = spectrum['intensity array'].sum()
+    spectrum['RT'] = get_RT(spectrum)
 
     return spectrum
 
