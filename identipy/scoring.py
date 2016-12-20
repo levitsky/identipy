@@ -136,7 +136,7 @@ def hyperscore(spectrum, theoretical, acc, acc_ppm):
         score *= m
     sumI = np.log10(sumI)
 
-    return {'score': score, 'match': match, 'sumI': spectrum['intensity array'].sum() / spectrum['norm'], 'dist': dist_all, 'total_matched': total_matched}
+    return {'score': score, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched}
 
 def survival_hist(scores):
     X_axis = Y_axis = None
