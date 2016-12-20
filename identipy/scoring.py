@@ -97,7 +97,7 @@ def hyperscore_fast(spectrum_fastset, theoretical_set, min_matched):
     # matched_approx = len(spectrum_fastset.intersection(theoretical_set))
     matched_approx = matched_approx_b + matched_approx_y
     if matched_approx >= min_matched:
-        return matched_approx, factorial(matched_approx_b) * factorial(matched_approx_y)# * (100 * matched_approx)
+        return matched_approx, factorial(matched_approx_b) * factorial(matched_approx_y)
         # return matched_approx, factorial(matched_approx_b) * (100 * matched_approx_b) + factorial(matched_approx_y) * (100 * matched_approx_y)
         # return matched_approx, factorial(matched_approx) * (100 * matched_approx)
     else:
