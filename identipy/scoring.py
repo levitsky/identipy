@@ -32,7 +32,7 @@ def get_fragment_mass_tol(spectrum, peptide, settings):
     spectrum['m/z array'] = spectrum['m/z array'][idx]
     int_array = spectrum['intensity array']
     int_array = int_array / int_array.max() * 100
-    charge = max(1, max(c for _, c in neutral_masses(spectrum, settings)) - 1)
+    charge = 1#max(1, max(c for _, c in neutral_masses(spectrum, settings)) - 1)
     theor, _ = theor_spectrum(peptide, maxcharge=charge, aa_mass=get_aa_mass(settings), reshape=True, acc_frag=acc)
     if '__KDTree' not in spectrum:
         spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape(

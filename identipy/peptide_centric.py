@@ -32,11 +32,29 @@ def prepare_peptide_processor(fname, settings):
         maxcharges[c] = max(1, min(fcharge, c-1) if fcharge else c-1)
 
     print 'Reading spectra ...'
+
+    params = {}
+    params['maxpeaks'] = settings.getint('scoring', 'maximum peaks')
+    params['minpeaks'] = settings.getint('scoring', 'minimum peaks')
+    params['dynrange'] = settings.getfloat('scoring', 'dynamic range')
+    params['acc'] = settings.getfloat('search', 'product accuracy')
+    params['min_mz'] = settings.getfloat('search', 'product minimum m/z')
+    params['maxcharge'] = settings.getint('search', 'maximum charge') or None
+    params['mincharge'] = settings.getint('search', 'minimum charge') or None
+    if settings.has_option('search', 'minimum unknown charge'):
+        params['min_ucharge'] = max(settings.getint('search', 'minimum unknown charge'), params['mincharge'])
+    else:
+        params['min_ucharge'] = params['mincharge']
+    if settings.has_option('search', 'maximum unknown charge'):
+        params['max_ucharge'] = min(settings.getint('search', 'maximum unknown charge'), params['maxcharge'])
+    else:
+        params['max_ucharge'] = params['maxcharge']
+
     for spec in utils.iterate_spectra(fname):
-        ps = utils.preprocess_spectrum(spec, settings)
+        ps = utils.preprocess_spectrum(spec, params)
         if ps is not None:
             t2s[utils.get_title(ps)] = ps
-            for m, c in utils.neutral_masses(ps, settings):
+            for m, c in utils.neutral_masses(ps, params):
                 effc = maxcharges[c]
                 nmasses.setdefault(effc, []).append(m)
                 spectra.setdefault(effc, []).append(ps)
