@@ -1,9 +1,10 @@
 from scipy.stats import percentileofscore, scoreatpercentile
 from pyteomics import achrom, auxiliary as aux, parser, mass
+from collections import Counter
 from main import *
 from scoring import get_fragment_mass_tol
 import numpy as np
-from utils import get_info, get_aa_mass, get_output, get_enzyme, get_output
+from utils import get_info, get_aa_mass, get_output, get_enzyme, get_output, calculate_RT
 try:
     from pyteomics import cmass
 except ImportError:
@@ -199,7 +200,7 @@ def rt_filtering(results, settings):
 
     print RC_dict
     rtexp = np.array([np.mean(x) for x in RTexp])
-    rttheor = np.array([achrom.calculate_RT(pep, RC_dict, raise_no_mod=False)
+    rttheor = np.array([calculate_RT(pep, RC_dict, raise_no_mod=False)
         for pep in seqs])
     deltaRT = rtexp - rttheor
     print aux.linear_regression(rtexp, rttheor)
@@ -209,7 +210,7 @@ def rt_filtering(results, settings):
     heights, edges = np.histogram(deltaRT, bins=np.arange(deltaRT.min(), deltaRT.max()+h, h))
 
     def condition(spectrum, cand, _):
-        b = np.digitize(utils.get_RT(spectrum) - achrom.calculate_RT(list(cand), RC_dict),
+        b = np.digitize(utils.get_RT(spectrum) - calculate_RT(cand, RC_dict),
                 edges)
 
         return b and b < edges.size and heights[b-1]

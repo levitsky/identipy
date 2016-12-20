@@ -14,6 +14,32 @@ try:
 except ImportError:
     cmass = mass
 
+def calculate_RT(peptide, RC_dict, raise_no_mod=True):
+    plen = len(peptide)
+    peptide_dict = peptide
+    RT = 0.0
+    for aa in peptide_dict:
+        if aa not in RC_dict['aa']:
+            if len(aa) == 1:
+                raise PyteomicsError('No RC for residue "{}".'.format(aa))
+            if (not raise_no_mod) and aa[-1] in RC_dict['aa']:
+                RT += RC_dict['aa'][aa[-1]]
+            else:
+                raise PyteomicsError(
+                    'Residue "{0}" not found in RC_dict. '.format(aa) +
+                    'Set raise_no_mod=False to ignore this error ' +
+                    'and use the RC for "{0}"" instead.'.format(aa[-1]))
+        else:
+            RT += RC_dict['aa'][aa]
+
+    length_correction_term = (
+        1.0 + RC_dict.get('lcp', 0) * np.log(plen))
+    RT *= length_correction_term
+
+    RT += RC_dict.get('const', 0)
+
+    return RT
+
 def custom_split_label(mod):
     j = 0
     while mod[j].islower():
@@ -160,18 +186,18 @@ def custom_isoforms(peptide, variable_mods, maxmods=2, nterm=False, cterm=False)
                     for z in custom_isoforms(v, variable_mods[:-1], maxmods=maxmods - m, nterm=tmpnterm, cterm=tmpcterm):
                         yield z
 
-def preprocess_spectrum(spectrum, settings):
+def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, min_mz, settings):
     spectrum = copy(spectrum)
-    maxpeaks = settings.getint('scoring', 'maximum peaks')
-    minpeaks = settings.getint('scoring', 'minimum peaks')
-    dynrange = settings.getfloat('scoring', 'dynamic range')
-    acc = settings.getfloat('search', 'product accuracy')
+    maxpeaks = kwargs['maxpeaks']#settings.getint('scoring', 'maximum peaks')
+    minpeaks = kwargs['minpeaks']#settings.getint('scoring', 'minimum peaks')
+    dynrange = kwargs['dynrange']#settings.getfloat('scoring', 'dynamic range')
+    acc = kwargs['acc']#settings.getfloat('search', 'product accuracy')
 
-    _, states = get_expmass(spectrum, settings)
+    _, states = get_expmass(spectrum, kwargs)#, settings)
     if not states:
         return None
 
-    idx = np.nonzero(spectrum['m/z array'] >= settings.getfloat('search', 'product minimum m/z'))
+    idx = np.nonzero(spectrum['m/z array'] >= kwargs['min_mz'])#settings.getfloat('search', 'product minimum m/z'))
     spectrum['intensity array'] = spectrum['intensity array'][idx]
     spectrum['m/z array'] = spectrum['m/z array'][idx]
     spectrum['intensity array'] = spectrum['intensity array'].astype(np.float32)
@@ -319,7 +345,20 @@ def get_info(spectrum, result, settings, aa_mass=None):
     if not aa_mass:
         aa_mass = get_aa_mass(settings)
     RT = get_RT(spectrum)
-    masses, states = zip(*neutral_masses(spectrum, settings))
+
+    params = {}
+    params['maxcharge'] = settings.getint('search', 'maximum charge') or None
+    params['mincharge'] = settings.getint('search', 'minimum charge') or None
+    if settings.has_option('search', 'minimum unknown charge'):
+        params['min_ucharge'] = max(settings.getint('search', 'minimum unknown charge'), params['mincharge'])
+    else:
+        params['min_ucharge'] = params['mincharge']
+    if settings.has_option('search', 'maximum unknown charge'):
+        params['max_ucharge'] = min(settings.getint('search', 'maximum unknown charge'), params['maxcharge'])
+    else:
+        params['max_ucharge'] = params['maxcharge']
+
+    masses, states = zip(*neutral_masses(spectrum, params))
     idx = find_nearest(masses, cmass.fast_mass(str(result['candidates'][0][1]), aa_mass=aa_mass))
     return (masses[idx], states[idx], RT)
 
@@ -391,18 +430,19 @@ def theor_spectrum(peptide, acc_frag, types=('b', 'y'), maxcharge=None, reshape=
             peaks[ion_type, charge] = marr
     return peaks, theoretical_set
 
-def get_expmass(spectrum, settings):
-    maxcharge = settings.getint('search', 'maximum charge') or None
-    mincharge = settings.getint('search', 'minimum charge') or None
-
-    if settings.has_option('search', 'minimum unknown charge'):
-        min_ucharge = max(settings.getint('search', 'minimum unknown charge'), mincharge)
-    else:
-        min_ucharge = mincharge
-    if settings.has_option('search', 'maximum unknown charge'):
-        max_ucharge = min(settings.getint('search', 'maximum unknown charge'), maxcharge)
-    else:
-        max_ucharge = maxcharge
+def get_expmass(spectrum, kwargs):
+    maxcharge = kwargs['maxcharge'] or None
+    mincharge = kwargs['mincharge'] or None
+    min_ucharge = kwargs['min_ucharge']
+    max_ucharge = kwargs['max_ucharge']
+    # if settings.has_option('search', 'minimum unknown charge'):
+    #     min_ucharge = max(settings.getint('search', 'minimum unknown charge'), mincharge)
+    # else:
+    #     min_ucharge = mincharge
+    # if settings.has_option('search', 'maximum unknown charge'):
+    #     max_ucharge = min(settings.getint('search', 'maximum unknown charge'), maxcharge)
+    # else:
+    #     max_ucharge = maxcharge
 
 
     if 'params' in spectrum:
@@ -427,8 +467,8 @@ def get_expmass(spectrum, settings):
     return exp_mass, states
 
 
-def neutral_masses(spectrum, settings):
-    exp_mass, states = get_expmass(spectrum, settings)
+def neutral_masses(spectrum, params):
+    exp_mass, states = get_expmass(spectrum, params)
     return zip((c * (exp_mass - mass.nist_mass['H+'][0][0])
             for c in states), states)
 
