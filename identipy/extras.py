@@ -125,7 +125,7 @@ def fragment_mass_optimization(results, settings):
 #   threshold = mt_h.size * step
 #   fragmassdif = fragmassdif[fragmassdif <= threshold]
     # best_frag_mt = max(fragmassdif[fragmassdif < scoreatpercentile(fragmassdif, 97.5)])
-    best_frag_mt = scoreatpercentile(fragmassdif, 50) * 3
+    best_frag_mt = scoreatpercentile(fragmassdif, 68) * 4    
 
     print 'NEW FRAGMENT MASS TOLERANCE ppm = %s' % (best_frag_mt, )
     settings.set('search', 'product accuracy ppm', best_frag_mt)

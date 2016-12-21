@@ -339,7 +339,9 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
         return None
 
     tmp = spectrum['m/z array'] / acc
-    spectrum['fastset'] = set(tmp.astype(int))
+    tmp = tmp.astype(int)
+    tmp = np.concatenate((tmp, tmp-1, tmp+1))
+    spectrum['fastset'] = set(tmp)
     spectrum['Isum'] = spectrum['intensity array'].sum()
     spectrum['RT'] = get_RT(spectrum)
 
@@ -459,7 +461,7 @@ def get_info(spectrum, result, settings, aa_mass=None):
     'Returns neutral mass, charge state and retention time of the top candidate'
     if not aa_mass:
         aa_mass = get_aa_mass(settings)
-    RT = get_RT(spectrum)
+    RT = spectrum['RT']#get_RT(spectrum)
 
     params = {}
     params['maxcharge'] = settings.getint('search', 'maximum charge') or None
@@ -534,7 +536,7 @@ def theor_spectrum(peptide, acc_frag, types=('b', 'y'), maxcharge=None, reshape=
 
             tmp = marr / acc_frag
             tmp = tmp.astype(int)
-            tmp = np.concatenate((tmp, tmp-1, tmp+1))
+            # tmp = np.concatenate((tmp, tmp-1, tmp+1))
             # theoretical_set.update(tmp)
             theoretical_set[ion_type].update(tmp)
             if not reshape:
