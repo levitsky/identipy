@@ -53,8 +53,7 @@ def optimization(fname, settings):
     else:
         functions = [
                 rt_filtering,
-                precursor_mass_optimization, fragment_mass_optimization,
-                charge_optimization, missed_cleavages_optimization]
+                precursor_mass_optimization, fragment_mass_optimization, missed_cleavages_optimization]
     for func in functions:
         settings = func(filtered, settings)
     settings.set('scoring', 'e-values for candidates', efc)
@@ -86,9 +85,8 @@ def precursor_mass_optimization(results, settings):
 
     settings = settings.copy()
     massdif = np.array([res['candidates'][0][4]['mzdiff']['ppm'] for res in results])
-
-    best_par_mt_l = min(massdif[massdif > scoreatpercentile(massdif, 0.5)])
-    best_par_mt_r = max(massdif[massdif < scoreatpercentile(massdif, 99.5)])
+    best_par_mt_l = min(massdif[massdif > scoreatpercentile(massdif, 0.1)])
+    best_par_mt_r = max(massdif[massdif < scoreatpercentile(massdif, 99.9)])
     print 'NEW PARENT MASS TOLERANCE = %s:%s' % (best_par_mt_l, best_par_mt_r)
     settings.set('search', 'precursor accuracy left', -(best_par_mt_l))
     settings.set('search', 'precursor accuracy right', best_par_mt_r)
@@ -101,7 +99,7 @@ def missed_cleavages_optimization(results, settings):
         for res in results])
     best_missedcleavages = missedcleavages.max()
     for mc in range(best_missedcleavages, -1, -1):
-        if float(missedcleavages[missedcleavages > mc].size) / missedcleavages.size < 0.02:
+        if float(missedcleavages[missedcleavages > mc].size) / missedcleavages.size < 0.005:
             best_missedcleavages = mc
     print 'NEW miscleavages = %s' % (best_missedcleavages, )
     settings.set('search', 'number of missed cleavages', best_missedcleavages)
@@ -204,16 +202,20 @@ def rt_filtering(results, settings):
         for pep in seqs])
     deltaRT = rtexp - rttheor
     print aux.linear_regression(rtexp, rttheor)
-    print 'deltaRT percentiles:', scoreatpercentile(deltaRT, [1, 25, 50, 75, 99])
+    # print 'deltaRT percentiles:', scoreatpercentile(deltaRT, [1, 25, 50, 75, 99])
     
-    h = FDbinSize(deltaRT)
-    heights, edges = np.histogram(deltaRT, bins=np.arange(deltaRT.min(), deltaRT.max()+h, h))
+    # h = FDbinSize(deltaRT)
+    # heights, edges = np.histogram(deltaRT, bins=np.arange(deltaRT.min(), deltaRT.max()+h, h))
+    best_RT_l = scoreatpercentile(deltaRT, 0.5)#min(massdif[massdif > scoreatpercentile(massdif, 0.5)])
+    best_RT_r = scoreatpercentile(deltaRT, 99.5)#max(massdif[massdif < scoreatpercentile(massdif, 99.5)])
 
     def condition(spectrum, cand, _):
-        b = np.digitize(spectrum['RT'] - calculate_RT(cand, RC_dict),
-                edges)
+        rtd = spectrum['RT'] - calculate_RT(cand, RC_dict)
+        return best_RT_l <= rtd <= best_RT_r
+        # b = np.digitize(spectrum['RT'] - calculate_RT(cand, RC_dict),
+        #         edges)
 
-        return b and b < edges.size and heights[b-1]
+        # return b and b < edges.size and heights[b-1]
 
     settings.set('scoring', 'condition', condition)
     return settings
