@@ -1011,7 +1011,7 @@ def write_pepxml(inputfile, settings, results):
                     tmp3.set('peptide_next_aa', 'K')  # ???
                     proteins = pept_prot[re.sub(r'[^A-Z]', '', sequence)]
                     
-                    tmp3.set('protein', prots[proteins[0]].split(' ', 1)[0] + ('_' + candidate[7]) if snp else '')
+                    tmp3.set('protein', prots[proteins[0]].split(' ', 1)[0] + (('_' + candidate[7]) if snp else ''))
                     try:
                         protein_descr = prots[proteins[0]].split(' ', 1)[1]
                     except:
@@ -1033,7 +1033,7 @@ def write_pepxml(inputfile, settings, results):
                         for idx in range(len(proteins)):
                             if idx != 0:
                                 tmp4 = etree.Element('alternative_protein')
-                                tmp4.set('protein', prots[proteins[idx]].split(' ', 1)[0] + ('_' + candidate[7]) if snp else '')
+                                tmp4.set('protein', prots[proteins[idx]].split(' ', 1)[0] + (('_' + candidate[7]) if snp else ''))
                                 try:
                                     protein_descr = prots[proteins[idx]].split(' ', 1)[1]
                                 except:
