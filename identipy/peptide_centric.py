@@ -50,6 +50,9 @@ def prepare_peptide_processor(fname, settings):
     else:
         params['max_ucharge'] = params['maxcharge']
 
+    params['dacc'] = settings.getfloat('input', 'deisotoping mass tolerance')
+    params['deisotope'] = settings.getboolean('input', 'deisotope')
+
     for spec in utils.iterate_spectra(fname):
         ps = utils.preprocess_spectrum(spec, params)
         if ps is not None:

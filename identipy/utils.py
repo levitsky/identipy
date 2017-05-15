@@ -186,6 +186,12 @@ def iterate_spectra(fname):
     else:
         raise ValueError('Unrecognized file type: {}'.format(ftype))
 
+
+def iterate_and_preprocess(fname, params, settings):
+    it = iterate_spectra(fname)
+    n = settings.getint('performance', 'processes')
+    return multimap(n, preprocess_spectrum, it, kwargs=params)
+
 def peptide_gen(settings):
     prefix = settings.get('input', 'decoy prefix')
     enzyme = get_enzyme(settings.get('search', 'enzyme'))
@@ -300,43 +306,87 @@ def custom_isoforms(peptide, variable_mods, maxmods=2, nterm=False, cterm=False)
                     for z in custom_isoforms(v, variable_mods[:-1], maxmods=maxmods - m, nterm=tmpnterm, cterm=tmpcterm):
                         yield z
 
+def deisotope(spectrum, acc, charge):
+#   acc = 0.3
+    mz = spectrum['m/z array']
+    intens = spectrum['intensity array']
+
+    h = 1.0057
+    i = mz.size-2
+    skip = set()
+    add = []
+    while i >= 0:
+        j = mz.size-1
+        while j > i:
+            d = mz[j] - mz[i] 
+            if d > 1.5*h:
+                j -= 1
+                continue
+            for z in range(1, charge+1):
+                if abs(d - 1./z) < acc and intens[i] > intens[j]:
+                    skip.add(j)
+                    if z > 1:
+#                         skip.add(i)
+                        add.append((i, z))
+            j -= 1
+        i -= 1
+    ix = np.delete(np.arange(mz.size, dtype=int), list(skip))
+    newmz, newint = [], []
+    for i, z in add:
+        newmz.append(mz[i]*z - (z-1)*h)
+        newint.append(intens[i])
+#   print len(skip), len(add)
+    mz = np.hstack((mz[ix], newmz))
+    intens = np.hstack((intens[ix], newint))
+    spectrum['m/z array'] = mz
+    spectrum['intensity array'] = intens
+
 def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, min_mz, settings):
     spectrum = copy(spectrum)
     maxpeaks = kwargs['maxpeaks']#settings.getint('scoring', 'maximum peaks')
     minpeaks = kwargs['minpeaks']#settings.getint('scoring', 'minimum peaks')
     dynrange = kwargs['dynrange']#settings.getfloat('scoring', 'dynamic range')
     acc = kwargs['acc']#settings.getfloat('search', 'product accuracy')
+    dacc = kwargs['dacc']#settings.getfloat('search', 'product accuracy')
 
     _, states = get_expmass(spectrum, kwargs)#, settings)
     if not states:
         return None
 
-    idx = np.nonzero(spectrum['m/z array'] >= kwargs['min_mz'])#settings.getfloat('search', 'product minimum m/z'))
+    mz = spectrum['m/z array']
+
+    idx = np.nonzero(mz >= kwargs['min_mz'])#settings.getfloat('search', 'product minimum m/z'))
     spectrum['intensity array'] = spectrum['intensity array'][idx]
-    spectrum['m/z array'] = spectrum['m/z array'][idx]
+    mz = mz[idx]
     spectrum['intensity array'] = spectrum['intensity array'].astype(np.float32)
 
     if minpeaks and spectrum['intensity array'].size < minpeaks:
         return None
 
+    spectrum['intensity array'] = spectrum['intensity array'].astype(np.float32)
+
     if dynrange:
         i = spectrum['intensity array'] > spectrum['intensity array'].max(
                 ) / dynrange
         spectrum['intensity array'] = spectrum['intensity array'][i]
-        spectrum['m/z array'] = spectrum['m/z array'][i]
+        mz = mz[i]
 
     if maxpeaks and minpeaks > maxpeaks:
         raise ValueError('minpeaks > maxpeaks: {} and {}'.format(
             minpeaks, maxpeaks))
     if maxpeaks and spectrum['intensity array'].size > maxpeaks:
         i = np.argsort(spectrum['intensity array'])[-maxpeaks:]
-        j = np.argsort(spectrum['m/z array'][i])
+        j = np.argsort(mz[i])
         spectrum['intensity array'] = spectrum['intensity array'][i][j]
-        spectrum['m/z array'] = spectrum['m/z array'][i][j]
+        mz = mz[i][j]
 
+    spectrum['m/z array'] = mz
+    if kwargs['deisotope']:
+        deisotope(spectrum, dacc, states[-1])
 
     if minpeaks and spectrum['intensity array'].size < minpeaks:
         return None
+
 
     tmp = spectrum['m/z array'] / acc
     tmp = tmp.astype(int)
@@ -654,38 +704,6 @@ def multimap(n, func, it, **kw):
         qin = Queue()
         qout = Queue()
         count = 0
-        # endflag = 0
-
-        # procs = []
-        # for _ in range(n):
-        #     p = Process(target=worker, args=(qin, qout))
-        #     p.start()
-        #     procs.append(p)
-
-        # while True:
-        #     for s in it:
-        #         qin.put(s)
-        #         count += 1
-        #         if count > 50000:
-        #             print 'Loaded 50000 items. Ending cycle.'
-        #             break
-        #     endflag = 1
-        #
-        #     if not count:
-        #         print 'No items left. Exiting.'
-        #         break
-        #
-        #     while (endflag and count) or count > 15000:
-        #         yield qout.get()
-        #         count -= 1
-        #
-        #     print 'Cycle finished.'
-        #
-        # for _ in range(n):
-        #     qin.put(None)
-        #
-        # for p in procs:
-        #     p.join()
 
         while True:
             procs = []
@@ -816,7 +834,7 @@ def write_pepxml(inputfile, settings, results):
         outpath = settings.get('output', 'path')
     else:
         outpath = path.dirname(inputfile)
-
+    print 'Output path:', outpath
 
     set_mod_dict(settings)
     db = settings.get('input', 'database')
@@ -842,6 +860,7 @@ def write_pepxml(inputfile, settings, results):
     snp = settings.getint('search', 'snp')
 
     output = open(filename, 'w')
+    print 'Writing {}...'.format(filename)
     line1 = '<?xml version="1.0" encoding="UTF-8"?>\n\
     <?xml-stylesheet type="text/xsl" href="pepXML_std.xsl"?>\n'
     output.write(line1)
