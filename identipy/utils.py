@@ -13,6 +13,11 @@ try:
     from pyteomics import cmass
 except ImportError:
     cmass = mass
+try:
+    import pyximport; pyximport.install()
+    import cparser
+except:
+    import customparser as cparser
 
 def get_RCs(sequences, RTs, lcp = -0.21,
             term_aa = False, **kwargs):
@@ -198,8 +203,9 @@ def peptide_gen(settings):
     mc = settings.getint('search', 'number of missed cleavages')
     minlen = settings.getint('search', 'peptide minimum length')
     maxlen = settings.getint('search', 'peptide maximum length')
+    snp = settings.getint('search', 'snp')
     for prot in prot_gen(settings):
-        for pep in prot_peptides(prot[1], enzyme, mc, minlen, maxlen, is_decoy=prot[0].startswith(prefix)):
+        for pep in prot_peptides(prot[1], enzyme, mc, minlen, maxlen, is_decoy=prot[0].startswith(prefix), snp=snp, desc=prot[0]):
             yield pep
 
 def prot_gen(settings):
@@ -207,30 +213,31 @@ def prot_gen(settings):
     add_decoy = settings.getboolean('input', 'add decoy')
     prefix = settings.get('input', 'decoy prefix')
     mode = settings.get('input', 'decoy method')
-    snp = settings.getint('search', 'snp')
 
     read = [fasta.read, lambda f: fasta.decoy_db(f, mode=mode, prefix=prefix)][add_decoy and is_db_target_only(db, prefix)]
     with read(db) as f:
-        if not snp:
-            for p in f:
-                yield p
-        else:
-            for p in f:
-                for snpprot in custom_snp(p[1]):
-                    desc = p[0].split(' ')
-                    yield (desc[0] + '_' + snpprot[1] + ' ' + desc[1], snpprot[0])
+        for p in f:
+            yield p
 
 seen_target = set()
 seen_decoy = set()
-def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_peptides=False, snp=False, iswild=False):
+def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_peptides=False, snp=False, iswild=False, desc=False):
 
     dont_use_fast_valid = parser.fast_valid(prot_seq)
-    peptides = parser.cleave(prot_seq, enzyme, mc)
-    for pep in peptides:
+    if snp == 2:
+        if desc:
+            try:
+                tmp = desc.split(' ')[0].split('|')
+                pos = int(tmp[1]) - 1
+                aach = tmp[2]
+            except:
+                desc = False
+    peptides = cparser._cleave(prot_seq, enzyme, mc)
+    for pep, startposition in peptides:
         plen = len(pep)
         if minlen <= plen <= maxlen + 2:
             forms = []
-            if (not snp or (iswild or (pep not in seen_target and pep not in seen_decoy))) and (dont_use_fast_valid or pep in seen_target or pep in seen_decoy or parser.fast_valid(pep)):
+            if pep not in seen_target and pep not in seen_decoy and (dont_use_fast_valid or parser.fast_valid(pep)):
                 if plen <= maxlen:
                     forms.append(pep)
                 if prot_seq[0] == 'M' and prot_seq.startswith(pep):
@@ -239,15 +246,48 @@ def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_
                     if minlen <= plen - 2 <= maxlen:
                         forms.append(pep[2:])
             for f in forms:
-                if dont_use_seen_peptides and (not snp or not iswild):
-                    yield f
+                if dont_use_seen_peptides:
+                    if snp == 1:
+                        for ff, seq_new in custom_snp(f, startposition):
+                            if not seq_new:
+                                yield ff
+                            if seq_new not in seen_decoy and seq_new not in seen_target:
+                                yield ff
+                    else:
+                        yield f
                 else:
                     if f not in seen_target and f not in seen_decoy:
                         if is_decoy:
                             seen_decoy.add(f)
                         else:
                             seen_target.add(f)
-                        yield f
+                        if snp == 1:
+                            for ff, seq_new in custom_snp(f, startposition):
+                                if not seq_new:
+                                    yield ff
+                                if seq_new not in seen_decoy and seq_new not in seen_target:
+                                    yield ff
+                        elif snp == 2:
+                            if desc and startposition <= pos <= startposition + plen:
+                                if len(aach) == 3 and aach[0] in parser.std_amino_acids and aach[2] in parser.std_amino_acids:
+                                    pos_diff = pos - startposition
+                                    yield f[:pos_diff] + 'snp%sto%sat%ssnp' % (aach.split('>')[0], aach.split('>')[-1], pos) + f[pos_diff+1:]
+                            else:
+                                yield f
+                        else:
+                            yield f
+
+def custom_snp(peptide, startposition):
+    yield peptide, None
+    j = len(peptide) - 1
+    while j >= 0:
+        for aa in parser.std_amino_acids:
+            if aa != 'L' and aa != peptide[j] and not (aa == 'I' and peptide[j] == 'L'):
+                aa_label = 'snp%sto%sat%ssnp' % (peptide[j], aa, str(j + startposition))
+                yield peptide[:j] + aa_label + peptide[j+1:], peptide[:j] + aa + peptide[j+1:]
+        j -= 1
+
+
 
 def normalize_mods(sequence, settings):
     leg = settings.get('misc', 'legend')
@@ -260,15 +300,6 @@ def normalize_mods(sequence, settings):
                     sequence = sequence.replace(char, ''.join(leg[char][:2]))
     return sequence
 
-def custom_snp(peptide):
-    yield peptide, 'wild'
-    j = len(peptide) - 1
-    while j >= 0:
-        for aa in parser.std_amino_acids:
-            if aa != 'L' and aa != peptide[j] and not (aa == 'I' and peptide[j] == 'L'):
-                aa_label = '%sto%sat%s' % (peptide[j], aa, str(j))
-                yield peptide[:j] + aa + peptide[j+1:], aa_label
-        j -= 1
 
 def custom_isoforms(peptide, variable_mods, maxmods=2, nterm=False, cterm=False):
     if not variable_mods:
@@ -929,19 +960,21 @@ def write_pepxml(inputfile, settings, results):
     for desc, prot in prot_gen(settings):
         dbinfo = desc.split(' ')[0]
         prots[dbinfo] = desc
-        if snp:
-            iswild = 'wild' in desc.split(' ', 1)[0]
-        else:
-            iswild = False
-        for pep in prot_peptides(prot, get_enzyme(enzyme), mc, minlen, maxlen, desc.startswith(prefix), dont_use_seen_peptides=True, snp=snp, iswild=iswild):
-            if pep in peptides:
-                pept_prot.setdefault(pep, []).append(dbinfo)
-
+        for pep in prot_peptides(prot, get_enzyme(enzyme), mc, minlen, maxlen, desc.startswith(prefix), dont_use_seen_peptides=True, snp=snp, desc=desc):
+            if snp:
+                if 'snp' not in pep:
+                    seqm = pep
+                else:
+                    tmp = pep.split('snp')
+                    seqm = tmp[0] + tmp[1].split('at')[0].split('to')[-1] + tmp[2]
+            else:
+                seqm = pep
+            if seqm in peptides:
+                pept_prot.setdefault(seqm, []).append(dbinfo)
     if settings.has_option('misc', 'aa_mass'):
         aa_mass = settings.get('misc', 'aa_mass')
     else:
         aa_mass = get_aa_mass(settings)
-
     vmods = set()
     variablemods =  settings.get('modifications', 'variable')
     if variablemods:
@@ -983,7 +1016,6 @@ def write_pepxml(inputfile, settings, results):
                 tmp3.set('hit_rank', str(i + 1))
                 mod_sequence = str(candidate[1])
                 mod_sequence = normalize_mods(mod_sequence, settings)
-
                 sequence = re.sub(r'[^A-Z]', '', mod_sequence)
                 if sequence not in pept_prot:
                     flag = 0
@@ -997,8 +1029,8 @@ def write_pepxml(inputfile, settings, results):
                     tmp3.set('peptide_prev_aa', 'K')  # ???
                     tmp3.set('peptide_next_aa', 'K')  # ???
                     proteins = pept_prot[re.sub(r'[^A-Z]', '', sequence)]
-
-                    tmp3.set('protein', prots[proteins[0]].split(' ', 1)[0])
+                    
+                    tmp3.set('protein', prots[proteins[0]].split(' ', 1)[0] + (('_' + candidate[7]) if snp else ''))
                     try:
                         protein_descr = prots[proteins[0]].split(' ', 1)[1]
                     except:
@@ -1020,7 +1052,7 @@ def write_pepxml(inputfile, settings, results):
                         for idx in range(len(proteins)):
                             if idx != 0:
                                 tmp4 = etree.Element('alternative_protein')
-                                tmp4.set('protein', prots[proteins[idx]].split(' ', 1)[0])
+                                tmp4.set('protein', prots[proteins[idx]].split(' ', 1)[0] + (('_' + candidate[7]) if snp else ''))
                                 try:
                                     protein_descr = prots[proteins[idx]].split(' ', 1)[1]
                                 except:
