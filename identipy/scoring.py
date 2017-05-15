@@ -103,7 +103,7 @@ def hyperscore_fast(spectrum_fastset, theoretical_set, min_matched):
     else:
         return 0, 0
 
-def hyperscore(spectrum, theoretical, acc, acc_ppm):
+def hyperscore(spectrum, theoretical, acc, acc_ppm, position=False):
     if 'norm' not in spectrum:
         spectrum['norm'] = spectrum['Isum']#spectrum['intensity array'].sum()#spectrum['intensity array'].max() / 100.
     mz_array = spectrum['m/z array']
@@ -111,6 +111,7 @@ def hyperscore(spectrum, theoretical, acc, acc_ppm):
     score = 0
     mult = []
     match = {}
+    match2 = {}
     total_matched = 0
     sumI = 0
     if '__KDTree' not in spectrum:
@@ -130,8 +131,23 @@ def hyperscore(spectrum, theoretical, acc, acc_ppm):
             score += sumi / spectrum['norm']# * factorial(nmatched)
             dist_all.extend(dist[mask1][mask2])
         match[ion] = mask2
+        match2[ion] = mask1
     if not total_matched:
         return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+    if position:
+        yions = match2[('y', 1)]
+        bions = match2[('b', 1)]
+        plen = len(yions) + 1
+        if position == 1:
+            if not bions[0]:
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+        elif position == plen:
+            if not yions[0]:
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+        else:
+            if not (yions[plen - position] and yions[plen - position - 1]) or (bions[position - 1] and bions[position - 2]):
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+
     for m in mult:
         score *= m
     sumI = np.log10(sumI)

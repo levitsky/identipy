@@ -118,7 +118,20 @@ def peptide_processor_iter_isoforms(peptide, **kwargs):
 
 
 def peptide_processor(peptide, **kwargs):
-    seqm = peptide
+    if kwargs['snp']:
+        if 'snp' not in peptide:
+            seqm = peptide
+            aachange_pos = False
+            snp_label = 'wild'
+        else:
+            tmp = peptide.split('snp')
+            seqm = tmp[0] + tmp[1].split('at')[0].split('to')[-1] + tmp[2]
+            aachange_pos = len(tmp[0]) + 1
+            snp_label = tmp[1]
+    else:
+        seqm = peptide
+        aachange_pos = False
+        snp_label = False
     m = cmass.fast_mass(seqm, aa_mass=kwargs['aa_mass'])
     rel = kwargs['rel']
     acc_l = kwargs['acc_l']
@@ -175,15 +188,15 @@ def peptide_processor(peptide, **kwargs):
                         sc = hf[1]
                         score = {'match': [], 'sumI': 1, 'dist': [], 'total_matched': 999}
                     else:
-                        score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'])#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
+                        score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos)#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
                         sc = score.pop('score')
                     # st = utils.get_title(s)
                     if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
-                        results.append((sc, st, score, m, charges[fc][i]))
+                        results.append((sc, st, score, m, charges[fc][i], snp_label))
 
     results.sort(reverse=True)
     # results = np.array(results, dtype=[('score', np.float32), ('title', np.str_, 30), ('spectrum', np.object_), ('info', np.object_)])
-    return peptide, results
+    return seqm, results
 
 def process_peptides(fname, settings):
 
@@ -192,6 +205,7 @@ def process_peptides(fname, settings):
     kwargs = prepare_peptide_processor(fname, settings)
     func = peptide_processor_iter_isoforms
     kwargs['min_matched'] = settings.getint('output', 'minimum matched')
+    kwargs['snp'] = settings.getint('search', 'snp')
     print 'Running the search ...'
     n = settings.getint('performance', 'processes')
     leg = {}
@@ -201,7 +215,7 @@ def process_peptides(fname, settings):
         for x in y:
             if x is not None:
                 peptide, result = x
-                for score, spec_t, info, m, c in result:
+                for score, spec_t, info, m, c, snp_label in result:
                     spec_results[spec_t]['spectrum'] = t2s[spec_t]
                     top_scores = spec_results[spec_t].setdefault('top_scores', 0)
                     if -score <= top_scores:
@@ -211,6 +225,7 @@ def process_peptides(fname, settings):
                         spec_results[spec_t]['top_scores'] = -score
                         spec_results[spec_t]['sequences'] = peptide
                         spec_results[spec_t]['info'] = info
+                        spec_results[spec_t]['snp_label'] = snp_label
 
 #               spec_results[spec_t].setdefault('scores', []).append(score) FIXME write histogram
 #
@@ -229,7 +244,7 @@ def process_peptides(fname, settings):
     maxlen = settings.getint('search', 'peptide maximum length')
     dtype = np.dtype([('score', np.float64),
         ('seq', np.str_, maxlen), ('note', np.str_, 1),
-        ('charge', np.int8), ('info', np.object_), ('sumI', np.float64), ('fragmentMT', np.float64)])
+        ('charge', np.int8), ('info', np.object_), ('sumI', np.float64), ('fragmentMT', np.float64), ('snp_label', np.str_, 15)])
 
     for spec_name, val in spec_results.iteritems():
         s = val['spectrum']
@@ -244,7 +259,7 @@ def process_peptides(fname, settings):
             seq = seq.replace(x, leg[x][1])
         pnm = info['pep_nm']
         c.append((-score, mseq, 't' if seq in utils.seen_target else 'd',
-            info['charge'], info, info.pop('sumI'), np.median(info.pop('dist'))))
+            info['charge'], info, info.pop('sumI'), np.median(info.pop('dist')), val['snp_label']))
         c[-1][4]['mzdiff'] = {'Da': s['nm'][info['charge']] - pnm}
         c[-1][4]['mzdiff']['ppm'] = 1e6 * c[-1][4]['mzdiff']['Da'] / pnm
         evalues.append(-1./score if -score else 1e6)
