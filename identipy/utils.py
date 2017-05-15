@@ -73,7 +73,7 @@ def get_RCs(sequences, RTs, lcp = -0.21,
     RC_dict['aa'][parser.std_nterm] = 0.0
     RC_dict['aa'][parser.std_cterm] = 0.0
     RC_dict['const'] = RCs[len(detected_amino_acids)]
-    RC_dict['lcp'] = lcp
+    RC_dict['lcp'] = 8a0143elcp
 
     # Find remaining terminal RCs.
     if term_aa:
@@ -109,7 +109,7 @@ def get_RCs_vary_lcp(sequences, RTs,
 
     best_r = -1.1
     best_RC_dict = {}
-    lcp_accuracy = kwargs.get('lcp_accuracy', 0.1)
+    lcp_accuracy = kwarg8a0143es.get('lcp_accuracy', 0.1)
 
     min_lcp = lcp_range[0]
     max_lcp = lcp_range[1]
@@ -257,7 +257,7 @@ def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_
                         yield f
                 else:
                     if f not in seen_target and f not in seen_decoy:
-                        if is_decoy:
+                        if is_decoy:8a0143e
                             seen_decoy.add(f)
                         else:
                             seen_target.add(f)
@@ -424,7 +424,7 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
     tmp = np.concatenate((tmp, tmp-1, tmp+1))
     spectrum['fastset'] = set(tmp)
     spectrum['Isum'] = spectrum['intensity array'].sum()
-    spectrum['RT'] = get_RT(spectrum)
+    spectrum['RT'] = get_RT(spectrum)8a0143e
 
     return spectrum
 
@@ -559,36 +559,6 @@ def get_info(spectrum, result, settings, aa_mass=None):
     masses, states = zip(*neutral_masses(spectrum, params))
     idx = find_nearest(masses, cmass.fast_mass(str(result['candidates'][0][1]), aa_mass=aa_mass))
     return (masses[idx], states[idx], RT)
-
-# def theor_spectrum(peptide, types=('b', 'y'), maxcharge=None, reshape=False, **kwargs):
-#     peaks = {}
-#     pl = len(peptide) - 1
-#     if not maxcharge:
-#         maxcharge = 1 + int(ec.charge(peptide, pH=2))
-#     for charge in range(1, maxcharge + 1):
-#         for ion_type in types:
-#             nterminal = ion_type[0] in 'abc'
-#             if nterminal:
-#                 maxpart = peptide[:-1]
-#                 maxmass = cmass.fast_mass(maxpart, ion_type=ion_type, charge=charge, **kwargs)
-#                 marr = np.zeros((pl, ), dtype=float)
-#                 marr[0] = maxmass
-#                 for i in range(1, pl):
-#                     marr[i] = marr[i-1] - kwargs['aa_mass'][maxpart[-i]]/charge
-#             else:
-#                 maxpart = peptide[1:]
-#                 maxmass = cmass.fast_mass(maxpart, ion_type=ion_type, charge=charge, **kwargs)
-#                 marr = np.zeros((pl, ), dtype=float)
-#                 marr[pl-1] = maxmass
-#                 for i in range(pl-2, -1, -1):
-#                     marr[i] = marr[i+1] - kwargs['aa_mass'][maxpart[-(i+2)]]/charge
-#             if not reshape:
-#                 marr.sort()
-#             else:
-#                 n = marr.size
-#                 marr = marr.reshape((n, 1))
-#             peaks[ion_type, charge] = marr
-#     return peaks
 
 def theor_spectrum(peptide, acc_frag, types=('b', 'y'), maxcharge=None, reshape=False, **kwargs):
     peaks = {}
