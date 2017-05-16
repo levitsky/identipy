@@ -54,36 +54,65 @@ def get_fragment_mass_tol(spectrum, peptide, settings):
         new_params['fmt'] = []
     return new_params
 
+def morpheusscore_fast(spectrum_fastset, theoretical_set, min_matched):
+    matched_approx = len(spectrum_fastset.intersection(theoretical_set['b']))
+    matched_approx += len(spectrum_fastset.intersection(theoretical_set['y']))
+    if matched_approx >= min_matched:
+        return matched_approx, matched_approx + 1
+        # return matched_approx, factorial(matched_approx_b) * (100 * matched_approx_b) + factorial(matched_approx_y) * (100 * matched_approx_y)
+        # return matched_approx, factorial(matched_approx) * (100 * matched_approx)
+    else:
+        return 0, 0
 
-def morpheusscore(spectrum, theor, acc):
-    int_array = spectrum['intensity array']
+def morpheusscore(spectrum, theoretical, acc, acc_ppm=False, position=False):
+    if 'norm' not in spectrum:
+        spectrum['norm'] = spectrum['Isum']#spectrum['intensity array'].sum()#spectrum['intensity array'].max() / 100.
+    mz_array = spectrum['m/z array']
     score = 0
+    match = {}
+    match2 = {}
     total_matched = 0
     sumI = 0
-    match = {}
-    dist_all = []
     if '__KDTree' not in spectrum:
-        spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape(
-            (spectrum['m/z array'].size, 1)))
+        spectrum['__KDTree'] = cKDTree(mz_array.reshape((mz_array.size, 1)))
 
-    for ion, fragments in theor.items():
-        n = fragments.size
-        dist, ind = spectrum['__KDTree'].query(fragments.reshape((n, 1)),
-            distance_upper_bound=acc)
-        mask = (dist != np.inf)
-        nmatched = mask.sum()
+    dist_all = []
+    for ion, fragments in theoretical.iteritems():
+        dist, ind = spectrum['__KDTree'].query(fragments, distance_upper_bound=acc)
+        mask1 = (dist != np.inf)
+        if acc_ppm:
+            mask2 = (dist[mask1] / spectrum['m/z array'][ind[mask1]] * 1e6 <= acc_ppm)
+        else:
+            mask2 = np.ones_like(dist[mask1], dtype=bool)
+        nmatched = mask2.sum()
         if nmatched:
             total_matched += nmatched
-            sumi = spectrum['intensity array'][ind[mask]].sum()
+            sumi = spectrum['intensity array'][ind[mask1][mask2]].sum()
             sumI += sumi
-            score += sumi
-            dist_all.extend(dist[mask])
-        match[ion] = mask
-        sumI += spectrum['intensity array'][ind[mask]].sum()
+            score += sumi / spectrum['norm']
+            dist_all.extend(dist[mask1][mask2])
+        match[ion] = mask2
+        match2[ion] = mask1
     if not total_matched:
         return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+    if position:
+        yions = match2[('y', 1)]
+        bions = match2[('b', 1)]
+        plen = len(yions) + 1
+        if position == 1:
+            if not bions[0]:
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+        elif position == plen:
+            if not yions[0]:
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+        else:
+            if not (yions[plen - position] and yions[plen - position - 1]) or (bions[position - 1] and bions[position - 2]):
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+
+    score += nmatched
     sumI = np.log10(sumI)
-    return {'score': total_matched + score / int_array.sum(), 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched}
+
+    return {'score': score, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched}
 
 def hyperscore_fast(spectrum_fastset, theoretical_set, min_matched):
     matched_approx_b = len(spectrum_fastset.intersection(theoretical_set['b']))
