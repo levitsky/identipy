@@ -73,7 +73,7 @@ def get_RCs(sequences, RTs, lcp = -0.21,
     RC_dict['aa'][parser.std_nterm] = 0.0
     RC_dict['aa'][parser.std_cterm] = 0.0
     RC_dict['const'] = RCs[len(detected_amino_acids)]
-    RC_dict['lcp'] = 8a0143elcp
+    RC_dict['lcp'] = lcp
 
     # Find remaining terminal RCs.
     if term_aa:
