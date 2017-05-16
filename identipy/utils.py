@@ -109,7 +109,7 @@ def get_RCs_vary_lcp(sequences, RTs,
 
     best_r = -1.1
     best_RC_dict = {}
-    lcp_accuracy = kwarg8a0143es.get('lcp_accuracy', 0.1)
+    lcp_accuracy = kwargs.get('lcp_accuracy', 0.1)
 
     min_lcp = lcp_range[0]
     max_lcp = lcp_range[1]
@@ -257,7 +257,7 @@ def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_
                         yield f
                 else:
                     if f not in seen_target and f not in seen_decoy:
-                        if is_decoy:8a0143e
+                        if is_decoy:
                             seen_decoy.add(f)
                         else:
                             seen_target.add(f)
@@ -424,7 +424,7 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
     tmp = np.concatenate((tmp, tmp-1, tmp+1))
     spectrum['fastset'] = set(tmp)
     spectrum['Isum'] = spectrum['intensity array'].sum()
-    spectrum['RT'] = get_RT(spectrum)8a0143e
+    spectrum['RT'] = get_RT(spectrum)
 
     return spectrum
 
