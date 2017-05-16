@@ -103,7 +103,7 @@ def hyperscore_fast(spectrum_fastset, theoretical_set, min_matched):
     else:
         return 0, 0
 
-def hyperscore(spectrum, theoretical, acc, acc_ppm, position=False):
+def hyperscore(spectrum, theoretical, acc, acc_ppm=False, position=False):
     if 'norm' not in spectrum:
         spectrum['norm'] = spectrum['Isum']#spectrum['intensity array'].sum()#spectrum['intensity array'].max() / 100.
     mz_array = spectrum['m/z array']
@@ -121,7 +121,10 @@ def hyperscore(spectrum, theoretical, acc, acc_ppm, position=False):
     for ion, fragments in theoretical.iteritems():
         dist, ind = spectrum['__KDTree'].query(fragments, distance_upper_bound=acc)
         mask1 = (dist != np.inf)
-        mask2 = (dist[mask1] / spectrum['m/z array'][ind[mask1]] * 1e6 <= acc_ppm)
+        if acc_ppm:
+            mask2 = (dist[mask1] / spectrum['m/z array'][ind[mask1]] * 1e6 <= acc_ppm)
+        else:
+            mask2 = np.ones_like(dist[mask1], dtype=bool)
         nmatched = mask2.sum()
         if nmatched:
             total_matched += nmatched
