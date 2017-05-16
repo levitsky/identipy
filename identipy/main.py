@@ -32,5 +32,13 @@ def settings(fname=None, default_name=os.path.join(
         raw_config.read(default_name)
     if fname:
         raw_config.read(fname)
+
+    acc_unit = raw_config.get('search', 'product accuracy unit')
+    if acc_unit == 'ppm':
+        acc_ppm = raw_config.getfloat('search', 'product accuracy')
+        acc_raw = acc_ppm / 1e6 * 2000
+        raw_config.set('search', 'product accuracy', acc_raw)
+        raw_config.set('search', 'product accuracy ppm', acc_ppm)
+
     return raw_config
 

@@ -83,7 +83,11 @@ def prepare_peptide_processor(fname, settings):
     acc_l = settings.getfloat('search', 'precursor accuracy left')
     acc_r = settings.getfloat('search', 'precursor accuracy right')
     acc_frag = settings.getfloat('search', 'product accuracy')
-    acc_frag_ppm = settings.getfloat('search', 'product accuracy ppm')
+    frag_unit = settings.get('search', 'product accuracy unit')
+    if frag_unit == 'ppm':
+        acc_frag_ppm = settings.getfloat('search', 'product accuracy ppm')
+    else:
+        acc_frag_ppm = False
     try:
         fast_first_stage = settings.getint('misc', 'fast first stage')
     except:

@@ -127,6 +127,7 @@ def fragment_mass_optimization(results, settings):
 
     print 'NEW FRAGMENT MASS TOLERANCE ppm = %s' % (best_frag_mt, )
     settings.set('search', 'product accuracy ppm', best_frag_mt)
+    settings.set('search', 'product accuracy unit', 'ppm')
     return settings
 
 
