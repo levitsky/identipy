@@ -52,12 +52,6 @@ def get_fragment_mass_tol(spectrum, peptide, settings):
         new_params['fmt'] = dist_total#2 * np.median(dist_total)
     else:
         new_params['fmt'] = []
-    # if int_array_total.size:
-    #     new_params['dynamic range'] = int_array_total
-    # else:
-    #     new_params['dynamic range'] = []
-    # if new_params['dynamic range'].size:
-    #     new_params['maximum peaks'] = int_array_total
     return new_params
 
 
@@ -107,7 +101,6 @@ def hyperscore(spectrum, theoretical, acc, acc_ppm=False, position=False):
     if 'norm' not in spectrum:
         spectrum['norm'] = spectrum['Isum']#spectrum['intensity array'].sum()#spectrum['intensity array'].max() / 100.
     mz_array = spectrum['m/z array']
-    # lmz_ar = len(spectrum['m/z array'])
     score = 0
     mult = []
     match = {}
@@ -131,7 +124,7 @@ def hyperscore(spectrum, theoretical, acc, acc_ppm=False, position=False):
             mult.append(factorial(nmatched))
             sumi = spectrum['intensity array'][ind[mask1][mask2]].sum()
             sumI += sumi
-            score += sumi / spectrum['norm']# * factorial(nmatched)
+            score += sumi / spectrum['norm']
             dist_all.extend(dist[mask1][mask2])
         match[ion] = mask2
         match2[ion] = mask1
@@ -156,43 +149,3 @@ def hyperscore(spectrum, theoretical, acc, acc_ppm=False, position=False):
     sumI = np.log10(sumI)
 
     return {'score': score, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched}
-
-def survival_hist(scores):
-    X_axis = Y_axis = None
-    calib_coeff = (-0.18, 3.5)
-    if scores.shape[0] > 20:
-        best = scores.max()
-        if best > -np.inf:
-            hyperscore_h, _ = np.histogram(scores, bins=np.arange(0, round(best) + 1.5))
-            j = hyperscore_h.size - 1
-            if j > 10:
-                survival_h = hyperscore_h.sum() - np.hstack(([0], hyperscore_h[:-1].cumsum()))
-#               surv_left = survival_h[0] / 5.
-#               decr = 0
-#               while j > 0:
-#                   if survival_h[j] == survival_h[j - 1] and survival_h[j] <= surv_left:
-#                       decr = survival_h[j]
-#                       j -= 1
-#                       while (survival_h[j] == decr and survival_h[j] <= surv_left):
-#                           survival_h[j] -= decr
-#                           j -= 1
-#                   else:
-#                       survival_h[j] -= decr
-#                       j -= 1
-#               survival_h[0] -= decr
-                max_surv = survival_h[0] * 0.5 + 1.
-                min_surv = 3
-                proper_surv = (min_surv <= survival_h) * (survival_h <= max_surv)
-                if proper_surv.sum() > 2:
-                    X_axis = proper_surv.nonzero()[0]
-                    Y_axis = np.log(survival_h[proper_surv])
-                    calib_coeff = np.polyfit(X_axis, Y_axis, 1)
-
-    return (X_axis, Y_axis), calib_coeff
-
-
-def evalues(candidates, settings):
-    n = settings.getint('scoring', 'e-values for candidates')
-    scores = np.log(candidates['score'][candidates['score'] > 0])
-    calib_coeff = survival_hist(scores)[1]
-    return 10 ** (scores[:n] * calib_coeff[0] + calib_coeff[1])
