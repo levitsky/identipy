@@ -8,7 +8,7 @@ parser = argparse.ArgumentParser(
 
 Example usage
 -------------
-$ search.py input.mgf -d human.fasta
+$ search.py input.mgf -db human.fasta
 -------------
 ''',
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
