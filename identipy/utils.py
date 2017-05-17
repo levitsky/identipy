@@ -515,6 +515,8 @@ class CustomRawConfigParser(RawConfigParser, object):
     def get(self, section, option):
         val = super(CustomRawConfigParser, self).get(section, option)
         if isinstance(val, basestring):
+            if section == 'search' and option == 'enzyme':
+                return val.split('|class')[0]
             return val[::-1].split('|', 1)[-1][::-1]
         return val
 
