@@ -1,10 +1,22 @@
 import os
 from .peptide_centric import *
 from . import utils
+from pyteomics import fasta
+import tempfile
 
 
 def process_file(fname, settings):
-    
+
+    add_decoy = settings.getboolean('input', 'add decoy')
+    prefix = settings.get('input', 'decoy prefix')
+    mode = settings.get('input', 'decoy method')
+    if add_decoy and is_db_target_only(db, prefix):
+        ft = tempfile.NamedTemporaryFile(mode='w')
+        fasta.write_decoy_db(db, ft, mode=mode, prefix=prefix)
+        ft.flush()
+        settings.set('input', 'database', ft.name)
+        settings.set('input', 'add decoy', 'no')
+
     stage1 = settings.get('misc', 'first stage')
     if stage1:
         return double_run(fname, settings, utils.import_(stage1))
