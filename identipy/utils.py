@@ -1084,3 +1084,111 @@ def write_pepxml(inputfile, settings, results):
     output.write(s)
 
     output.close()
+
+def write_csv(inputfile, settings, results):
+    df = dataframe(inputfile, settings, results)
+    fname = get_outpath(inputfile, settings, '.csv')
+    df.to_csv(fname, index=False)
+
+def dataframe(inputfile, settings, results):
+    import pandas as pd
+
+    results = list(get_output(results, settings))
+    print 'Accumulated results:', len(results)
+    ensure_decoy(settings)
+    pept_prot, prots = build_pept_prot(settings, results)
+    if settings.has_option('misc', 'aa_mass'):
+        aa_mass = settings.get('misc', 'aa_mass')
+    else:
+        aa_mass = get_aa_mass(settings)
+
+    vmods = set()
+    variablemods =  settings.get('modifications', 'variable')
+    if variablemods:
+        for k, v in variablemods.items():
+            for aa in v:
+                vmods.add(k + aa)
+                vmods.add(aa + k)
+
+    leg = {}
+    if settings.has_option('misc', 'legend'):
+        leg = settings.get('misc', 'legend')
+
+    enzyme = settings.get('search', 'enzyme')
+    snp = settings.getint('search', 'snp')
+    columns = ['Title', 'Assumed charge', 'RT', 'Rank', 'Matched ions', 'Total ions', 'Calculated mass',
+                'Mass difference', 'Missed cleavages', 'Proteins', '# proteins', 'Sequence', 'Modified sequence',
+                'Hyperscore', 'Expect', 'sumI', 'fragmentMT']
+    rows = []
+    for result in results:
+        if result['candidates'].size:
+            row = []
+            spectrum = result['spectrum']
+            row.append(get_title(spectrum))
+            neutral_mass, charge_state, RT = get_info(spectrum, result, settings, aa_mass)
+            row.append(charge_state)
+            row.append(RT)
+            result['candidates'] = result['candidates'][:len(result['e-values'])]
+
+            flag = 1
+            for i, candidate in enumerate(result['candidates'], 1):
+                match = candidate[4]['match']
+                if match is None: break
+                row.append(i)
+                mod_sequence = normalize_mods(candidate[1], settings)
+
+                sequence = re.sub(r'[^A-Z]', '', mod_sequence)
+                if sequence not in pept_prot:
+                    flag = 0
+                    print 'WTF'
+                    print sequence
+                    print mod_sequence
+                    sys.stdout.flush()
+                    break
+                else:
+                    allproteins = pept_prot[re.sub(r'[^A-Z]', '', sequence)]
+#                   try:
+#                       protein_descr = prots[proteins[0]].split(' ', 1)[1]
+#                   except:
+#                       protein_descr = ''
+#                   row['Description'] = protein_descr
+
+                    row.append(sum(v.sum() for v in match.values()))
+                    row.append(candidate[4]['total_matched'])
+                    neutral_mass_theor = cmass.fast_mass(sequence, aa_mass=aa_mass)
+                    row.append(neutral_mass_theor)
+                    row.append(candidate[4]['mzdiff']['Da'])
+#                   row['num_tol_term'] = '2')  # ???)
+                    row.append(parser.num_sites(sequence, get_enzyme(enzyme)))
+
+                    proteins = [allproteins[0]]
+                    if len(allproteins) > 1:
+                        if snp: 
+                            wilds = any('wild' in prots[p].split(' ', 1)[0] for p in allproteins)
+                        for prot in allproteins[1:]:
+                            d = prots[prot].split(' ', 1)[0]
+                            if (not snp or not wilds or 'wild' in d):
+                                proteins.append(prot)
+
+                    row.append(';'.join(proteins))
+                    row.append(len(proteins))
+
+                    row.append(sequence)
+                    row.append(mod_sequence)
+
+                    row.append(candidate[0])
+                    row.append(result['e-values'][i-1])
+                    row.append(candidate[5])
+                    row.append(candidate[6])
+
+                    rows.append(row)
+    df = pd.DataFrame(rows)
+    df.columns = columns
+    return df
+
+
+def write_output(inputfile, settings, results):
+    formats = {'pepxml': write_pepxml, 'csv': write_csv}
+    of = settings.get('output', 'format')
+    writer = formats[re.sub(r'[^a-z]', '', of.lower())]
+    return writer(inputfile, settings, results)
