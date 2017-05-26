@@ -843,7 +843,9 @@ def write_pepxml(inputfile, settings, results):
     db = settings.get('input', 'database')
     prefix = settings.get('input', 'decoy prefix')
 
-    filename = path.join(outpath, path.splitext(path.basename(inputfile))[0] + path.extsep + 'pep' + path.extsep + 'xml')
+    print repr(outpath)
+    print repr(inputfile)
+    filename = path.join(outpath.decode('utf-8'), path.splitext(path.basename(inputfile))[0] + path.extsep + 'pep' + path.extsep + 'xml')
     enzyme = settings.get('search', 'enzyme')
     mc = settings.getint('search', 'number of missed cleavages')
     minlen = settings.getint('search', 'peptide minimum length')
@@ -856,7 +858,7 @@ def write_pepxml(inputfile, settings, results):
     snp = settings.getint('search', 'snp')
 
     output = open(filename, 'w')
-    print 'Writing {}...'.format(filename)
+    print 'Writing {}...'.format(filename.encode('utf-8'))
     line1 = '<?xml version="1.0" encoding="UTF-8"?>\n\
     <?xml-stylesheet type="text/xsl" href="pepXML_std.xsl"?>\n'
     output.write(line1)
