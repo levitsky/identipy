@@ -1,21 +1,30 @@
 Pyteomics-based search engine.
 
-How to install
---------------
+# How to install #
+
+```
+#!shell
 
 $ hg clone https://bitbucket.org/levitsky/identipy
 $ cd identipy
 $ pip install .
 
-How to use
-----------
+```
+
+# How to use #
 
 For help on command-line usage, run:
 
-$ identipy --help
 
-Related projects
-----------------
+```
+#!shell
+
+$ identipy --help
+```
+
+
+# Related projects #
+
 
  - Pyteomics: https://bitbucket.org/levitsky/pyteomics
 
@@ -24,4 +33,3 @@ Related projects
  - MP score: https://bitbucket.org/markmipt/mp-score
 
  - IdentiPy Server: https://bitbucket.org/levitsky/identipy_server
-
