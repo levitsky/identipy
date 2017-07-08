@@ -12,7 +12,7 @@ setup(
     name = 'identipy',
     version = version,
     description      = '''Pyteomics-based search engine''',
-    long_description = (''.join(open('README').readlines()) + '\n'
+    long_description = (''.join(open('README.md').readlines()) + '\n'
                         + ''.join(open('INSTALL').readlines())),
     author           = 'Lev Levitsky & Mark Ivanov',
     author_email     = 'pyteomics@googlegroups.com',
