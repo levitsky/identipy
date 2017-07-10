@@ -1,5 +1,4 @@
 import os
-from .peptide_centric import *
 from . import utils
 from pyteomics import fasta
 import tempfile
@@ -10,7 +9,7 @@ def process_file(fname, settings):
     add_decoy = settings.getboolean('input', 'add decoy')
     prefix = settings.get('input', 'decoy prefix')
     mode = settings.get('input', 'decoy method')
-    if add_decoy and is_db_target_only(db, prefix):
+    if add_decoy and utils.is_db_target_only(db, prefix):
         ft = tempfile.NamedTemporaryFile(mode='w')
         fasta.write_decoy_db(db, ft, mode=mode, prefix=prefix)
         ft.flush()
@@ -53,4 +52,3 @@ def settings(fname=None, default_name=os.path.join(
         raw_config.set('search', 'product accuracy ppm', acc_ppm)
 
     return raw_config
-
