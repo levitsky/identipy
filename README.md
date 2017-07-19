@@ -1,4 +1,4 @@
-Pyteomics-based search engine.
+**IdentiPy** is a search engine for bottom-up proteomics written in Python.
 
 # How to install #
 
@@ -11,16 +11,31 @@ $ pip install .
 
 ```
 
+# Requirements #
+
+ - Python 2.7
+ - scipy
+ - pyteomics
+ - lxml
+ 
+Not strictly required, but highly recommended:
+
+ - cython
+ - pyteomics.cythonize
+
 # How to use #
 
 For help on command-line usage, run:
-
 
 ```
 #!shell
 
 $ identipy --help
 ```
+
+Search parameters can be specified using command-line options or in a configuration file.
+Allowed parameters and their default values are listed in the
+[default configuration file](https://bitbucket.org/levitsky/identipy/src/tip/identipy/default.cfg default.cfg).
 
 
 # Related projects #
