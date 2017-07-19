@@ -35,7 +35,7 @@ $ identipy --help
 
 Search parameters can be specified using command-line options or in a configuration file.
 Allowed parameters and their default values are listed in the
-[default configuration file](https://bitbucket.org/levitsky/identipy/src/tip/identipy/default.cfg default.cfg).
+[default configuration file](https://bitbucket.org/levitsky/identipy/src/tip/identipy/default.cfg).
 
 
 # Related projects #
