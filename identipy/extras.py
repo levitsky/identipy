@@ -112,14 +112,14 @@ def fragment_mass_optimization(results, settings):
     for res in results:
         fragmassdif.extend(get_fragment_mass_tol(res['spectrum'], str(res['candidates'][0][1]), settings)['fmt'])
     fragmassdif = np.array(fragmassdif)
-    step = FDbinSize(fragmassdif)
-    lside, rside = 0, 1
-    mt_h, _ = np.histogram(fragmassdif, bins=np.arange(lside, rside, step))
+    # step = FDbinSize(fragmassdif)
+    # lside, rside = 0, 1
+    # mt_h, _ = np.histogram(fragmassdif, bins=np.arange(lside, rside, step))
 
-    for idx, mt in enumerate(mt_h):
-        if mt == 0:
-            mt_h = mt_h[:idx]
-            break
+    # for idx, mt in enumerate(mt_h):
+    #     if mt == 0:
+    #         mt_h = mt_h[:idx]
+    #         break
 #   threshold = mt_h.size * step
 #   fragmassdif = fragmassdif[fragmassdif <= threshold]
     # best_frag_mt = max(fragmassdif[fragmassdif < scoreatpercentile(fragmassdif, 97.5)])
