@@ -1,5 +1,5 @@
 import os
-from . import utils
+from . import utils, peptide_centric
 from pyteomics import fasta
 import tempfile
 
@@ -23,7 +23,7 @@ def process_file(fname, settings):
         ftype = fname.rsplit('.', 1)[-1].lower()
         utils.seen_target.clear()
         utils.seen_decoy.clear()
-        return process_peptides(fname, settings)
+        return peptide_centric.process_peptides(fname, settings)
 
 def double_run(fname, settings, stage1):
     print '[double run] stage 1 starting ...'
