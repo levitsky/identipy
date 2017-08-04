@@ -17,7 +17,7 @@ def get_label(modmass, labels):
             labels['i'] += 1
         return labels[modmass], labels, 1
 
-def main():
+def run():
     parser = argparse.ArgumentParser(
         description='Search proteins using LC-MS/MS spectra',
         epilog='''
@@ -30,7 +30,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter)
 
     parser.add_argument('file', help='input .mzML or .mgf file with MS/MS spectra')
-    parser.add_argument('-db', help='path to protein fasta file', required=True)
+    parser.add_argument('-db', help='path to protein fasta file')
     parser.add_argument('-cfg', help='path to file with parameters')
     parser.add_argument('-punit', help='precursor mass tolerance unit. Can be ppm or Da', default='ppm', type=str)
     parser.add_argument('-ptol', help='precursor mass tolerance', default=10.0, type=float)
