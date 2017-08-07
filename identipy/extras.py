@@ -1,4 +1,5 @@
 from scipy.stats import percentileofscore, scoreatpercentile
+from scipy.optimize import curve_fit
 from pyteomics import achrom, auxiliary as aux, parser, mass
 from collections import Counter
 from main import *
@@ -77,6 +78,19 @@ def charge_optimization(results, settings):
     settings.set('search', 'minimum charge', mincharge)
     return settings
 
+def calibrate_mass(bwidth, mass_left, mass_right, true_md):
+    bbins = np.arange(-mass_left, mass_right, bwidth)
+    H1, b1 = np.histogram(true_md, bins=bbins)
+    b1 = b1 + bwidth
+    b1 = b1[:-1]
+
+    popt, pcov = curve_fit(noisygaus, b1, H1, p0=[1, np.median(true_md), 1, 1])
+    mass_shift, mass_sigma = popt[1], abs(popt[2])
+    return mass_shift, mass_sigma, pcov[0][0]
+
+def noisygaus(x, a, x0, sigma, b):
+    return a * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2)) + b
+
 def precursor_mass_optimization(results, settings):
     settings_nopime = settings.copy()
     settings_nopime.set('search', 'precursor isotope mass error', '0')
@@ -85,10 +99,24 @@ def precursor_mass_optimization(results, settings):
 
     settings = settings.copy()
     massdif = np.array([res['candidates'][0][4]['mzdiff']['ppm'] for res in results])
-    best_par_mt_l = min(massdif[massdif > scoreatpercentile(massdif, 0.1)])
-    best_par_mt_r = max(massdif[massdif < scoreatpercentile(massdif, 99.9)])
+    mass_left = settings.getfloat('search', 'precursor accuracy left')
+    mass_right = settings.getfloat('search', 'precursor accuracy right')
+    if settings.get('search', 'precursor accuracy unit') != 'ppm':
+        mass_left = mass_left * 1e6 / 400
+        mass_right = mass_right * 1e6 / 400
+    print 'mass_left, mass_right:', mass_left, mass_right
+    print massdif[:10]
+    mass_shift, mass_sigma, covvalue = calibrate_mass(0.1, mass_left, mass_right, massdif)
+    if np.isinf(covvalue):
+        mass_shift, mass_sigma, covvalue = calibrate_mass(0.01, mass_left, mass_right, massdif)
+    print mass_left, mass_right, '->', mass_shift, '+- 3 *', mass_sigma, covvalue
+
+    best_par_mt_l = mass_shift - 3 * mass_sigma
+    best_par_mt_r = mass_shift + 3 * mass_sigma
+#    best_par_mt_l = min(massdif[massdif > scoreatpercentile(massdif, 0.1)])
+#    best_par_mt_r = max(massdif[massdif < scoreatpercentile(massdif, 99.9)])
     print 'NEW PARENT MASS TOLERANCE = %s:%s' % (best_par_mt_l, best_par_mt_r)
-    settings.set('search', 'precursor accuracy left', -(best_par_mt_l))
+    settings.set('search', 'precursor accuracy left', -best_par_mt_l)
     settings.set('search', 'precursor accuracy right', best_par_mt_r)
     settings.set('search', 'precursor accuracy unit', 'ppm')
     return settings
