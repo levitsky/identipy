@@ -9,6 +9,8 @@ from string import punctuation
 from copy import copy
 from ConfigParser import RawConfigParser
 import tempfile
+import os
+
 try:
     from pyteomics import cmass
 except ImportError:
@@ -1193,4 +1195,10 @@ def write_output(inputfile, settings, results):
     formats = {'pepxml': write_pepxml, 'csv': write_csv}
     of = settings.get('output', 'format')
     writer = formats[re.sub(r'[^a-z]', '', of.lower())]
+
+    outd = settings.get('output', 'path')
+    if not os.path.isdir(outd):
+        print 'Creating', outd, '...'
+        os.makedirs(outd)
+
     return writer(inputfile, settings, results)
