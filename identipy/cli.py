@@ -138,5 +138,5 @@ def run():
     _update(settings, 'modifications', 'protein cterm cleavage', args['ccleave'])
 
     inputfile = args['file']
-# cfg = argv[1]
-    utils.write_pepxml(inputfile, settings, main.process_file(inputfile, settings))
+
+    utils.write_output(inputfile, settings, main.process_file(inputfile, settings))
