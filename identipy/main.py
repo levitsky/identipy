@@ -40,7 +40,7 @@ def settings(fname=None, default_name=os.path.join(
     """
     raw_config = utils.CustomRawConfigParser(dict_type=dict, allow_no_value=True)
     if default_name:
-        print 'Reading the defaults from', default_name
+        print 'Reading defaults from', default_name
         raw_config.read(default_name)
     if fname:
         print 'Reading config from', fname
