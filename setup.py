@@ -16,7 +16,7 @@ setup(
     author_email     = 'pyteomics@googlegroups.com',
     url              = 'http://hg.theorchromo.ru/identipy',
     packages         = ['identipy', ],
-    package_data     = {'identipy': ['default.cfg']},
+    package_data     = {'identipy': ['default.cfg', 'cparser.pyx']},
     install_requires = [line.strip() for line in open('requirements.txt')],
     classifiers      = ['Intended Audience :: Science/Research',
                         'Programming Language :: Python :: 2.7',

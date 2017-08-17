@@ -113,8 +113,9 @@ def precursor_mass_optimization(results, settings):
 
     best_par_mt_l = mass_shift - 3 * mass_sigma
     best_par_mt_r = mass_shift + 3 * mass_sigma
-#    best_par_mt_l = min(massdif[massdif > scoreatpercentile(massdif, 0.1)])
-#    best_par_mt_r = max(massdif[massdif < scoreatpercentile(massdif, 99.9)])
+    print 'SMART MASS TOLERANCE = %s:%s' % (best_par_mt_l, best_par_mt_r)
+    best_par_mt_l = np.min(massdif[massdif > scoreatpercentile(massdif, 0.1)])
+    best_par_mt_r = np.max(massdif[massdif < scoreatpercentile(massdif, 99.9)])
     print 'NEW PARENT MASS TOLERANCE = %s:%s' % (best_par_mt_l, best_par_mt_r)
     settings.set('search', 'precursor accuracy left', -best_par_mt_l)
     settings.set('search', 'precursor accuracy right', best_par_mt_r)
