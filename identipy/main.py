@@ -41,9 +41,13 @@ def settings(fname=None, default_name=os.path.join(
     raw_config = utils.CustomRawConfigParser(dict_type=dict, allow_no_value=True)
     if default_name:
         print 'Reading defaults from', default_name
+        if not os.path.isfile(default_name):
+            print 'WARNING: FILE NOT FOUND:', default_name
         raw_config.read(default_name)
     if fname:
         print 'Reading config from', fname
+        if not os.path.isfile(fname):
+            print 'WARNING: FILE NOT FOUND:', fname
         raw_config.read(fname)
 
     acc_unit = raw_config.get('search', 'product accuracy unit')
