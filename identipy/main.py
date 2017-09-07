@@ -9,6 +9,7 @@ def process_file(fname, settings):
     add_decoy = settings.getboolean('input', 'add decoy')
     prefix = settings.get('input', 'decoy prefix')
     mode = settings.get('input', 'decoy method')
+    db = settings.get('input', 'database')
     if add_decoy and utils.is_db_target_only(db, prefix):
         ft = tempfile.NamedTemporaryFile(mode='w')
         fasta.write_decoy_db(db, ft, mode=mode, prefix=prefix)
