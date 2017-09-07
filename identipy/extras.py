@@ -40,7 +40,16 @@ def optimization(fname, settings):
     settings.set('misc', 'first stage', '')
     efc = settings.get('scoring', 'e-values for candidates')
     settings.set('scoring', 'e-values for candidates', 1)
-
+    left = settings.getfloat('search', 'precursor accuracy left')
+    right = settings.getfloat('search', 'precursor accuracy right')
+    if settings.get('search', 'precursor accuracy unit') != 'ppm':
+        left *= 1000
+        right *= 1000
+    if left < 100:
+        settings.set('search', 'precursor accuracy left', 100)
+    if right < 100:
+        settings.set('search', 'precursor accuracy right', 100)
+    settings.set('search', 'precursor accuracy unit', 'ppm')
     results = process_file(fname, settings)
     filtered = get_subset(results, settings, fdr=0.01)
     print len(filtered), 'PSMs with 1% FDR.'
@@ -98,24 +107,32 @@ def precursor_mass_optimization(results, settings):
     results = get_output(results, settings_nopime)
 
     settings = settings.copy()
-    massdif = np.array([res['candidates'][0][4]['mzdiff']['ppm'] for res in results])
     mass_left = settings.getfloat('search', 'precursor accuracy left')
     mass_right = settings.getfloat('search', 'precursor accuracy right')
+    massdif = np.array([res['candidates'][0][4]['mzdiff']['ppm'] for res in results])
+    massdif = massdif[(massdif > -mass_left) & (massdif < mass_right)]
     if settings.get('search', 'precursor accuracy unit') != 'ppm':
         mass_left = mass_left * 1e6 / 400
         mass_right = mass_right * 1e6 / 400
     print 'mass_left, mass_right:', mass_left, mass_right
-    print massdif[:10]
     mass_shift, mass_sigma, covvalue = calibrate_mass(0.1, mass_left, mass_right, massdif)
     if np.isinf(covvalue):
         mass_shift, mass_sigma, covvalue = calibrate_mass(0.01, mass_left, mass_right, massdif)
-    print mass_left, mass_right, '->', mass_shift, '+- 3 *', mass_sigma, covvalue
+    print mass_left, mass_right, '->', mass_shift, '+- 8 *', mass_sigma, covvalue
 
-    best_par_mt_l = mass_shift - 3 * mass_sigma
-    best_par_mt_r = mass_shift + 3 * mass_sigma
+    best_par_mt_l = mass_shift - 8 * mass_sigma
+    best_par_mt_r = mass_shift + 8 * mass_sigma
     print 'SMART MASS TOLERANCE = %s:%s' % (best_par_mt_l, best_par_mt_r)
-    best_par_mt_l = np.min(massdif[massdif > scoreatpercentile(massdif, 0.1)])
-    best_par_mt_r = np.max(massdif[massdif < scoreatpercentile(massdif, 99.9)])
+    if percentileofscore(massdif, best_par_mt_r) - percentileofscore(massdif, best_par_mt_l) < 95:
+#   best_par_mt_l = np.min(massdif[massdif > scoreatpercentile(massdif, 0.1)])
+        best_par_mt_l = scoreatpercentile(massdif, 0.1)
+#   best_par_mt_r = np.max(massdif[massdif < scoreatpercentile(massdif, 99.9)])
+        best_par_mt_r = scoreatpercentile(massdif, 99.9)
+        print 'Percentage sanity check FAILED. Falling back on percentage boundaries'
+    else:
+        best_par_mt_l = max(best_par_mt_l, scoreatpercentile(massdif, 0.1))
+        best_par_mt_r = min(best_par_mt_r, scoreatpercentile(massdif, 99.9))
+
     print 'NEW PARENT MASS TOLERANCE = %s:%s' % (best_par_mt_l, best_par_mt_r)
     settings.set('search', 'precursor accuracy left', -best_par_mt_l)
     settings.set('search', 'precursor accuracy right', best_par_mt_r)
