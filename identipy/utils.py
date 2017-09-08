@@ -835,10 +835,7 @@ def write_pepxml(inputfile, settings, results):
     from time import strftime
     from os import path
 
-    if settings.has_option('output', 'path'):
-        outpath = settings.get('output', 'path')
-    else:
-        outpath = path.dirname(inputfile)
+    outpath = settings.get('output', 'path')
     print 'Output path:', outpath
 
     set_mod_dict(settings)
@@ -1196,9 +1193,13 @@ def write_output(inputfile, settings, results):
     of = settings.get('output', 'format')
     writer = formats[re.sub(r'[^a-z]', '', of.lower())]
 
-    outd = settings.get('output', 'path')
-    if not os.path.isdir(outd):
-        print 'Creating', outd, '...'
-        os.makedirs(outd)
+    if settings.has_option('output', 'path'):
+        outd = settings.get('output', 'path')
+        if not os.path.isdir(outd):
+            print 'Creating', outd, '...'
+            os.makedirs(outd)
+    else:
+        outpath = os.path.dirname(inputfile)
+        settings.set('output', 'path', outpath)
 
     return writer(inputfile, settings, results)
