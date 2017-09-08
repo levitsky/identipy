@@ -5,7 +5,6 @@ import operator as op
 from bisect import bisect
 from pyteomics import parser, mass, fasta, auxiliary as aux, mgf, mzml
 from . import scoring, utils
-from scoring import hyperscore_fast
 try:
     from pyteomics import cmass
 except ImportError:
@@ -80,6 +79,10 @@ def prepare_peptide_processor(fname, settings):
 
     aa_mass = utils.get_aa_mass(settings)
     score = utils.import_(settings.get('scoring', 'score'))
+    try:
+        score_fast = utils.import_(settings.get('scoring', 'score') + '_fast')
+    except:
+        score_fast = False
     acc_l = settings.getfloat('search', 'precursor accuracy left')
     acc_r = settings.getfloat('search', 'precursor accuracy right')
     acc_frag = settings.getfloat('search', 'product accuracy')
@@ -107,7 +110,7 @@ def prepare_peptide_processor(fname, settings):
     return {'rel': rel, 'aa_mass': aa_mass, 'acc_l': acc_l, 'acc_r': acc_r, 'acc_frag': acc_frag, 'acc_frag_ppm': acc_frag_ppm,
             'unit': unit, 'nmods': nmods, 'maxmods': maxmods, 'fast first stage': fast_first_stage,
             'sapime': utils.get_shifts_and_pime(settings),
-            'cond': cond, 'score': score,
+            'cond': cond, 'score': score, 'score_fast': score_fast,
             'settings': settings}
 
 def peptide_processor_iter_isoforms(peptide, **kwargs):
@@ -184,19 +187,27 @@ def peptide_processor(peptide, **kwargs):
 
         for i in ind:
             s = spectra[fc][i]
-            hf = hyperscore_fast(s['fastset'], theoretical_set[fc], kwargs['min_matched'])
-            if hf[0]:
+            if kwargs['score_fast']:
+                hf = kwargs['score_fast'](s['fastset'], theoretical_set[fc], kwargs['min_matched'])
+                if hf[0]:
+                    st = utils.get_title(s)
+                    if -hf[1] <= best_res.get(st, 0):
+                        if kwargs['fast first stage']:
+                            sc = hf[1]
+                            score = {'match': [], 'sumI': 1, 'dist': [], 'total_matched': 999}
+                        else:
+                            score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos)#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
+                            sc = score.pop('score')
+                        # st = utils.get_title(s)
+                        if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
+                            results.append((sc, st, score, m, charges[fc][i], snp_label))
+            else:
                 st = utils.get_title(s)
-                if -hf[1] <= best_res.get(st, 0):
-                    if kwargs['fast first stage']:
-                        sc = hf[1]
-                        score = {'match': [], 'sumI': 1, 'dist': [], 'total_matched': 999}
-                    else:
-                        score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos)#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
-                        sc = score.pop('score')
-                    # st = utils.get_title(s)
-                    if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
-                        results.append((sc, st, score, m, charges[fc][i], snp_label))
+                score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos)#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
+                sc = score.pop('score')
+                if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
+                    results.append((sc, st, score, m, charges[fc][i], snp_label))
+
 
     results.sort(reverse=True)
     # results = np.array(results, dtype=[('score', np.float32), ('title', np.str_, 30), ('spectrum', np.object_), ('info', np.object_)])
