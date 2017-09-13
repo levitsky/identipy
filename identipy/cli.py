@@ -89,7 +89,13 @@ def run():
         for mod in args['fmods'].split(','):
             modmass, modaa = mod.split('@')
             lbl, labels, flag = get_label(modmass, labels)
-            settings.set('modifications', 'fixed', lbl + modaa)
+            if modaa == '[':
+                ntermlabel, modaa, ctermlabel = '-', '', ''
+            elif modaa == ']':
+                ntermlabel, modaa, ctermlabel = '', '', '-'
+            else:
+                ntermlabel, ctermlabel = '', ''
+            settings.set('modifications', 'fixed', ctermlabel + lbl + modaa + ntermlabel)
             if flag:
                 settings.set('modifications', lbl, modmass)
 
@@ -97,9 +103,16 @@ def run():
         for mod in args['vmods'].split(','):
             modmass, modaa = mod.split('@')
             lbl, labels, flag = get_label(modmass, labels)
-            settings.set('modifications', 'variable', lbl + modaa)
+            if modaa == '[':
+                ntermlabel, modaa, ctermlabel = '-', '', ''
+            elif modaa == ']':
+                ntermlabel, modaa, ctermlabel = '', '', '-'
+            else:
+                ntermlabel, ctermlabel = '', ''
+            settings.set('modifications', 'variable', ctermlabel + lbl + modaa + ntermlabel)
             if flag:
                 settings.set('modifications', lbl, modmass)
+
 
     _update(settings, 'input', 'database', args['db'])
     _update(settings, 'search', 'precursor accuracy unit', args['punit'])
