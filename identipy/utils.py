@@ -1006,7 +1006,7 @@ def write_pepxml(inputfile, settings, results):
                     num_tot_proteins = len(proteins)
                     tmp3.set('num_tot_proteins', str(num_tot_proteins))
                     tmp3.set('num_matched_ions', str(sum(v.sum() for v in match.values())))
-                    tmp3.set('tot_num_ions', '7')  # ???
+                    tmp3.set('tot_num_ions', str((len(sequence) - 1) * 2))
                     neutral_mass_theor = cmass.fast_mass(sequence, aa_mass=aa_mass)
                     tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
                     tmp3.set('massdiff', str(candidate[4]['mzdiff']['Da']))
@@ -1202,4 +1202,4 @@ def write_output(inputfile, settings, results):
         outpath = os.path.dirname(inputfile)
         settings.set('output', 'path', outpath)
 
-    return writer(inputfile, settings, results)
+    return writer(inputfile, settings, results)    
