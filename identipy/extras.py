@@ -94,7 +94,7 @@ def calibrate_mass(bwidth, mass_left, mass_right, true_md):
     b1 = b1[:-1]
 
     popt, pcov = curve_fit(noisygaus, b1, H1, p0=[1, np.median(true_md), 1, 1])
-    mass_shift, mass_sigma = popt[1], abs(popt[2])
+    mass_shift, mass_sigma = popt[1], np.abs(popt[2])
     return mass_shift, mass_sigma, pcov[0][0]
 
 def noisygaus(x, a, x0, sigma, b):
