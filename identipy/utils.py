@@ -1,5 +1,5 @@
 import re
-from pyteomics import mass, electrochem as ec, auxiliary as aux, fasta, mgf, mzml, parser
+from pyteomics import mass, electrochem as ec, auxiliary as aux, fasta, mzml, parser, mgf
 import sys
 from itertools import combinations
 from collections import defaultdict, Counter
@@ -226,6 +226,7 @@ seen_decoy = set()
 def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_peptides=False, snp=False, iswild=False, desc=False):
 
     dont_use_fast_valid = parser.fast_valid(prot_seq)
+    methionine_check = prot_seq[0] == 'M'
     if snp == 2:
         if desc:
             try:
@@ -237,17 +238,17 @@ def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_
     peptides = cparser._cleave(prot_seq, enzyme, mc)
     for pep, startposition in peptides:
         plen = len(pep)
-        if minlen <= plen <= maxlen + 2:
-            forms = []
+        if minlen <= plen <= maxlen:
+            loopcnt = 0
             if pep not in seen_target and pep not in seen_decoy and (dont_use_fast_valid or parser.fast_valid(pep)):
-                if plen <= maxlen:
-                    forms.append(pep)
-                if prot_seq[0] == 'M' and prot_seq.startswith(pep):
-                    if minlen <= plen - 1 <= maxlen:
-                        forms.append(pep[1:])
-                    if minlen <= plen - 2 <= maxlen:
-                        forms.append(pep[2:])
-            for f in forms:
+                loopcnt = 1
+                if methionine_check and startposition == 0:
+                    if minlen <= plen - 2:
+                        loopcnt = 3
+                    elif minlen <= plen - 1:
+                        loopcnt = 2
+            while loopcnt:
+                f = pep[loopcnt-1:]
                 if dont_use_seen_peptides:
                     if snp == 1:
                         for ff, seq_new in custom_snp(f, startposition):
@@ -278,6 +279,7 @@ def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_
                                 yield f
                         else:
                             yield f
+                loopcnt -= 1
 
 def custom_snp(peptide, startposition):
     yield peptide, None
