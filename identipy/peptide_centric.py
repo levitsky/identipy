@@ -10,7 +10,12 @@ try:
 except ImportError:
     print '[ Warning ] cmass could not be imported'
     cmass = mass
-from utils import theor_spectrum
+
+try:
+    import pyximport; pyximport.install()
+    from cutils import theor_spectrum
+except:
+    from utils import theor_spectrum
 
 def prepare_peptide_processor(fname, settings):
     global spectra
