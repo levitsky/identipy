@@ -10,6 +10,7 @@ try:
 except ImportError:
     print '[ Warning ] cmass could not be imported'
     cmass = mass
+from utils import theor_spectrum
 
 def prepare_peptide_processor(fname, settings):
     global spectra
@@ -115,13 +116,18 @@ def prepare_peptide_processor(fname, settings):
 
 def peptide_processor_iter_isoforms(peptide, **kwargs):
     nmods, maxmods = op.itemgetter('nmods', 'maxmods')(kwargs)
-    out = []
     if nmods and maxmods:
+        out = []
         for form in utils.custom_isoforms(peptide, variable_mods=nmods, maxmods=maxmods):
-            out.append(peptide_processor(form, **kwargs))
+            res = peptide_processor(form, **kwargs)
+            if res:
+                out.append(res)
+        if out:
+            return out
     else:
-        out.append(peptide_processor(peptide, **kwargs))
-    return out
+        res = peptide_processor(peptide, **kwargs)
+        if res:
+            return [res, ]
 
 
 def peptide_processor(peptide, **kwargs):
@@ -165,7 +171,7 @@ def peptide_processor(peptide, **kwargs):
 
         if idx:
             cand_idx[c] = idx
-            theor[c], theoretical_set[c] = utils.theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=True, acc_frag=kwargs['acc_frag'])
+            theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=True, acc_frag=kwargs['acc_frag'])
 
     results = []
     for fc, ind in cand_idx.iteritems():
@@ -211,7 +217,8 @@ def peptide_processor(peptide, **kwargs):
 
     results.sort(reverse=True)
     # results = np.array(results, dtype=[('score', np.float32), ('title', np.str_, 30), ('spectrum', np.object_), ('info', np.object_)])
-    return seqm, results
+    if results:
+        return seqm, results
 
 def process_peptides(fname, settings):
 

@@ -566,9 +566,10 @@ def get_info(spectrum, result, settings, aa_mass=None):
     idx = find_nearest(masses, cmass.fast_mass(str(result['candidates'][0][1]), aa_mass=aa_mass))
     return (masses[idx], states[idx], RT)
 
+
 def theor_spectrum(peptide, acc_frag, types=('b', 'y'), maxcharge=None, reshape=False, **kwargs):
     peaks = {}
-    theoretical_set = defaultdict(set)#set()
+    theoretical_set = dict()#defaultdict(set)#set()
     # theoretical_set = set()
     pl = len(peptide) - 1
     if not maxcharge:
@@ -592,10 +593,14 @@ def theor_spectrum(peptide, acc_frag, types=('b', 'y'), maxcharge=None, reshape=
                     marr[i] = marr[i+1] - kwargs['aa_mass'][maxpart[-(i+2)]]/charge
 
             tmp = marr / acc_frag
-            tmp = tmp.astype(int)
+            # tmp = tmp.astype(int)
             # tmp = np.concatenate((tmp, tmp-1, tmp+1))
             # theoretical_set.update(tmp)
-            theoretical_set[ion_type].update(tmp)
+            if ion_type in theoretical_set:
+                theoretical_set[ion_type].update(set(tmp.astype(int)))
+            else:
+                theoretical_set[ion_type] = set(tmp.astype(int))
+
             if not reshape:
                 marr.sort()
             else:
@@ -704,42 +709,54 @@ def multimap(n, func, it, **kw):
         for s in it:
             yield func(s, **kw)
     else:
-        def worker(qin, qout):
-            for item in iter(qin.get, None):
+        def worker(qin, qout, shift, step):
+            maxval = len(qin)
+            start = 0
+            while start + shift < maxval:
+            # for item in iter(qin.get, None):
+                item = qin[start+shift]
                 result = func(item, **kw)
-                qout.put(result)
-        qin = Queue()
+                if result:
+                    qout.put(result)
+                start += step
+            qout.put(None)
+        # qin = Queue()
+        qin = list(it)
         qout = Queue()
         count = 0
 
         while True:
             procs = []
             for _ in range(n):
-                p = Process(target=worker, args=(qin, qout))
+                p = Process(target=worker, args=(qin, qout, _, n))
                 p.start()
                 procs.append(p)
-            for s in it:
-                qin.put(s)
-                count += 1
-                if count > 500000:
-                    print 'Loaded 500000 items. Ending cycle.'
-                    break
+            # for s in it:
+            #     qin.put(s)
+            #     count += 1
+            #     if count > 500000:
+            #         print 'Loaded 500000 items. Ending cycle.'
+            #         break
+            # for _ in range(n):
+            #     qin.put(None)
+
+            # if not count:
+            #     print 'No items left. Exiting.'
+            #     break
+            count = len(qin)
+
+            # while count:
             for _ in range(n):
-                qin.put(None)
-
-            if not count:
-                print 'No items left. Exiting.'
-                break
-
-            while count:
-                yield qout.get()
-                count -= 1
+                for item in iter(qout.get, None):
+                    yield item
+                # yield qout.get()
+                # count -= 1
 
             for p in procs:
                 p.join()
 
             print 'Cycle finished.'
-
+            break
 def allow_all(*args):
     return True
 
@@ -1204,4 +1221,4 @@ def write_output(inputfile, settings, results):
         outpath = os.path.dirname(inputfile)
         settings.set('output', 'path', outpath)
 
-    return writer(inputfile, settings, results)    
+    return writer(inputfile, settings, results) 
