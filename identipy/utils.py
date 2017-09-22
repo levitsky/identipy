@@ -1,7 +1,7 @@
 import re
 from pyteomics import mass, electrochem as ec, auxiliary as aux, fasta, mzml, parser, mgf
 import sys
-from itertools import combinations
+from itertools import combinations, islice
 from collections import defaultdict, Counter
 import numpy as np
 from multiprocessing import Queue, Process, cpu_count
@@ -713,50 +713,36 @@ def multimap(n, func, it, **kw):
             maxval = len(qin)
             start = 0
             while start + shift < maxval:
-            # for item in iter(qin.get, None):
                 item = qin[start+shift]
                 result = func(item, **kw)
                 if result:
                     qout.put(result)
                 start += step
             qout.put(None)
-        # qin = Queue()
-        qin = list(it)
         qout = Queue()
         count = 0
 
         while True:
+            qin = list(islice(it, 500000))
+            if not len(qin):
+                break
+            print 'Loaded 500000 items. Ending cycle.'
             procs = []
             for _ in range(n):
                 p = Process(target=worker, args=(qin, qout, _, n))
                 p.start()
                 procs.append(p)
-            # for s in it:
-            #     qin.put(s)
-            #     count += 1
-            #     if count > 500000:
-            #         print 'Loaded 500000 items. Ending cycle.'
-            #         break
-            # for _ in range(n):
-            #     qin.put(None)
 
-            # if not count:
-            #     print 'No items left. Exiting.'
-            #     break
             count = len(qin)
 
-            # while count:
             for _ in range(n):
                 for item in iter(qout.get, None):
                     yield item
-                # yield qout.get()
-                # count -= 1
 
             for p in procs:
                 p.join()
 
             print 'Cycle finished.'
-            break
 def allow_all(*args):
     return True
 
