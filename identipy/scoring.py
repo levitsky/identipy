@@ -224,15 +224,18 @@ def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False):
     if position:
         yions = match2[('y', 1)]
         bions = match2[('b', 1)]
-        plen = len(yions) + 1
+        plen = len(yions)
+        if position > plen + 1:
+            print 'Something wrong with aachange position'
+            return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
         if position == 1:
             if not bions[0]:
                 return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
-        elif position == plen:
+        elif position == plen + 1:
             if not yions[0]:
                 return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
         else:
-            if not (yions[plen - position] and yions[plen - position - 1]) and not (bions[position - 1] and bions[position - 2]):
+            if not (yions[plen - position + 1] and yions[plen - position]) and not (bions[position - 1] and bions[position - 2]):
                 return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
 
     for m in mult:
