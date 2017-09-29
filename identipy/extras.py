@@ -239,7 +239,11 @@ def rt_filtering(results, settings):
             elif len(k) > 1:
                 kk = k
             print k, '->', kk
-            RC_dict_new[v] = RC_dict_new[kk]
+            if kk in RC_dict_new:
+                RC_dict_new[v] = RC_dict_new[kk]
+            else:
+                print 'No RC for', kk, 'using', kk[-1]
+                RC_dict_new[v] = RC_dict_new[kk[-1]]
 
     RC_dict['aa'] = RC_dict_new
 
@@ -253,8 +257,8 @@ def rt_filtering(results, settings):
     
     # h = FDbinSize(deltaRT)
     # heights, edges = np.histogram(deltaRT, bins=np.arange(deltaRT.min(), deltaRT.max()+h, h))
-    best_RT_l = scoreatpercentile(deltaRT, 0.5)#min(massdif[massdif > scoreatpercentile(massdif, 0.5)])
-    best_RT_r = scoreatpercentile(deltaRT, 99.5)#max(massdif[massdif < scoreatpercentile(massdif, 99.5)])
+    best_RT_l = scoreatpercentile(deltaRT, 0.5)
+    best_RT_r = scoreatpercentile(deltaRT, 99.5)
 
     def condition(spectrum, cand, _):
         rtd = spectrum['RT'] - calculate_RT(cand, RC_dict)
