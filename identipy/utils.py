@@ -223,7 +223,7 @@ def prot_gen(settings):
 
 seen_target = set()
 seen_decoy = set()
-def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_peptides=False, snp=False, iswild=False, desc=False):
+def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_peptides=False, snp=False, desc=False):
 
     dont_use_fast_valid = parser.fast_valid(prot_seq)
     methionine_check = prot_seq[0] == 'M'
