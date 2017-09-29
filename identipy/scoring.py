@@ -235,7 +235,7 @@ def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False):
             if not yions[0]:
                 return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
         else:
-            if not (yions[plen - position + 1] and yions[plen - position]) and not (bions[position - 1] and bions[position - 2]):
+            if not (yions[plen - position + 1] and yions[plen - position]):
                 return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
 
     for m in mult:
