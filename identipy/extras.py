@@ -115,15 +115,19 @@ def precursor_mass_optimization(results, settings):
         mass_left = mass_left * 1e6 / 400
         mass_right = mass_right * 1e6 / 400
     print 'mass_left, mass_right:', mass_left, mass_right
-    mass_shift, mass_sigma, covvalue = calibrate_mass(0.1, mass_left, mass_right, massdif)
-    if np.isinf(covvalue):
-        mass_shift, mass_sigma, covvalue = calibrate_mass(0.01, mass_left, mass_right, massdif)
-    print mass_left, mass_right, '->', mass_shift, '+- 8 *', mass_sigma, covvalue
-
-    best_par_mt_l = mass_shift - 8 * mass_sigma
-    best_par_mt_r = mass_shift + 8 * mass_sigma
-    print 'SMART MASS TOLERANCE = %s:%s' % (best_par_mt_l, best_par_mt_r)
-    if percentileofscore(massdif, best_par_mt_r) - percentileofscore(massdif, best_par_mt_l) < 95:
+    try:
+        mass_shift, mass_sigma, covvalue = calibrate_mass(0.1, mass_left, mass_right, massdif)
+        if np.isinf(covvalue):
+            mass_shift, mass_sigma, covvalue = calibrate_mass(0.01, mass_left, mass_right, massdif)
+        print mass_left, mass_right, '->', mass_shift, '+- 8 *', mass_sigma, covvalue
+        best_par_mt_l = mass_shift - 8 * mass_sigma
+        best_par_mt_r = mass_shift + 8 * mass_sigma
+        print 'SMART MASS TOLERANCE = %s:%s' % (best_par_mt_l, best_par_mt_r)
+    except RuntimeError:
+        error = True
+    else:
+        error = False
+    if error or (percentileofscore(massdif, best_par_mt_r) - percentileofscore(massdif, best_par_mt_l) < 95):
 #   best_par_mt_l = np.min(massdif[massdif > scoreatpercentile(massdif, 0.1)])
         best_par_mt_l = scoreatpercentile(massdif, 0.1)
 #   best_par_mt_r = np.max(massdif[massdif < scoreatpercentile(massdif, 99.9)])
