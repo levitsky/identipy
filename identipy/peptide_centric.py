@@ -226,7 +226,6 @@ def peptide_processor(peptide, **kwargs):
         return seqm, results
 
 def process_peptides(fname, settings):
-
     spec_results = defaultdict(dict)
     peps = utils.peptide_gen(settings)
     kwargs = prepare_peptide_processor(fname, settings)
