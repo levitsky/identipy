@@ -11,20 +11,20 @@ def process_file(fname, settings):
     mode = settings.get('input', 'decoy method')
     db = settings.get('input', 'database')
     if add_decoy and utils.is_db_target_only(db, prefix):
-        ft = tempfile.NamedTemporaryFile(mode='w')
+        ft = tempfile.NamedTemporaryFile(mode='w', delete=False)
         fasta.write_decoy_db(db, ft, mode=mode, prefix=prefix)
         ft.flush()
         settings.set('input', 'database', ft.name)
         settings.set('input', 'add decoy', 'no')
-
+        print 'Temporary database:', ft.name, os.path.isfile(ft.name)
     stage1 = settings.get('misc', 'first stage')
     if stage1:
         return double_run(fname, settings, utils.import_(stage1))
     else:
-        ftype = fname.rsplit('.', 1)[-1].lower()
         utils.seen_target.clear()
         utils.seen_decoy.clear()
         return peptide_centric.process_peptides(fname, settings)
+        
 
 def double_run(fname, settings, stage1):
     print '[double run] stage 1 starting ...'

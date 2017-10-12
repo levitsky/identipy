@@ -59,7 +59,7 @@ def run():
     parser.add_argument('-shifts',  help='shifts. example: 0,16.000,23.000,12')
     parser.add_argument('-snp',     help='1 means make SNP changes for ALL peptides', type=int)
     parser.add_argument('-mm',      help='number of minimum matched ions', type=int)
-    parser.add_argument('-ad',      help='add decoy', type=int)
+    parser.add_argument('-ad',      help='add decoy')
     parser.add_argument('-prefix',  help='decoy prefix')
     parser.add_argument('-method',  help='reverse or random')
     parser.add_argument('-deis',    help='use MS/MS deisotoping. yes or no')
