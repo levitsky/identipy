@@ -223,7 +223,7 @@ def prot_gen(settings):
 
 seen_target = set()
 seen_decoy = set()
-def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_peptides=False, snp=False, desc=False):
+def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_peptides=False, snp=False, desc=False, position=False):
 
     dont_use_fast_valid = parser.fast_valid(prot_seq)
     methionine_check = prot_seq[0] == 'M'
@@ -253,11 +253,11 @@ def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_
                     if snp == 1:
                         for ff, seq_new in custom_snp(f, startposition):
                             if not seq_new:
-                                yield ff
+                                yield ff if not position else (f, startposition)
                             if seq_new not in seen_decoy and seq_new not in seen_target:
-                                yield ff
+                                yield ff if not position else (f, startposition)
                     else:
-                        yield f
+                        yield f if not position else (f, startposition)
                 else:
                     if f not in seen_target and f not in seen_decoy:
                         if is_decoy:
@@ -267,18 +267,19 @@ def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_
                         if snp == 1:
                             for ff, seq_new in custom_snp(f, startposition):
                                 if not seq_new:
-                                    yield ff
+                                    yield ff if not position else (f, startposition)
                                 if seq_new not in seen_decoy and seq_new not in seen_target:
-                                    yield ff
+                                    yield ff if not position else (f, startposition)
                         elif snp == 2:
                             if desc and startposition <= pos <= startposition + plen:
                                 if len(aach) == 3 and aach[0] in parser.std_amino_acids and aach[2] in parser.std_amino_acids:
                                     pos_diff = pos - startposition
-                                    yield f[:pos_diff] + 'snp%sto%sat%ssnp' % (aach.split('>')[0], aach.split('>')[-1], pos) + f[pos_diff+1:]
+                                    f = f[:pos_diff] + 'snp%sto%sat%ssnp' % (aach.split('>')[0], aach.split('>')[-1], pos) + f[pos_diff+1:]
+                                    yield f if not position else (f, startposition)
                             else:
-                                yield f
+                                yield f if not position else (f, startposition)
                         else:
-                            yield f
+                            yield f if not position else (f, startposition)
                 loopcnt -= 1
 
 def custom_snp(peptide, startposition):
@@ -861,235 +862,239 @@ def write_pepxml(inputfile, settings, results):
     fmods = settings.get('modifications', 'fixed')
     snp = settings.getint('search', 'snp')
 
-    output = open(filename, 'w')
-    print 'Writing {}...'.format(filename.encode('utf-8'))
-    line1 = '<?xml version="1.0" encoding="UTF-8"?>\n\
-    <?xml-stylesheet type="text/xsl" href="pepXML_std.xsl"?>\n'
-    output.write(line1)
+    with open(filename, 'w') as output:
+        print 'Writing {}...'.format(filename.encode('utf-8'))
+        line1 = '<?xml version="1.0" encoding="UTF-8"?>\n\
+        <?xml-stylesheet type="text/xsl" href="pepXML_std.xsl"?>\n'
+        output.write(line1)
 
-    root = etree.Element('msms_pipeline_analysis')
-    root.set("date", strftime("%Y:%m:%d:%H:%M:%S"))
-    root.set("summary_xml", '')
-    root.set("xmlns", 'http://regis-web.systemsbiology.net/pepXML')
-    # TODO
-    #root.set("xmlns:xsi", 'http://www.w3.org/2001/XMLSchema-instance')
-    #root.set("xsi:schemaLocation", 'http://sashimi.sourceforge.net/schema_revision/pepXML/pepXML_v117.xsd')
+        root = etree.Element('msms_pipeline_analysis')
+        root.set("date", strftime("%Y:%m:%d:%H:%M:%S"))
+        root.set("summary_xml", '')
+        root.set("xmlns", 'http://regis-web.systemsbiology.net/pepXML')
+        # TODO
+        #root.set("xmlns:xsi", 'http://www.w3.org/2001/XMLSchema-instance')
+        #root.set("xsi:schemaLocation", 'http://sashimi.sourceforge.net/schema_revision/pepXML/pepXML_v117.xsd')
 
-    child1 = etree.Element('msms_run_summary')
-    child1.set("base_name", filename)
-    child1.set("search_engine", search_engine)
-    child1.set("raw_data_type", "raw")  # ?
-    child1.set("raw_data", ".?")  # ?
-    root.append(child1)
+        child1 = etree.Element('msms_run_summary')
+        child1.set("base_name", filename)
+        child1.set("search_engine", search_engine)
+        child1.set("raw_data_type", "raw")  # ?
+        child1.set("raw_data", ".?")  # ?
+        root.append(child1)
 
-    child2 = etree.Element('sample_enzyme')
-    child2.set('name', enzyme)
-    child1.append(child2)
+        child2 = etree.Element('sample_enzyme')
+        child2.set('name', enzyme)
+        child1.append(child2)
 
-    child3 = etree.Element('specificity')
-    child3.set("cut", "KR")
-    child3.set("no_cut", "P")
-    child3.set("sence", "C")
+        child3 = etree.Element('specificity')
+        child3.set("cut", "KR")
+        child3.set("no_cut", "P")
+        child3.set("sence", "C")
 
-    child2.append(child3)
+        child2.append(child3)
 
-    child4 = etree.Element('search_summary')
-    child4.set('base_name', filename)
-    child4.set('search_engine', search_engine)
-    child4.set('precursor_mass_type', 'monoisotopic')
-    child4.set('fragment_mass_type', 'monoisotopic')
-    child4.set('search_id', '1')
+        child4 = etree.Element('search_summary')
+        child4.set('base_name', filename)
+        child4.set('search_engine', search_engine)
+        child4.set('precursor_mass_type', 'monoisotopic')
+        child4.set('fragment_mass_type', 'monoisotopic')
+        child4.set('search_id', '1')
 
-    child1.append(child4)
+        child1.append(child4)
 
-    child5 = etree.Element('search_database')
-    child5.set('local_path', database)
-    child5.set('type', 'AA')
+        child5 = etree.Element('search_database')
+        child5.set('local_path', database)
+        child5.set('type', 'AA')
 
-    child4.append(copy(child5))
+        child4.append(copy(child5))
 
-    child5 = etree.Element('enzymatic_search_constraint')
-    child5.set('enzyme', enzyme)
-    child5.set('max_num_internal_cleavages', str(missed_cleavages))
-    child5.set('min_number_termini', '2')
+        child5 = etree.Element('enzymatic_search_constraint')
+        child5.set('enzyme', enzyme)
+        child5.set('max_num_internal_cleavages', str(missed_cleavages))
+        child5.set('min_number_termini', '2')
 
-    child4.append(copy(child5))
+        child4.append(copy(child5))
 
-    results = [x for x in results if x['candidates'].size]
-    results = list(get_output(results, settings))
-    print 'Accumulated results:', len(results)
-    pept_prot = dict()
-    prots = dict()
-    peptides = set()
-    for x in results:
-        peptides.update(re.sub(r'[^A-Z]', '', normalize_mods(x['candidates'][i][1], settings)) for i in range(
-            1 or len(x['candidates'])))
-        # peptides.update(re.sub(r'[^A-Z]', '', normalize_mods(x['candidates'][i][1], settings)) for i in range(
-        #         settings.getint('output', 'candidates') or len(x['candidates'])))
-    seen_target.clear()
-    seen_decoy.clear()
-    for desc, prot in prot_gen(settings):
-        dbinfo = desc.split(' ')[0]
-        prots[dbinfo] = desc
-        for pep in prot_peptides(prot, get_enzyme(enzyme), mc, minlen, maxlen, desc.startswith(prefix), dont_use_seen_peptides=True, snp=snp, desc=desc):
-            if snp:
-                if 'snp' not in pep:
+        results = [x for x in results if x['candidates'].size]
+        results = list(get_output(results, settings))
+        print 'Accumulated results:', len(results)
+        pept_prot = {}
+        prots = {}
+        peptides = set()
+        pept_neighbors = {}
+        for x in results:
+            peptides.update(re.sub(r'[^A-Z]', '', normalize_mods(x['candidates'][i][1], settings)) for i in range(
+                1 or len(x['candidates'])))
+            # peptides.update(re.sub(r'[^A-Z]', '', normalize_mods(x['candidates'][i][1], settings)) for i in range(
+            #         settings.getint('output', 'candidates') or len(x['candidates'])))
+        seen_target.clear()
+        seen_decoy.clear()
+        for desc, prot in prot_gen(settings):
+            dbinfo = desc.split(' ')[0]
+            prots[dbinfo] = desc
+            for pep, startposition in prot_peptides(prot, get_enzyme(enzyme), mc, minlen, maxlen, desc.startswith(prefix), dont_use_seen_peptides=True, snp=snp, desc=desc, position=True):
+                if snp:
+                    if 'snp' not in pep:
+                        seqm = pep
+                    else:
+                        tmp = pep.split('snp')
+                        seqm = tmp[0] + tmp[1].split('at')[0].split('to')[-1] + tmp[2]
+                else:
                     seqm = pep
-                else:
-                    tmp = pep.split('snp')
-                    seqm = tmp[0] + tmp[1].split('at')[0].split('to')[-1] + tmp[2]
-            else:
-                seqm = pep
-            if seqm in peptides:
-                pept_prot.setdefault(seqm, []).append(dbinfo)
-    if settings.has_option('misc', 'aa_mass'):
-        aa_mass = settings.get('misc', 'aa_mass')
-    else:
-        aa_mass = get_aa_mass(settings)
-    vmods = set()
-    variablemods =  settings.get('modifications', 'variable')
-    if variablemods:
-        for k, v in variablemods.items():
-            for aa in v:
-                vmods.add(k + aa)
-                vmods.add(aa + k)
+                if seqm in peptides:
+                    pept_prot.setdefault(seqm, []).append(dbinfo)
+                    pept_neighbors[seqm] = (prot[startposition-1] if startposition != 0 else 'N/A',
+                            prot[startposition+len(seqm)] if startposition + len(seqm) < len(prot) else 'N/A')
+        if settings.has_option('misc', 'aa_mass'):
+            aa_mass = settings.get('misc', 'aa_mass')
+        else:
+            aa_mass = get_aa_mass(settings)
+        vmods = set()
+        variablemods =  settings.get('modifications', 'variable')
+        if variablemods:
+            for k, v in variablemods.items():
+                for aa in v:
+                    vmods.add(k + aa)
+                    vmods.add(aa + k)
 
-    leg = {}
-    if settings.has_option('misc', 'legend'):
-        leg = settings.get('misc', 'legend')
+        leg = {}
+        if settings.has_option('misc', 'legend'):
+            leg = settings.get('misc', 'legend')
 
-    ntermcleavage = settings.getfloat('modifications', 'protein nterm cleavage')
-    ctermcleavage = settings.getfloat('modifications', 'protein cterm cleavage')
+        ntermcleavage = settings.getfloat('modifications', 'protein nterm cleavage')
+        ctermcleavage = settings.getfloat('modifications', 'protein cterm cleavage')
 
-    for idx, result in enumerate(results):
-        if result['candidates'].size:
-            tmp = etree.Element('spectrum_query')
-            spectrum = result['spectrum']
-            tmp.set('spectrum', get_title(spectrum))
-            tmp.set('start_scan', str(idx))  # ???
-            tmp.set('end_scan', str(idx))  # ???
-            tmp.set('index', str(idx))  # ???
+        for idx, result in enumerate(results):
+            if result['candidates'].size:
+                tmp = etree.Element('spectrum_query')
+                spectrum = result['spectrum']
+                tmp.set('spectrum', get_title(spectrum))
+                tmp.set('start_scan', str(idx))  # ???
+                tmp.set('end_scan', str(idx))  # ???
+                tmp.set('index', str(idx))  # ???
 
-            neutral_mass, charge_state, RT = get_info(spectrum, result, settings, aa_mass)
-            tmp.set('precursor_neutral_mass', str(neutral_mass))
-            tmp.set('assumed_charge', str(int(charge_state)))
-            if RT:
-                tmp.set('retention_time_sec', str(RT))
+                neutral_mass, charge_state, RT = get_info(spectrum, result, settings, aa_mass)
+                tmp.set('precursor_neutral_mass', str(neutral_mass))
+                tmp.set('assumed_charge', str(int(charge_state)))
+                if RT:
+                    tmp.set('retention_time_sec', str(RT))
 
-            tmp2 = etree.Element('search_result')
-            result['candidates'] = result['candidates'][:len(result['e-values'])]
+                tmp2 = etree.Element('search_result')
+                result['candidates'] = result['candidates'][:len(result['e-values'])]
 
-            flag = 1
-            for i, candidate in enumerate(result['candidates']):
-                match = candidate[4]['match']
-                if match is None: break
-                tmp3 = etree.Element('search_hit')
-                tmp3.set('hit_rank', str(i + 1))
-                mod_sequence = str(candidate[1])
-                mod_sequence = normalize_mods(mod_sequence, settings)
-                sequence = re.sub(r'[^A-Z]', '', mod_sequence)
-                if sequence not in pept_prot:
-                    flag = 0
-                    print 'WTF'
-                    print sequence
-                    print mod_sequence
-                    sys.stdout.flush()
-                    break
-                else:
-                    tmp3.set('peptide', sequence)
-                    tmp3.set('peptide_prev_aa', 'K')  # ???
-                    tmp3.set('peptide_next_aa', 'K')  # ???
-                    proteins = pept_prot[re.sub(r'[^A-Z]', '', sequence)]
-                    
-                    tmp3.set('protein', prots[proteins[0]].split(' ', 1)[0] + (('_' + candidate[7]) if snp else ''))
-                    try:
-                        protein_descr = prots[proteins[0]].split(' ', 1)[1]
-                    except:
-                        protein_descr = ''
-                    tmp3.set('protein_descr', protein_descr)
+                flag = 1
+                for i, candidate in enumerate(result['candidates']):
+                    match = candidate[4]['match']
+                    if match is None: break
+                    tmp3 = etree.Element('search_hit')
+                    tmp3.set('hit_rank', str(i + 1))
+                    mod_sequence = str(candidate[1])
+                    mod_sequence = normalize_mods(mod_sequence, settings)
+                    sequence = re.sub(r'[^A-Z]', '', mod_sequence)
+                    if sequence not in pept_prot:
+                        flag = 0
+                        print 'WTF'
+                        print sequence
+                        print mod_sequence
+                        sys.stdout.flush()
+                        break
+                    else:
+                        tmp3.set('peptide', sequence)
+                        neighbors = pept_neighbors.get(sequence, ('N/A', 'N/A'))
 
-                    num_tot_proteins = len(proteins)
-                    tmp3.set('num_tot_proteins', str(num_tot_proteins))
-                    tmp3.set('num_matched_ions', str(sum(v.sum() for v in match.values())))
-                    tmp3.set('tot_num_ions', str((len(sequence) - 1) * 2))
-                    neutral_mass_theor = cmass.fast_mass(sequence, aa_mass=aa_mass)
-                    tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
-                    tmp3.set('massdiff', str(candidate[4]['mzdiff']['Da']))
-                    tmp3.set('num_tol_term', '2')  # ???
-                    tmp3.set('num_missed_cleavages', str(len(parser.cleave(sequence, get_enzyme(enzyme), 0)) - 1))
-                    tmp3.set('is_rejected', '0')  # ???
+                        tmp3.set('peptide_prev_aa', neighbors[0])
+                        tmp3.set('peptide_next_aa', neighbors[1])
+                        proteins = pept_prot[re.sub(r'[^A-Z]', '', sequence)]
+                        
+                        tmp3.set('protein', prots[proteins[0]].split(' ', 1)[0] + (('_' + candidate[7]) if snp else ''))
+                        try:
+                            protein_descr = prots[proteins[0]].split(' ', 1)[1]
+                        except:
+                            protein_descr = ''
+                        tmp3.set('protein_descr', protein_descr)
 
-                    if num_tot_proteins > 1 and (not snp or 'wild' not in prots[proteins[0]].split(' ', 1)[0]):
-                        for idx in range(len(proteins)):
-                            if idx != 0:
-                                tmp4 = etree.Element('alternative_protein')
-                                tmp4.set('protein', prots[proteins[idx]].split(' ', 1)[0] + (('_' + candidate[7]) if snp else ''))
-                                try:
-                                    protein_descr = prots[proteins[idx]].split(' ', 1)[1]
-                                except:
-                                    protein_descr = ''
-                                tmp4.set('protein_descr', protein_descr)
-                                tmp4.set('num_tol_term', '2') # ???
-                                tmp3.append(copy(tmp4))
+                        num_tot_proteins = len(proteins)
+                        tmp3.set('num_tot_proteins', str(num_tot_proteins))
+                        tmp3.set('num_matched_ions', str(sum(v.sum() for v in match.values())))
+                        tmp3.set('tot_num_ions', str((len(sequence) - 1) * 2))
+                        neutral_mass_theor = cmass.fast_mass(sequence, aa_mass=aa_mass)
+                        tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
+                        tmp3.set('massdiff', str(candidate[4]['mzdiff']['Da']))
+                        tmp3.set('num_tol_term', '2')  # ???
+                        tmp3.set('num_missed_cleavages', str(len(parser.cleave(sequence, get_enzyme(enzyme), 0)) - 1))
+                        tmp3.set('is_rejected', '0')  # ???
 
-                    labels = parser.std_labels + [la.rstrip('[]') for la in leg if len(la) > 1]
+                        if num_tot_proteins > 1 and (not snp or 'wild' not in prots[proteins[0]].split(' ', 1)[0]):
+                            for idx in range(len(proteins)):
+                                if idx != 0:
+                                    tmp4 = etree.Element('alternative_protein')
+                                    tmp4.set('protein', prots[proteins[idx]].split(' ', 1)[0] + (('_' + candidate[7]) if snp else ''))
+                                    try:
+                                        protein_descr = prots[proteins[idx]].split(' ', 1)[1]
+                                    except:
+                                        protein_descr = ''
+                                    tmp4.set('protein_descr', protein_descr)
+                                    tmp4.set('num_tol_term', '2') # ???
+                                    tmp3.append(copy(tmp4))
+
+                        labels = parser.std_labels + [la.rstrip('[]') for la in leg if len(la) > 1]
 #                   print 'Labels:', labels
-                    try:
-                        aalist = parser.parse(mod_sequence, labels=labels)
-                    except Exception as e:
-                        print 'Problematic sequence:', mod_sequence
-                        print e
-                        aalist = [a[::-1] for a in parser.parse(mod_sequence[::-1], labels=labels)][::-1]
-                    tmp4 = etree.Element('modification_info')
-                    ntermmod = 0
-                    for idx, aminoacid in enumerate(aalist):
-                        if aminoacid in fmods or aminoacid in vmods:
-                            if aminoacid.endswith('-') and idx == 0:
-                                ntermmod = 1
-                                tmp4.set('mod_nterm_mass', str(str(aa_mass.get(aminoacid) + ntermcleavage)))
-                            elif aminoacid.startswith('-') and idx == len(aalist) - 1:
-                                tmp4.set('mod_cterm_mass', str(aa_mass.get(aminoacid) + ctermcleavage))
-                            else:
-                                tmp5 = etree.Element('mod_aminoacid_mass')
-                                tmp5.set('position', str(idx + 1 - ntermmod))
-                                tmp5.set('mass', str(aa_mass.get(aminoacid)))
-                                tmp4.append(copy(tmp5))
-                    tmp3.append(copy(tmp4))
+                        try:
+                            aalist = parser.parse(mod_sequence, labels=labels)
+                        except Exception as e:
+                            print 'Problematic sequence:', mod_sequence
+                            print e
+                            aalist = [a[::-1] for a in parser.parse(mod_sequence[::-1], labels=labels)][::-1]
+                        tmp4 = etree.Element('modification_info')
+                        ntermmod = 0
+                        for idx, aminoacid in enumerate(aalist):
+                            if aminoacid in fmods or aminoacid in vmods:
+                                if aminoacid.endswith('-') and idx == 0:
+                                    ntermmod = 1
+                                    tmp4.set('mod_nterm_mass', str(str(aa_mass.get(aminoacid) + ntermcleavage)))
+                                elif aminoacid.startswith('-') and idx == len(aalist) - 1:
+                                    tmp4.set('mod_cterm_mass', str(aa_mass.get(aminoacid) + ctermcleavage))
+                                else:
+                                    tmp5 = etree.Element('mod_aminoacid_mass')
+                                    tmp5.set('position', str(idx + 1 - ntermmod))
+                                    tmp5.set('mass', str(aa_mass.get(aminoacid)))
+                                    tmp4.append(copy(tmp5))
+                        tmp3.append(copy(tmp4))
 
-                    tmp4 = etree.Element('search_score')
-                    tmp4.set('name', 'hyperscore')
-                    tmp4.set('value', str(candidate[0]))
-                    tmp3.append(copy(tmp4))
+                        tmp4 = etree.Element('search_score')
+                        tmp4.set('name', 'hyperscore')
+                        tmp4.set('value', str(candidate[0]))
+                        tmp3.append(copy(tmp4))
 
-                    tmp4 = etree.Element('search_score')
-                    tmp4.set('name', 'nextscore')
-                    tmp4.set('value', str(candidate[0]))
-                    tmp3.append(copy(tmp4))
+                        tmp4 = etree.Element('search_score')
+                        tmp4.set('name', 'nextscore')
+                        tmp4.set('value', str(candidate[0]))
+                        tmp3.append(copy(tmp4))
 
-                    tmp4 = etree.Element('search_score')
-                    tmp4.set('name', 'expect')
-                    tmp4.set('value', str(result['e-values'][i]))
-                    tmp3.append(copy(tmp4))
+                        tmp4 = etree.Element('search_score')
+                        tmp4.set('name', 'expect')
+                        tmp4.set('value', str(result['e-values'][i]))
+                        tmp3.append(copy(tmp4))
 
-                    tmp4 = etree.Element('search_score')
-                    tmp4.set('name', 'sumI')
-                    tmp4.set('value', str(candidate[5]))
-                    tmp3.append(copy(tmp4))
+                        tmp4 = etree.Element('search_score')
+                        tmp4.set('name', 'sumI')
+                        tmp4.set('value', str(candidate[5]))
+                        tmp3.append(copy(tmp4))
 
-                    tmp4 = etree.Element('search_score')
-                    tmp4.set('name', 'fragmentMT')
-                    tmp4.set('value', str(candidate[6]))
-                    tmp3.append(copy(tmp4))
+                        tmp4 = etree.Element('search_score')
+                        tmp4.set('name', 'fragmentMT')
+                        tmp4.set('value', str(candidate[6]))
+                        tmp3.append(copy(tmp4))
 
-                    tmp2.append(copy(tmp3))
-            if flag:
-                tmp.append(copy(tmp2))
-                child1.append(copy(tmp))
+                        tmp2.append(copy(tmp3))
+                if flag:
+                    tmp.append(copy(tmp2))
+                    child1.append(copy(tmp))
 
-    s = etree.tostring(root, pretty_print=True)
-    output.write(s)
+        s = etree.tostring(root, pretty_print=True)
+        output.write(s)
 
-    output.close()
 
 def write_csv(inputfile, settings, results):
     df = dataframe(inputfile, settings, results)
