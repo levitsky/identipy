@@ -1067,10 +1067,11 @@ def write_pepxml(inputfile, settings, results):
                         tmp4.set('value', str(candidate[0]))
                         tmp3.append(copy(tmp4))
 
-                        tmp4 = etree.Element('search_score')
-                        tmp4.set('name', 'nextscore')
-                        tmp4.set('value', str(candidate[0]))
-                        tmp3.append(copy(tmp4))
+                        for k, v in match.items():
+                            tmp4 = etree.Element('search_score')
+                            tmp4.set('name', 'matched_{}{}_ions'.format(*k))
+                            tmp4.set('value', str(v.sum()))
+                            tmp3.append(copy(tmp4))
 
                         tmp4 = etree.Element('search_score')
                         tmp4.set('name', 'expect')
