@@ -130,8 +130,6 @@ optional arguments:
 
 ```
 
-Search parameters can be specified using command-line options or in a configuration file.
-
 
 # Related projects #
 
