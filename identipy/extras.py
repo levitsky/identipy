@@ -127,7 +127,7 @@ def precursor_mass_optimization(results, settings):
         error = True
     else:
         error = False
-    if np.isinf(covvalue):
+    if not error and np.isinf(covvalue):
         error = True
         print 'Double error when fitting precursor errors:', massdif
     if error or (percentileofscore(massdif, best_par_mt_r) - percentileofscore(massdif, best_par_mt_l) < 95):

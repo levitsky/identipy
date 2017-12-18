@@ -163,6 +163,7 @@ def peptide_processor(peptide, **kwargs):
         dm_l = acc_l * m / 1.0e6
         dm_r = acc_r * m / 1.0e6
     for c in spectra:
+
         if not rel:
             dm_l = acc_l * c
             dm_r = acc_r * c
