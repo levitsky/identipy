@@ -240,7 +240,7 @@ def rt_filtering(results, settings):
             if len(k) == 1: continue
             if k[-1] in '[]':
                 if k[-2] == '-':
-                    kk = ('-' + k[-2:]) if k[-1] == ']' else (k[-2:] + '-')
+                    kk = ('-' + k[1:-1]) if k[-1] == ']' else (k[:-1])
                 else:
                     kk = k[:-1]
             elif len(k) > 1:
@@ -249,8 +249,15 @@ def rt_filtering(results, settings):
             if kk in RC_dict_new:
                 RC_dict_new[v] = RC_dict_new[kk]
             else:
-                print 'No RC for', kk, 'using', kk[-1]
-                RC_dict_new[v] = RC_dict_new[kk[-1]]
+                if kk[-1].isupper():
+                    kkk = kk[-1]
+                elif kk[-1] == '-':
+                    kkk = parser.std_nterm
+                elif kk[0] == '-':
+                    kkk = parser.std_cterm
+                RC_dict_new[v] = RC_dict_new.get(kkk, 0)
+                print 'No RC for', kk, 'using', kkk, 'or 0:', RC_dict_new[v] 
+
 
     RC_dict['aa'] = RC_dict_new
 
