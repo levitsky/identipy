@@ -39,10 +39,6 @@ def settings(fname=None, default_name=os.path.join(
         os.path.dirname(os.path.abspath(__file__)), 'default.cfg')):
     """Read a configuration file and return a :py:class:`RawConfigParser` object.
     """
-    if isinstance(fname, basestring):
-        fname = fname.encode('utf8')
-    if isinstance(default_name, basestring):
-        default_name = default_name.encode('utf8')
     raw_config = utils.CustomRawConfigParser(dict_type=dict, allow_no_value=True)
     if default_name:
         print 'Reading defaults from', default_name
