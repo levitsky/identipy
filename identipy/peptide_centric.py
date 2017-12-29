@@ -5,10 +5,13 @@ import operator as op
 from bisect import bisect
 from pyteomics import parser, mass, fasta, auxiliary as aux, mgf, mzml
 from . import scoring, utils
+import logging
+logger = logging.getLogger(__name__)
+
 try:
     from pyteomics import cmass
 except ImportError:
-    print '[ Warning ] cmass could not be imported'
+    logger.warning('cmass could not be imported')
     cmass = mass
 
 try:
@@ -36,7 +39,7 @@ def prepare_peptide_processor(fname, settings):
     for c in ch_range:
         maxcharges[c] = max(1, min(fcharge, c-1) if fcharge else c-1)
 
-    print 'Reading spectra ...'
+    logger.info('Reading spectra ...')
 
     params = {}
     params['maxpeaks'] = settings.getint('scoring', 'maximum peaks')
@@ -68,7 +71,7 @@ def prepare_peptide_processor(fname, settings):
                 spectra.setdefault(effc, []).append(ps)
                 charges.setdefault(effc, []).append(c)
                 ps.setdefault('nm', {})[c] = m
-    print sum(map(len, spectra.itervalues())), 'spectra pass quality criteria.'
+    logger.info('%s spectra pass quality criteria.', sum(map(len, spectra.itervalues())))
     for c in list(spectra):
         i = np.argsort(nmasses[c])
         nmasses[c] = np.array(nmasses[c])[i]
@@ -233,7 +236,7 @@ def process_peptides(fname, settings):
     func = peptide_processor_iter_isoforms
     kwargs['min_matched'] = settings.getint('output', 'minimum matched')
     kwargs['snp'] = settings.getint('search', 'snp')
-    print 'Running the search ...'
+    logger.info('Running the search ...')
     n = settings.getint('performance', 'processes')
     leg = {}
     if settings.has_option('misc', 'legend'):

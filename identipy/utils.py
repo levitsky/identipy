@@ -10,6 +10,8 @@ from copy import copy
 from ConfigParser import RawConfigParser
 import tempfile
 import os
+import logging
+logger = logging.getLogger(__name__)
 
 try:
     from pyteomics import cmass
@@ -292,8 +294,6 @@ def custom_snp(peptide, startposition):
                 yield peptide[:j] + aa_label + peptide[j+1:], peptide[:j] + aa + peptide[j+1:]
         j -= 1
 
-
-
 def normalize_mods(sequence, settings):
     leg = settings.get('misc', 'legend')
     if leg:
@@ -304,7 +304,6 @@ def normalize_mods(sequence, settings):
                 else:
                     sequence = sequence.replace(char, ''.join(leg[char][:2]))
     return sequence
-
 
 def custom_isoforms(peptide, variable_mods, maxmods=2, nterm=False, cterm=False):
     if not variable_mods:
@@ -459,7 +458,7 @@ def set_mod_dict(settings):
                 mod_dict.setdefault(mod, []).append(aa)
             settings.set('modifications', 'variable', mod_dict)
         settings.set('misc', 'legend', legend)
-        print 'Setting legend:', legend
+        logger.info('Setting legend: %s', legend)
 
 def get_enzyme(enzyme):
     if enzyme in parser.expasy_rules:
@@ -660,12 +659,12 @@ def import_(name):
     function name in identipy.scoring module.
     Return the function object."""
 
-    print 'Trying to import', name
+    logger.info('Trying to import %s', name)
     try:
         mod, f = name.rsplit('.', 1)
         return getattr(__import__(mod, fromlist=[f]), f)
     except Exception as e:
-        print(e)
+        logger.error('%s', e)
         return getattr(__import__('identipy.scoring', fromlist=[name]), name)
 
 def get_aa_mass(settings):
@@ -727,7 +726,7 @@ def multimap(n, func, it, **kw):
             qin = list(islice(it, 500000))
             if not len(qin):
                 break
-            print 'Loaded 500000 items. Ending cycle.'
+#           print 'Loaded 500000 items. Ending cycle.'
             procs = []
             for _ in range(n):
                 p = Process(target=worker, args=(qin, qout, _, n))
@@ -743,7 +742,7 @@ def multimap(n, func, it, **kw):
             for p in procs:
                 p.join()
 
-            print 'Cycle finished.'
+#           print 'Cycle finished.'
 def allow_all(*args):
     return True
 
@@ -795,7 +794,7 @@ def get_output(results, settings):
         acc_r = settings.getfloat('output', 'precursor accuracy right')
         rel = settings.get('output', 'precursor accuracy unit') == 'ppm'
     except ValueError:
-        print 'Using [search] parameters for [output]'
+        logger.debug('Using [search] parameters for [output]')
         acc_l = settings.getfloat('search', 'precursor accuracy left')
         acc_r = settings.getfloat('search', 'precursor accuracy right')
         rel = settings.get('search', 'precursor accuracy unit') == 'ppm'
@@ -825,7 +824,7 @@ def get_output(results, settings):
             continue
         result['candidates'] = c#c[:num_candidates]
         yield result
-    print 'Unfiltered results:', count
+    logger.info('Unfiltered results: %s', count)
     
 def get_shifts_and_pime(settings):
     pime = settings.getint('search', 'precursor isotope mass error') 
@@ -842,14 +841,14 @@ def write_pepxml(inputfile, settings, results):
     from os import path
 
     outpath = settings.get('output', 'path')
-    print 'Output path:', outpath
+    logger.debug('Output path: %s', outpath)
 
     set_mod_dict(settings)
     db = settings.get('input', 'database')
     prefix = settings.get('input', 'decoy prefix')
 
-    print repr(outpath)
-    print repr(inputfile)
+#   print repr(outpath)
+#   print repr(inputfile)
     filename = path.join(outpath.decode('utf-8'), path.splitext(path.basename(inputfile))[0] + path.extsep + 'pep' + path.extsep + 'xml')
     enzyme = settings.get('search', 'enzyme')
     mc = settings.getint('search', 'number of missed cleavages')
@@ -863,7 +862,7 @@ def write_pepxml(inputfile, settings, results):
     snp = settings.getint('search', 'snp')
 
     with open(filename, 'w') as output:
-        print 'Writing {}...'.format(filename.encode('utf-8'))
+        logger.info('Writing %s...', filename)
         line1 = '<?xml version="1.0" encoding="UTF-8"?>\n\
         <?xml-stylesheet type="text/xsl" href="pepXML_std.xsl"?>\n'
         output.write(line1)
@@ -918,7 +917,7 @@ def write_pepxml(inputfile, settings, results):
 
         results = [x for x in results if x['candidates'].size]
         results = list(get_output(results, settings))
-        print 'Accumulated results:', len(results)
+        logger.info('Accumulated results: %s', len(results))
         pept_prot = {}
         prots = {}
         peptides = set()
@@ -926,8 +925,6 @@ def write_pepxml(inputfile, settings, results):
         for x in results:
             peptides.update(re.sub(r'[^A-Z]', '', normalize_mods(x['candidates'][i][1], settings)) for i in range(
                 1 or len(x['candidates'])))
-            # peptides.update(re.sub(r'[^A-Z]', '', normalize_mods(x['candidates'][i][1], settings)) for i in range(
-            #         settings.getint('output', 'candidates') or len(x['candidates'])))
         seen_target.clear()
         seen_decoy.clear()
         for desc, prot in prot_gen(settings):
@@ -994,10 +991,7 @@ def write_pepxml(inputfile, settings, results):
                     sequence = re.sub(r'[^A-Z]', '', mod_sequence)
                     if sequence not in pept_prot:
                         flag = 0
-                        print 'WTF'
-                        print sequence
-                        print mod_sequence
-                        sys.stdout.flush()
+                        logger.error('Unaccounted sequence! %s (%s)', sequence, mod_sequence)
                         break
                     else:
                         tmp3.set('peptide', sequence)
@@ -1039,12 +1033,10 @@ def write_pepxml(inputfile, settings, results):
                                     tmp3.append(copy(tmp4))
 
                         labels = parser.std_labels + [la.rstrip('[]') for la in leg if len(la) > 1]
-#                   print 'Labels:', labels
                         try:
                             aalist = parser.parse(mod_sequence, labels=labels)
                         except Exception as e:
-                            print 'Problematic sequence:', mod_sequence
-                            print e
+                            logger.error('Problematic sequence: %s\n%s', mod_sequence, e)
                             aalist = [a[::-1] for a in parser.parse(mod_sequence[::-1], labels=labels)][::-1]
                         tmp4 = etree.Element('modification_info')
                         ntermmod = 0
@@ -1106,7 +1098,7 @@ def dataframe(inputfile, settings, results):
     import pandas as pd
 
     results = list(get_output(results, settings))
-    print 'Accumulated results:', len(results)
+    logger.info('Accumulated results: %s', len(results))
     ensure_decoy(settings)
     pept_prot, prots = build_pept_prot(settings, results)
     if settings.has_option('misc', 'aa_mass'):
@@ -1152,10 +1144,7 @@ def dataframe(inputfile, settings, results):
                 sequence = re.sub(r'[^A-Z]', '', mod_sequence)
                 if sequence not in pept_prot:
                     flag = 0
-                    print 'WTF'
-                    print sequence
-                    print mod_sequence
-                    sys.stdout.flush()
+                    logger.error('Unaccounted sequence! %s (%s)', sequence, mod_sequence)
                     break
                 else:
                     allproteins = pept_prot[re.sub(r'[^A-Z]', '', sequence)]
@@ -1207,7 +1196,7 @@ def write_output(inputfile, settings, results):
     if settings.has_option('output', 'path'):
         outd = settings.get('output', 'path')
         if not os.path.isdir(outd):
-            print 'Creating', outd, '...'
+            logger.info('Creating %s ...', outd)
             os.makedirs(outd)
     else:
         outpath = os.path.dirname(inputfile)
