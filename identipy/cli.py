@@ -1,6 +1,37 @@
 from . import main, utils
 import argparse
 import string
+import logging.config
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': True,
+    'formatters': {
+        'verbose': {
+            'format': '%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s',
+        },
+        'simple': {
+            'format': '%(levelname)s: %(asctime)s %(message)s',
+            'datefmt': '[%H:%M:%S]',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'loggers': {
+        'identipy': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        }
+    }
+}
+
+logging.config.dictConfig(LOGGING)
+
 
 def get_label(modmass, labels):
     abt = string.ascii_lowercase

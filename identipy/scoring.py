@@ -226,7 +226,7 @@ def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False):
         bions = match2[('b', 1)]
         plen = len(yions)
         if position > plen + 1:
-            print 'Something wrong with aachange position'
+#           print 'Something wrong with aachange position'
             return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
         if position == 1:
             if not bions[0]:
