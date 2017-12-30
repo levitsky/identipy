@@ -54,7 +54,7 @@ def optimization(fname, settings):
     settings.set('search', 'precursor accuracy unit', 'ppm')
     results = process_file(fname, settings)
     filtered = get_subset(results, settings, fdr=0.01)
-    logger.info('%s PSMs with 1% FDR.', len(filtered))
+    logger.info('%s PSMs with 1%% FDR.', len(filtered))
     if len(filtered) < 50:
         if len(filtered) < 10:
             logger.warning('OPTIMIZATION ABORTED')
