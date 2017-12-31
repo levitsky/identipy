@@ -849,7 +849,7 @@ def write_pepxml(inputfile, settings, results):
 
 #   print repr(outpath)
 #   print repr(inputfile)
-    filename = path.join(outpath.decode('utf-8'), path.splitext(path.basename(inputfile))[0] + path.extsep + 'pep' + path.extsep + 'xml')
+    filename = path.join(outpath, path.splitext(path.basename(inputfile))[0] + path.extsep + 'pep' + path.extsep + 'xml')
     enzyme = settings.get('search', 'enzyme')
     mc = settings.getint('search', 'number of missed cleavages')
     minlen = settings.getint('search', 'peptide minimum length')
