@@ -20,18 +20,18 @@ try:
 except:
     from utils import theor_spectrum
 
+spectra = {}
+best_res = {}
+nmasses = {}
+t2s = {}
+charges = {}
 def prepare_peptide_processor(fname, settings):
     global spectra
     global nmasses
     global t2s
     global charges
     global best_res
-    spectra = {}
     best_res = {}
-    nmasses = {}
-    t2s = {}
-    charges = {}
-
     maxcharges = {}
     fcharge = settings.getint('scoring', 'maximum fragment charge')
     ch_range = range(settings.getint('search', 'minimum charge'),
@@ -39,7 +39,6 @@ def prepare_peptide_processor(fname, settings):
     for c in ch_range:
         maxcharges[c] = max(1, min(fcharge, c-1) if fcharge else c-1)
 
-    logger.info('Reading spectra ...')
 
     params = {}
     params['maxpeaks'] = settings.getint('scoring', 'maximum peaks')
@@ -61,22 +60,26 @@ def prepare_peptide_processor(fname, settings):
     params['dacc'] = settings.getfloat('input', 'deisotoping mass tolerance')
     params['deisotope'] = settings.getboolean('input', 'deisotope')
 
-    for spec in utils.iterate_spectra(fname):
-        ps = utils.preprocess_spectrum(spec, params)
-        if ps is not None:
-            t2s[utils.get_title(ps)] = ps
-            for m, c in utils.neutral_masses(ps, params):
-                effc = maxcharges[c]
-                nmasses.setdefault(effc, []).append(m)
-                spectra.setdefault(effc, []).append(ps)
-                charges.setdefault(effc, []).append(c)
-                ps.setdefault('nm', {})[c] = m
-    logger.info('%s spectra pass quality criteria.', sum(map(len, spectra.itervalues())))
-    for c in list(spectra):
-        i = np.argsort(nmasses[c])
-        nmasses[c] = np.array(nmasses[c])[i]
-        spectra[c] = np.array(spectra[c])[i]
-        charges[c] = np.array(charges[c])[i]
+    if not spectra:
+        logger.info('Reading spectra ...')
+        for spec in utils.iterate_spectra(fname):
+            ps = utils.preprocess_spectrum(spec, params)
+            if ps is not None:
+                t2s[utils.get_title(ps)] = ps
+                for m, c in utils.neutral_masses(ps, params):
+                    effc = maxcharges[c]
+                    nmasses.setdefault(effc, []).append(m)
+                    spectra.setdefault(effc, []).append(ps)
+                    charges.setdefault(effc, []).append(c)
+                    ps.setdefault('nm', {})[c] = m
+        logger.info('%s spectra pass quality criteria.', sum(map(len, spectra.itervalues())))
+        for c in list(spectra):
+            i = np.argsort(nmasses[c])
+            nmasses[c] = np.array(nmasses[c])[i]
+            spectra[c] = np.array(spectra[c])[i]
+            charges[c] = np.array(charges[c])[i]
+    else:
+        logger.info('Reusing %s spectra from previous run.', sum(map(len, spectra.itervalues())))
 
     utils.set_mod_dict(settings)
 
@@ -90,8 +93,9 @@ def prepare_peptide_processor(fname, settings):
     score = utils.import_(settings.get('scoring', 'score'))
     try:
         score_fast = utils.import_(settings.get('scoring', 'score') + '_fast')
-    except:
+    except Exception as e:
         score_fast = False
+        logging.debug('No fast score imported: %s', e)
     acc_l = settings.getfloat('search', 'precursor accuracy left')
     acc_r = settings.getfloat('search', 'precursor accuracy right')
     acc_frag = settings.getfloat('search', 'product accuracy')
