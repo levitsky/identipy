@@ -65,7 +65,10 @@ def optimization(fname, settings):
     else:
         functions = [
                 rt_filtering,
-                precursor_mass_optimization, fragment_mass_optimization, missed_cleavages_optimization]
+                precursor_mass_optimization,
+                fragment_mass_optimization,
+#               missed_cleavages_optimization
+                ]
     for func in functions:
         settings = func(filtered, settings)
     settings.set('scoring', 'e-values for candidates', efc)
@@ -152,7 +155,7 @@ def missed_cleavages_optimization(results, settings):
         for res in results])
     best_missedcleavages = missedcleavages.max()
     for mc in range(best_missedcleavages, -1, -1):
-        if float(missedcleavages[missedcleavages > mc].size) / missedcleavages.size < 0.005:
+        if float(missedcleavages[missedcleavages > mc].size) / missedcleavages.size < 0.002:
             best_missedcleavages = mc
     logger.info('NEW miscleavages = %s', best_missedcleavages)
     settings.set('search', 'number of missed cleavages', best_missedcleavages)
@@ -256,8 +259,8 @@ def rt_filtering(results, settings):
         for pep in seqs])
     deltaRT = rtexp - rttheor
     logger.debug('Linear regression: %s', aux.linear_regression(rtexp, rttheor))
-    best_RT_l = scoreatpercentile(deltaRT, 0.5)
-    best_RT_r = scoreatpercentile(deltaRT, 99.5)
+    best_RT_l = scoreatpercentile(deltaRT, 0.05)
+    best_RT_r = scoreatpercentile(deltaRT, 99.95)
 
     def condition(spectrum, cand, _):
         rtd = spectrum['RT'] - calculate_RT(cand, RC_dict)
