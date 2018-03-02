@@ -44,12 +44,13 @@ def optimization(fname, settings):
     settings.set('scoring', 'e-values for candidates', 1)
     left = settings.getfloat('search', 'precursor accuracy left')
     right = settings.getfloat('search', 'precursor accuracy right')
+    wide = settings.getboolean('optimization', 'increase precursor mass tolerance')
     if settings.get('search', 'precursor accuracy unit') != 'ppm':
         left *= 1000
         right *= 1000
-    if left < 100:
+    if left < 100 and wide:
         settings.set('search', 'precursor accuracy left', 100)
-    if right < 100:
+    if right < 100 and wide:
         settings.set('search', 'precursor accuracy right', 100)
     settings.set('search', 'precursor accuracy unit', 'ppm')
     results = process_file(fname, settings)
