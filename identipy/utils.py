@@ -802,6 +802,7 @@ def get_output(results, settings):
     shifts_and_pime = get_shifts_and_pime(settings)
     
     count = 0
+    discard_count = 0
     for result in results:
         mz = get_precursor_mz(result['spectrum'])
         dm_l = acc_l * mz / 1.0e6 if rel else acc_l
@@ -821,10 +822,12 @@ def get_output(results, settings):
         c = c[np.array(mask, dtype=bool)]
     
         if (not c.size) and not show_empty:
+            discard_count += 1
             continue
         result['candidates'] = c#c[:num_candidates]
         yield result
     logger.info('Unfiltered results: %s', count)
+    logger.info('Discarded empty results: %s', discard_count)
     
 def get_shifts_and_pime(settings):
     pime = settings.getint('search', 'precursor isotope mass error') 
