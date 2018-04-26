@@ -68,6 +68,8 @@ def run():
     parser.add_argument('-db',      help='path to protein fasta file')
     parser.add_argument('-cfg',     help='path to file with parameters')
     parser.add_argument('-out',     help='output path')
+    parser.add_argument('-at',      help='Use auto-tuning of search parameters. yes or no', type=str)
+    parser.add_argument('-pwide',   help='Increase initial precursor mass accuracy for auto-tuning. yes or no', type=str)
     parser.add_argument('-punit',   help='precursor mass tolerance unit. Can be ppm or Da', type=str)
     parser.add_argument('-ptol',    help='precursor mass tolerance', type=float)
     parser.add_argument('-lptol',   help='*left precursor mass tolerance', type=float)
@@ -183,10 +185,14 @@ def run():
     _update(settings, 'modifications', 'protein nterm cleavage', args['ncleave'])
     _update(settings, 'modifications', 'protein cterm cleavage', args['ccleave'])
     _update(settings, 'output', 'path', args['out'])
+    if args['at'] == 'yes':
+        ao_setting = 'identipy.extras.optimization'
+    else:
+        ao_setting = ''
+    _update(settings, 'misc', 'first stage', ao_setting)
+    _update(settings, 'optimization', 'increase precursor mass tolerance', args['pwide'])
+
 
     inputfile = args['file']
 
     utils.write_output(inputfile, settings, main.process_file(inputfile, settings))
-
-if __name__ == '__main__':
-    run()
