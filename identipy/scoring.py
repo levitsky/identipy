@@ -121,7 +121,7 @@ def hyperscore_fast(spectrum_fastset, theoretical_set, min_matched):
     matched_approx = matched_approx_b + matched_approx_y
     if matched_approx >= min_matched:
         # return matched_approx, factorial(matched_approx_b) * factorial(matched_approx_y)
-        return matched_approx, factorial(matched_approx_b) * (100 * matched_approx_b) + factorial(matched_approx_y) * (100 * matched_approx_y)
+        return matched_approx, factorial(matched_approx_b) * 100 * (matched_approx_b + matched_approx_y) * factorial(matched_approx_y)
         # return matched_approx, factorial(matched_approx) * (100 * matched_approx)
     else:
         return 0, 0
@@ -182,12 +182,9 @@ def hyperscore(spectrum, theoretical, acc, acc_ppm=False, position=False):
 def RNHS_fast(spectrum_fastset, theoretical_set, min_matched):
     matched_approx_b = len(spectrum_fastset.intersection(theoretical_set['b']))
     matched_approx_y = len(spectrum_fastset.intersection(theoretical_set['y']))
-    # matched_approx = len(spectrum_fastset.intersection(theoretical_set))
     matched_approx = matched_approx_b + matched_approx_y
     if matched_approx >= min_matched:
         return matched_approx, factorial(matched_approx_b) * factorial(matched_approx_y)
-        # return matched_approx, factorial(matched_approx_b) * (100 * matched_approx_b) + factorial(matched_approx_y) * (100 * matched_approx_y)
-        # return matched_approx, factorial(matched_approx) * (100 * matched_approx)
     else:
         return 0, 0
 
@@ -227,15 +224,18 @@ def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False):
     if position:
         yions = match2[('y', 1)]
         bions = match2[('b', 1)]
-        plen = len(yions) + 1
+        plen = len(yions)
+        if position > plen + 1:
+#           print 'Something wrong with aachange position'
+            return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
         if position == 1:
             if not bions[0]:
                 return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
-        elif position == plen:
+        elif position == plen + 1:
             if not yions[0]:
                 return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
         else:
-            if not (yions[plen - position] and yions[plen - position - 1]) or (bions[position - 1] and bions[position - 2]):
+            if not (yions[plen - position + 1] and yions[plen - position]):
                 return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
 
     for m in mult:

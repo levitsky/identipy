@@ -1,6 +1,37 @@
 from . import main, utils
 import argparse
 import string
+import logging.config
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': True,
+    'formatters': {
+        'verbose': {
+            'format': '%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s',
+        },
+        'simple': {
+            'format': '%(levelname)s: %(asctime)s %(message)s',
+            'datefmt': '[%H:%M:%S]',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'loggers': {
+        'identipy': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        }
+    }
+}
+
+logging.config.dictConfig(LOGGING)
+
 
 def get_label(modmass, labels):
     abt = string.ascii_lowercase
@@ -59,7 +90,7 @@ def run():
     parser.add_argument('-shifts',  help='shifts. example: 0,16.000,23.000,12')
     parser.add_argument('-snp',     help='1 means make SNP changes for ALL peptides', type=int)
     parser.add_argument('-mm',      help='number of minimum matched ions', type=int)
-    parser.add_argument('-ad',      help='add decoy', type=int)
+    parser.add_argument('-ad',      help='add decoy')
     parser.add_argument('-prefix',  help='decoy prefix')
     parser.add_argument('-method',  help='reverse or random')
     parser.add_argument('-deis',    help='use MS/MS deisotoping. yes or no')

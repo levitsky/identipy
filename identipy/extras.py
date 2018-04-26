@@ -4,6 +4,8 @@ from pyteomics import achrom, auxiliary as aux, parser, mass
 from collections import Counter
 from main import *
 from scoring import get_fragment_mass_tol
+import logging
+logger = logging.getLogger(__name__)
 import numpy as np
 from utils import get_info, get_aa_mass, get_output, get_enzyme, get_output, calculate_RT
 try:
@@ -42,20 +44,21 @@ def optimization(fname, settings):
     settings.set('scoring', 'e-values for candidates', 1)
     left = settings.getfloat('search', 'precursor accuracy left')
     right = settings.getfloat('search', 'precursor accuracy right')
+    wide = settings.getboolean('optimization', 'increase precursor mass tolerance')
     if settings.get('search', 'precursor accuracy unit') != 'ppm':
         left *= 1000
         right *= 1000
-    if left < 100:
+    if left < 100 and wide:
         settings.set('search', 'precursor accuracy left', 100)
-    if right < 100:
+    if right < 100 and wide:
         settings.set('search', 'precursor accuracy right', 100)
     settings.set('search', 'precursor accuracy unit', 'ppm')
     results = process_file(fname, settings)
     filtered = get_subset(results, settings, fdr=0.01)
-    print len(filtered), 'PSMs with 1% FDR.'
+    logger.info('%s PSMs with 1%% FDR.', len(filtered))
     if len(filtered) < 50:
         if len(filtered) < 10:
-            print 'OPTIMIZATION ABORTED'
+            logger.warning('OPTIMIZATION ABORTED')
             return settings
         else:
             functions = [precursor_mass_optimization, fragment_mass_optimization,
@@ -63,7 +66,10 @@ def optimization(fname, settings):
     else:
         functions = [
                 rt_filtering,
-                precursor_mass_optimization, fragment_mass_optimization, missed_cleavages_optimization]
+                precursor_mass_optimization,
+                fragment_mass_optimization,
+#               missed_cleavages_optimization
+                ]
     for func in functions:
         settings = func(filtered, settings)
     settings.set('scoring', 'e-values for candidates', efc)
@@ -82,7 +88,7 @@ def charge_optimization(results, settings):
     for ch in range(maxcharge, mincharge-1, -1):
         if float(chargestates[chargestates > ch].size) / chargestates.size < 0.01:
             maxcharge = ch
-    print 'NEW charges = %s:%s' % (mincharge, maxcharge)
+    logger.info('NEW charges = %s:%s', mincharge, maxcharge)
     settings.set('search', 'maximum charge', maxcharge)
     settings.set('search', 'minimum charge', mincharge)
     return settings
@@ -114,26 +120,31 @@ def precursor_mass_optimization(results, settings):
     if settings.get('search', 'precursor accuracy unit') != 'ppm':
         mass_left = mass_left * 1e6 / 400
         mass_right = mass_right * 1e6 / 400
-    print 'mass_left, mass_right:', mass_left, mass_right
-    mass_shift, mass_sigma, covvalue = calibrate_mass(0.1, mass_left, mass_right, massdif)
-    if np.isinf(covvalue):
-        mass_shift, mass_sigma, covvalue = calibrate_mass(0.01, mass_left, mass_right, massdif)
-    print mass_left, mass_right, '->', mass_shift, '+- 8 *', mass_sigma, covvalue
-
-    best_par_mt_l = mass_shift - 8 * mass_sigma
-    best_par_mt_r = mass_shift + 8 * mass_sigma
-    print 'SMART MASS TOLERANCE = %s:%s' % (best_par_mt_l, best_par_mt_r)
-    if percentileofscore(massdif, best_par_mt_r) - percentileofscore(massdif, best_par_mt_l) < 95:
-#   best_par_mt_l = np.min(massdif[massdif > scoreatpercentile(massdif, 0.1)])
+    logger.info('mass_left, mass_right: %s, %s', mass_left, mass_right)
+    try:
+        mass_shift, mass_sigma, covvalue = calibrate_mass(0.1, mass_left, mass_right, massdif)
+        if np.isinf(covvalue):
+            mass_shift, mass_sigma, covvalue = calibrate_mass(0.01, mass_left, mass_right, massdif)
+        logger.info('%s, %s -> %s +- 8 * %s; %s', mass_left, mass_right, mass_shift, mass_sigma, covvalue)
+        best_par_mt_l = mass_shift - 8 * mass_sigma
+        best_par_mt_r = mass_shift + 8 * mass_sigma
+        logger.info('SMART MASS TOLERANCE = %s:%s', best_par_mt_l, best_par_mt_r)
+    except RuntimeError:
+        error = True
+    else:
+        error = False
+    if not error and np.isinf(covvalue):
+        error = True
+        logger.warning('Double error when fitting precursor errors: %s', massdif)
+    if error or (percentileofscore(massdif, best_par_mt_r) - percentileofscore(massdif, best_par_mt_l) < 95):
         best_par_mt_l = scoreatpercentile(massdif, 0.1)
-#   best_par_mt_r = np.max(massdif[massdif < scoreatpercentile(massdif, 99.9)])
         best_par_mt_r = scoreatpercentile(massdif, 99.9)
-        print 'Percentage sanity check FAILED. Falling back on percentage boundaries'
+        logger.warning('Percentage sanity check FAILED. Falling back on percentage boundaries')
     else:
         best_par_mt_l = max(best_par_mt_l, scoreatpercentile(massdif, 0.1))
         best_par_mt_r = min(best_par_mt_r, scoreatpercentile(massdif, 99.9))
 
-    print 'NEW PARENT MASS TOLERANCE = %s:%s' % (best_par_mt_l, best_par_mt_r)
+    logger.info('NEW PARENT MASS TOLERANCE = %s:%s', best_par_mt_l, best_par_mt_r)
     settings.set('search', 'precursor accuracy left', -best_par_mt_l)
     settings.set('search', 'precursor accuracy right', best_par_mt_r)
     settings.set('search', 'precursor accuracy unit', 'ppm')
@@ -145,33 +156,22 @@ def missed_cleavages_optimization(results, settings):
         for res in results])
     best_missedcleavages = missedcleavages.max()
     for mc in range(best_missedcleavages, -1, -1):
-        if float(missedcleavages[missedcleavages > mc].size) / missedcleavages.size < 0.005:
+        if float(missedcleavages[missedcleavages > mc].size) / missedcleavages.size < 0.002:
             best_missedcleavages = mc
-    print 'NEW miscleavages = %s' % (best_missedcleavages, )
+    logger.info('NEW miscleavages = %s', best_missedcleavages)
     settings.set('search', 'number of missed cleavages', best_missedcleavages)
     return settings
 
 def fragment_mass_optimization(results, settings):
     settings = settings.copy()
-#    fragmassdif = np.array([get_fragment_mass_tol(res['spectrum'], str(res['candidates'][0][1]), settings)['fmt'] for res in results])
     fragmassdif = []
     for res in results:
         fragmassdif.extend(get_fragment_mass_tol(res['spectrum'], str(res['candidates'][0][1]), settings)['fmt'])
     fragmassdif = np.array(fragmassdif)
-    # step = FDbinSize(fragmassdif)
-    # lside, rside = 0, 1
-    # mt_h, _ = np.histogram(fragmassdif, bins=np.arange(lside, rside, step))
 
-    # for idx, mt in enumerate(mt_h):
-    #     if mt == 0:
-    #         mt_h = mt_h[:idx]
-    #         break
-#   threshold = mt_h.size * step
-#   fragmassdif = fragmassdif[fragmassdif <= threshold]
-    # best_frag_mt = max(fragmassdif[fragmassdif < scoreatpercentile(fragmassdif, 97.5)])
     best_frag_mt = scoreatpercentile(fragmassdif, 68) * 4    
 
-    print 'NEW FRAGMENT MASS TOLERANCE ppm = %s' % (best_frag_mt, )
+    logger.info('NEW FRAGMENT MASS TOLERANCE ppm = %s', best_frag_mt)
     settings.set('search', 'product accuracy ppm', best_frag_mt)
     settings.set('search', 'product accuracy unit', 'ppm')
     return settings
@@ -213,7 +213,7 @@ def rt_filtering(results, settings):
         seqs = newseqs
     RTexp = [float(x) for x in RTexp]
     if np.allclose(RTexp, 0):
-        print 'RT is missing. Skipping RT optimization.'
+        logger.warning('RT is missing. Skipping RT optimization.')
         return settings
     RC_def = achrom.RCs_gilar_rp
     xdict = {}
@@ -233,36 +233,38 @@ def rt_filtering(results, settings):
             if len(k) == 1: continue
             if k[-1] in '[]':
                 if k[-2] == '-':
-                    kk = ('-' + k[-2:]) if k[-1] == ']' else (k[-2:] + '-')
+                    kk = ('-' + k[1:-1]) if k[-1] == ']' else (k[:-1])
                 else:
                     kk = k[:-1]
             elif len(k) > 1:
                 kk = k
-            print k, '->', kk
-            RC_dict_new[v] = RC_dict_new[kk]
+            logger.debug('%s -> %s', k, kk)
+            if kk in RC_dict_new:
+                RC_dict_new[v] = RC_dict_new[kk]
+            else:
+                if kk[-1].isupper():
+                    kkk = kk[-1]
+                elif kk[-1] == '-':
+                    kkk = parser.std_nterm
+                elif kk[0] == '-':
+                    kkk = parser.std_cterm
+                RC_dict_new[v] = RC_dict_new.get(kkk, 0)
+                logger.info('No RC for %s, using %s or 0: %s', kk, kkk, RC_dict_new[v])
+
 
     RC_dict['aa'] = RC_dict_new
 
-    print RC_dict
+    logger.debug('RC dict: %s', RC_dict)
     rtexp = np.array([np.mean(x) for x in RTexp])
     rttheor = np.array([calculate_RT(pep, RC_dict, raise_no_mod=False)
         for pep in seqs])
     deltaRT = rtexp - rttheor
-    print aux.linear_regression(rtexp, rttheor)
-    # print 'deltaRT percentiles:', scoreatpercentile(deltaRT, [1, 25, 50, 75, 99])
-    
-    # h = FDbinSize(deltaRT)
-    # heights, edges = np.histogram(deltaRT, bins=np.arange(deltaRT.min(), deltaRT.max()+h, h))
-    best_RT_l = scoreatpercentile(deltaRT, 0.5)#min(massdif[massdif > scoreatpercentile(massdif, 0.5)])
-    best_RT_r = scoreatpercentile(deltaRT, 99.5)#max(massdif[massdif < scoreatpercentile(massdif, 99.5)])
+    logger.debug('Linear regression: %s', aux.linear_regression(rtexp, rttheor))
+    best_RT_l = scoreatpercentile(deltaRT, 0.05)
+    best_RT_r = scoreatpercentile(deltaRT, 99.95)
 
     def condition(spectrum, cand, _):
         rtd = spectrum['RT'] - calculate_RT(cand, RC_dict)
         return best_RT_l <= rtd <= best_RT_r
-        # b = np.digitize(spectrum['RT'] - calculate_RT(cand, RC_dict),
-        #         edges)
-
-        # return b and b < edges.size and heights[b-1]
-
     settings.set('scoring', 'condition', condition)
     return settings
