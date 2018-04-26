@@ -67,6 +67,7 @@ def run():
     parser.add_argument('file',     help='input .mzML or .mgf file with MS/MS spectra')
     parser.add_argument('-db',      help='path to protein fasta file')
     parser.add_argument('-cfg',     help='path to file with parameters')
+    parser.add_argument('-out',     help='output path')
     parser.add_argument('-punit',   help='precursor mass tolerance unit. Can be ppm or Da', type=str)
     parser.add_argument('-ptol',    help='precursor mass tolerance', type=float)
     parser.add_argument('-lptol',   help='*left precursor mass tolerance', type=float)
@@ -181,7 +182,11 @@ def run():
     _update(settings, 'modifications', 'maximum variable mods', args['maxmods'])
     _update(settings, 'modifications', 'protein nterm cleavage', args['ncleave'])
     _update(settings, 'modifications', 'protein cterm cleavage', args['ccleave'])
+    _update(settings, 'output', 'path', args['out'])
 
     inputfile = args['file']
 
     utils.write_output(inputfile, settings, main.process_file(inputfile, settings))
+
+if __name__ == '__main__':
+    run()
