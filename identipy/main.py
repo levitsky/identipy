@@ -2,7 +2,8 @@ import os
 from . import utils, peptide_centric
 from pyteomics import fasta
 import tempfile
-
+import logging
+logger = logging.getLogger(__name__)
 
 def process_file(fname, settings):
 
@@ -11,26 +12,26 @@ def process_file(fname, settings):
     mode = settings.get('input', 'decoy method')
     db = settings.get('input', 'database')
     if add_decoy and utils.is_db_target_only(db, prefix):
-        ft = tempfile.NamedTemporaryFile(mode='w')
+        ft = tempfile.NamedTemporaryFile(mode='w', delete=False)
         fasta.write_decoy_db(db, ft, mode=mode, prefix=prefix)
         ft.flush()
         settings.set('input', 'database', ft.name)
         settings.set('input', 'add decoy', 'no')
-
+        logger.debug('Temporary database: %s (%s)', ft.name, os.path.isfile(ft.name))
     stage1 = settings.get('misc', 'first stage')
     if stage1:
         return double_run(fname, settings, utils.import_(stage1))
     else:
-        ftype = fname.rsplit('.', 1)[-1].lower()
         utils.seen_target.clear()
         utils.seen_decoy.clear()
         return peptide_centric.process_peptides(fname, settings)
+        
 
 def double_run(fname, settings, stage1):
-    print '[double run] stage 1 starting ...'
+    logger.info('[double run] stage 1 starting ...')
     settings.set('misc', 'fast first stage', 1)
     new_settings = stage1(fname, settings)
-    print '[double run] stage 2 starting ...'
+    logger.info('[double run] stage 2 starting ...')
     new_settings.set('misc', 'fast first stage', 0)
     return process_file(fname, new_settings)
 
@@ -41,14 +42,14 @@ def settings(fname=None, default_name=os.path.join(
     """
     raw_config = utils.CustomRawConfigParser(dict_type=dict, allow_no_value=True)
     if default_name:
-        print 'Reading defaults from', default_name
+        logger.info('Reading defaults from %s', default_name)
         if not os.path.isfile(default_name):
-            print 'WARNING: FILE NOT FOUND:', default_name
+            logger.error('FILE NOT FOUND: %s', default_name)
         raw_config.read(default_name)
     if fname:
-        print 'Reading config from', fname
+        logger.info('Reading config from %s', fname)
         if not os.path.isfile(fname):
-            print 'WARNING: FILE NOT FOUND:', fname
+            logger.error('FILE NOT FOUND: %s', fname)
         raw_config.read(fname)
 
     acc_unit = raw_config.get('search', 'product accuracy unit')

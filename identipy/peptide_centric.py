@@ -5,24 +5,33 @@ import operator as op
 from bisect import bisect
 from pyteomics import parser, mass, fasta, auxiliary as aux, mgf, mzml
 from . import scoring, utils
+import logging
+logger = logging.getLogger(__name__)
+
 try:
     from pyteomics import cmass
 except ImportError:
-    print '[ Warning ] cmass could not be imported'
+    logger.warning('cmass could not be imported')
     cmass = mass
 
+try:
+    import pyximport; pyximport.install()
+    from cutils import theor_spectrum
+except:
+    from utils import theor_spectrum
+
+spectra = {}
+best_res = {}
+nmasses = {}
+t2s = {}
+charges = {}
 def prepare_peptide_processor(fname, settings):
     global spectra
     global nmasses
     global t2s
     global charges
     global best_res
-    spectra = {}
     best_res = {}
-    nmasses = {}
-    t2s = {}
-    charges = {}
-
     maxcharges = {}
     fcharge = settings.getint('scoring', 'maximum fragment charge')
     ch_range = range(settings.getint('search', 'minimum charge'),
@@ -30,7 +39,6 @@ def prepare_peptide_processor(fname, settings):
     for c in ch_range:
         maxcharges[c] = max(1, min(fcharge, c-1) if fcharge else c-1)
 
-    print 'Reading spectra ...'
 
     params = {}
     params['maxpeaks'] = settings.getint('scoring', 'maximum peaks')
@@ -52,22 +60,26 @@ def prepare_peptide_processor(fname, settings):
     params['dacc'] = settings.getfloat('input', 'deisotoping mass tolerance')
     params['deisotope'] = settings.getboolean('input', 'deisotope')
 
-    for spec in utils.iterate_spectra(fname):
-        ps = utils.preprocess_spectrum(spec, params)
-        if ps is not None:
-            t2s[utils.get_title(ps)] = ps
-            for m, c in utils.neutral_masses(ps, params):
-                effc = maxcharges[c]
-                nmasses.setdefault(effc, []).append(m)
-                spectra.setdefault(effc, []).append(ps)
-                charges.setdefault(effc, []).append(c)
-                ps.setdefault('nm', {})[c] = m
-    print sum(map(len, spectra.itervalues())), 'spectra pass quality criteria.'
-    for c in list(spectra):
-        i = np.argsort(nmasses[c])
-        nmasses[c] = np.array(nmasses[c])[i]
-        spectra[c] = np.array(spectra[c])[i]
-        charges[c] = np.array(charges[c])[i]
+    if not spectra:
+        logger.info('Reading spectra ...')
+        for spec in utils.iterate_spectra(fname):
+            ps = utils.preprocess_spectrum(spec, params)
+            if ps is not None:
+                t2s[utils.get_title(ps)] = ps
+                for m, c in utils.neutral_masses(ps, params):
+                    effc = maxcharges[c]
+                    nmasses.setdefault(effc, []).append(m)
+                    spectra.setdefault(effc, []).append(ps)
+                    charges.setdefault(effc, []).append(c)
+                    ps.setdefault('nm', {})[c] = m
+        logger.info('%s spectra pass quality criteria.', sum(map(len, spectra.itervalues())))
+        for c in list(spectra):
+            i = np.argsort(nmasses[c])
+            nmasses[c] = np.array(nmasses[c])[i]
+            spectra[c] = np.array(spectra[c])[i]
+            charges[c] = np.array(charges[c])[i]
+    else:
+        logger.info('Reusing %s spectra from previous run.', sum(map(len, spectra.itervalues())))
 
     utils.set_mod_dict(settings)
 
@@ -81,8 +93,9 @@ def prepare_peptide_processor(fname, settings):
     score = utils.import_(settings.get('scoring', 'score'))
     try:
         score_fast = utils.import_(settings.get('scoring', 'score') + '_fast')
-    except:
+    except Exception as e:
         score_fast = False
+        logging.debug('No fast score imported: %s', e)
     acc_l = settings.getfloat('search', 'precursor accuracy left')
     acc_r = settings.getfloat('search', 'precursor accuracy right')
     acc_frag = settings.getfloat('search', 'product accuracy')
@@ -115,13 +128,18 @@ def prepare_peptide_processor(fname, settings):
 
 def peptide_processor_iter_isoforms(peptide, **kwargs):
     nmods, maxmods = op.itemgetter('nmods', 'maxmods')(kwargs)
-    out = []
     if nmods and maxmods:
+        out = []
         for form in utils.custom_isoforms(peptide, variable_mods=nmods, maxmods=maxmods):
-            out.append(peptide_processor(form, **kwargs))
+            res = peptide_processor(form, **kwargs)
+            if res:
+                out.append(res)
+        if out:
+            return out
     else:
-        out.append(peptide_processor(peptide, **kwargs))
-    return out
+        res = peptide_processor(peptide, **kwargs)
+        if res:
+            return [res, ]
 
 
 def peptide_processor(peptide, **kwargs):
@@ -152,6 +170,7 @@ def peptide_processor(peptide, **kwargs):
         dm_l = acc_l * m / 1.0e6
         dm_r = acc_r * m / 1.0e6
     for c in spectra:
+
         if not rel:
             dm_l = acc_l * c
             dm_r = acc_r * c
@@ -165,7 +184,7 @@ def peptide_processor(peptide, **kwargs):
 
         if idx:
             cand_idx[c] = idx
-            theor[c], theoretical_set[c] = utils.theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=True, acc_frag=kwargs['acc_frag'])
+            theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=True, acc_frag=kwargs['acc_frag'])
 
     results = []
     for fc, ind in cand_idx.iteritems():
@@ -209,19 +228,19 @@ def peptide_processor(peptide, **kwargs):
                     results.append((sc, st, score, m, charges[fc][i], snp_label))
 
 
-    results.sort(reverse=True)
+    results.sort(reverse=True, key=op.itemgetter(0))
     # results = np.array(results, dtype=[('score', np.float32), ('title', np.str_, 30), ('spectrum', np.object_), ('info', np.object_)])
-    return seqm, results
+    if results:
+        return seqm, results
 
 def process_peptides(fname, settings):
-
     spec_results = defaultdict(dict)
     peps = utils.peptide_gen(settings)
     kwargs = prepare_peptide_processor(fname, settings)
     func = peptide_processor_iter_isoforms
     kwargs['min_matched'] = settings.getint('output', 'minimum matched')
     kwargs['snp'] = settings.getint('search', 'snp')
-    print 'Running the search ...'
+    logger.info('Running the search ...')
     n = settings.getint('performance', 'processes')
     leg = {}
     if settings.has_option('misc', 'legend'):
