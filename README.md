@@ -1,5 +1,15 @@
 **IdentiPy** is a search engine for bottom-up proteomics written in Python.
 
+# Citation #
+
+IdentiPy is described in this JPR paper: http://dx.doi.org/10.1021/acs.jproteome.7b00640
+
+Please cite it when using IdentiPy or its parts.
+
+# License #
+
+IdentiPy is published under the Apache 2.0 license.
+
 # How to install #
 
 ```
