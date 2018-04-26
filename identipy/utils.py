@@ -659,7 +659,6 @@ def import_(name):
     function name in identipy.scoring module.
     Return the function object."""
 
-    logger.info('Trying to import %s', name)
     try:
         mod, f = name.rsplit('.', 1)
         return getattr(__import__(mod, fromlist=[f]), f)
