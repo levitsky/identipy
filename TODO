@@ -1,7 +1,0 @@
- - enhance configparser with sane hashing and memoization
- - modifications
- - process all existing options
- - calculate e-values
- - output formatting
- - other modes than stored numpy arrays
- - auto-tuning of parameters
