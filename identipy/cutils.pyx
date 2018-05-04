@@ -24,7 +24,7 @@ cdef tuple ctheor_spectrum(str peptide, float acc_frag, tuple types,
     cdef int pl, charge, i, n, i_type, n_types
     cdef bint nterminal
     cdef str ion_type, maxpart, part
-    cdef float maxmass, part_mass
+    cdef float maxmass, part_mass, nterm_mass, cterm_mass
     cdef dict peaks, theoretical_set
     cdef dict aa_mass, ion_comp, mass_data
     cdef set theoretical_set_item, ions_scaled
@@ -33,6 +33,8 @@ cdef tuple ctheor_spectrum(str peptide, float acc_frag, tuple types,
     aa_mass = kwargs.get("aa_mass")
     ion_comp = kwargs.get("ion_comp")
     mass_data = kwargs.get("mass_data")
+    nterm_mass = kwargs.get('nterm_mass')
+    cterm_mass = kwargs.get('cterm_mass')
 
     peaks = {}
     theoretical_set = dict()
@@ -47,7 +49,7 @@ cdef tuple ctheor_spectrum(str peptide, float acc_frag, tuple types,
                 maxpart = <str>PySequence_GetSlice(peptide, 0, -1)
                 maxmass = fast_mass(
                     maxpart, ion_type, charge, mass_data, aa_mass,
-                    ion_comp)
+                    ion_comp) + (nterm_mass - 1.007825)
                 marr = np.zeros(pl, dtype=float)
                 marr[0] = maxmass
                 for i in range(1, pl):
@@ -58,7 +60,7 @@ cdef tuple ctheor_spectrum(str peptide, float acc_frag, tuple types,
                 maxpart = <str>PySequence_GetSlice(peptide, 1, pl + 2)
                 maxmass = fast_mass(
                     maxpart, ion_type, charge, mass_data, aa_mass,
-                    ion_comp)
+                    ion_comp) + (cterm_mass - 17.002735)
                 marr = np.zeros(pl, dtype=float)
                 marr[pl-1] = maxmass
                 for i in range(pl-2, -1, -1):
