@@ -3,9 +3,31 @@ from . import utils, peptide_centric
 from pyteomics import fasta
 import tempfile
 import logging
+import re
 logger = logging.getLogger(__name__)
 
 def process_file(fname, settings):
+
+    fmods = settings.get('modifications', 'fixed')
+    if fmods:
+        newfixed = []
+        for mod in re.split(r'[,;]\s*', fmods):
+            if mod.startswith('-'):
+                mod_label = mod[1:]
+                mass_change = settings.getfloat('modifications', mod_label)
+                prev_cterm_mass = settings.getfloat('modifications', 'protein cterm cleavage')
+                settings.set('modifications', 'protein cterm cleavage', prev_cterm_mass + mass_change)
+                settings.set('modifications', 'protein cterm cleavage', prev_cterm_mass + mass_change)
+            elif mod.endswith('-'):
+                mod_label = mod[:-1]
+                mass_change = settings.getfloat('modifications', mod_label)
+                prev_nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage')
+                settings.set('modifications', 'protein nterm cleavage', prev_nterm_mass + mass_change)
+            else:
+                newfixed.append(mod)
+    # settings.set('modifications', 'fixed', ','.join(newfixed))
+            # m, aa = parser._split_label(mod)
+            # aa_mass[aa] += settings.getfloat('modifications', m)
 
     add_decoy = settings.getboolean('input', 'add decoy')
     prefix = settings.get('input', 'decoy prefix')

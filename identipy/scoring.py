@@ -10,7 +10,8 @@ def simple_score(spectrum, peptide, settings):
     int_array = spectrum['intensity array']
     int_array = int_array / int_array.max() * 100
     charge = max(c for _, c in neutral_masses(spectrum, settings))
-    theor = theor_spectrum(peptide, maxcharge=charge, aa_mass=get_aa_mass(settings))
+    theor = theor_spectrum(peptide, maxcharge=charge, aa_mass=get_aa_mass(settings),
+        nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage'), cterm_mass=settings.getfloat('modifications', 'protein cterm cleavage'))
     fragments = np.concatenate(theor.values())
     if '__KDTree' not in spectrum:
         spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape(
@@ -33,7 +34,8 @@ def get_fragment_mass_tol(spectrum, peptide, settings):
     int_array = spectrum['intensity array']
     int_array = int_array / int_array.max() * 100
     charge = 1#max(1, max(c for _, c in neutral_masses(spectrum, settings)) - 1)
-    theor, _ = theor_spectrum(peptide, maxcharge=charge, aa_mass=get_aa_mass(settings), reshape=True, acc_frag=acc)
+    theor, _ = theor_spectrum(peptide, maxcharge=charge, aa_mass=get_aa_mass(settings), reshape=True, acc_frag=acc,
+        nterm_mass=settings.getfloat('modifications', 'protein nterm cleavage'), cterm_mass=settings.getfloat('modifications', 'protein cterm cleavage'))
     if '__KDTree' not in spectrum:
         spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape(
             (spectrum['m/z array'].size, 1)))

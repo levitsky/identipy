@@ -688,8 +688,9 @@ def get_aa_mass(settings):
     fmods = settings.get('modifications', 'fixed')
     if fmods:
         for mod in re.split(r'[,;]\s*', fmods):
-            m, aa = parser._split_label(mod)
-            aa_mass[aa] += settings.getfloat('modifications', m)
+            if '-' not in mod:
+                m, aa = parser._split_label(mod)
+                aa_mass[aa] += settings.getfloat('modifications', m)
     vmods = settings.get('modifications', 'variable')
     if vmods:
         leg = settings.get('misc', 'legend')
@@ -876,6 +877,15 @@ def write_pepxml(inputfile, settings, results):
     nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage')
     cterm_mass = settings.getfloat('modifications', 'protein cterm cleavage')
 
+    nterm_fixed = 0
+    cterm_fixed = 0
+
+    for mod in re.split(r'[,;]\s*', fmods):
+        if mod.startswith('-'):
+            cterm_fixed = settings.getfloat('modifications', 'protein cterm cleavage')
+        elif mod.endswith('-'):
+            nterm_fixed = settings.getfloat('modifications', 'protein nterm cleavage')
+
     with open(filename, 'w') as output:
         logger.info('Writing %s...', filename)
         line1 = '<?xml version="1.0" encoding="UTF-8"?>\n\
@@ -1056,6 +1066,12 @@ def write_pepxml(inputfile, settings, results):
                             aalist = [a[::-1] for a in parser.parse(mod_sequence[::-1], labels=labels)][::-1]
                         tmp4 = etree.Element('modification_info')
                         ntermmod = 0
+
+                        if nterm_fixed:
+                            tmp4.set('mod_nterm_mass', str(nterm_fixed))
+                        if cterm_fixed:
+                            tmp4.set('mod_cterm_mass', str(cterm_fixed))
+
                         for idx, aminoacid in enumerate(aalist):
                             if aminoacid in fmods or aminoacid in vmods:
                                 if aminoacid.endswith('-') and idx == 0:
