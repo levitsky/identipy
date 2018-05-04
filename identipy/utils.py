@@ -1,5 +1,6 @@
 import re
 from pyteomics import mass, electrochem as ec, auxiliary as aux, fasta, mzml, parser, mgf
+import pandas as pd
 import sys
 from itertools import combinations, islice
 from collections import defaultdict, Counter
@@ -1098,8 +1099,6 @@ def write_csv(inputfile, settings, results):
     df.to_csv(fname, index=False)
 
 def dataframe(inputfile, settings, results):
-    import pandas as pd
-
     results = list(get_output(results, settings))
     logger.info('Accumulated results: %s', len(results))
     ensure_decoy(settings)
