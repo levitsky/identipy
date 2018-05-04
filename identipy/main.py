@@ -17,7 +17,6 @@ def process_file(fname, settings):
                 mass_change = settings.getfloat('modifications', mod_label)
                 prev_cterm_mass = settings.getfloat('modifications', 'protein cterm cleavage')
                 settings.set('modifications', 'protein cterm cleavage', prev_cterm_mass + mass_change)
-                settings.set('modifications', 'protein cterm cleavage', prev_cterm_mass + mass_change)
             elif mod.endswith('-'):
                 mod_label = mod[:-1]
                 mass_change = settings.getfloat('modifications', mod_label)
