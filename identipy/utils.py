@@ -1,6 +1,5 @@
 import re
 from pyteomics import mass, electrochem as ec, auxiliary as aux, fasta, mzml, parser, mgf
-import pandas as pd
 import sys
 from itertools import combinations, islice
 from collections import defaultdict, Counter
@@ -839,13 +838,48 @@ def get_shifts_and_pime(settings):
         shifts_and_pime += [x + (i + 1) * dM for x in shifts]
     return shifts_and_pime
     
+def build_pept_prot(settings, results):
+    mc = settings.getint('search', 'number of missed cleavages')
+    minlen = settings.getint('search', 'peptide minimum length')
+    maxlen = settings.getint('search', 'peptide maximum length')
+    prefix = settings.get('input', 'decoy prefix')
+    snp = settings.getint('search', 'snp')
+    pept_prot = {}
+    prots = {}
+    peptides = set()
+    pept_neighbors = {}
+    enzyme = settings.get('search', 'enzyme')
+    for x in results:
+        peptides.update(re.sub(r'[^A-Z]', '', normalize_mods(x['candidates'][i][1], settings)) for i in range(
+            1 or len(x['candidates'])))
+    seen_target.clear()
+    seen_decoy.clear()
+    for desc, prot in prot_gen(settings):
+        dbinfo = desc.split(' ')[0]
+        prots[dbinfo] = desc
+        for pep, startposition in prot_peptides(prot, get_enzyme(enzyme), mc, minlen, maxlen, desc.startswith(prefix), dont_use_seen_peptides=True, snp=snp, desc=desc, position=True):
+            if snp:
+                if 'snp' not in pep:
+                    seqm = pep
+                else:
+                    tmp = pep.split('snp')
+                    seqm = tmp[0] + tmp[1].split('at')[0].split('to')[-1] + tmp[2]
+            else:
+                seqm = pep
+            if seqm in peptides:
+                pept_prot.setdefault(seqm, []).append(dbinfo)
+                pept_neighbors[seqm] = (prot[startposition-1] if startposition != 0 else 'N/A',
+                        prot[startposition+len(seqm)] if startposition + len(seqm) < len(prot) else 'N/A')
+    return pept_prot, prots, pept_neighbors
+
+def get_outpath(inputfile, settings, suffix):
+    outpath = settings.get('output', 'path')
+    filename = os.path.join(outpath, os.path.splitext(os.path.basename(inputfile))[0] + os.path.extsep + suffix)
+    return filename
+
 def write_pepxml(inputfile, settings, results):
     from lxml import etree
     from time import strftime
-    from os import path
-
-    outpath = settings.get('output', 'path')
-    logger.debug('Output path: %s', outpath)
 
     set_mod_dict(settings)
     db = settings.get('input', 'database')
@@ -853,20 +887,16 @@ def write_pepxml(inputfile, settings, results):
 
 #   print repr(outpath)
 #   print repr(inputfile)
-    filename = path.join(outpath, path.splitext(path.basename(inputfile))[0] + path.extsep + 'pep' + path.extsep + 'xml')
     enzyme = settings.get('search', 'enzyme')
-    mc = settings.getint('search', 'number of missed cleavages')
-    minlen = settings.getint('search', 'peptide minimum length')
-    maxlen = settings.getint('search', 'peptide maximum length')
-    prefix = settings.get('input', 'decoy prefix')
     search_engine = 'IdentiPy'
     database = settings.get('input', 'database')
     missed_cleavages = settings.getint('search', 'number of missed cleavages')
     fmods = settings.get('modifications', 'fixed')
     snp = settings.getint('search', 'snp')
+    filename = get_outpath(inputfile, settings, 'pep.xml')
 
     with open(filename, 'w') as output:
-        logger.info('Writing %s...', filename)
+        logger.info('Writing %s ...', filename)
         line1 = '<?xml version="1.0" encoding="UTF-8"?>\n\
         <?xml-stylesheet type="text/xsl" href="pepXML_std.xsl"?>\n'
         output.write(line1)
@@ -922,37 +952,13 @@ def write_pepxml(inputfile, settings, results):
         results = [x for x in results if x['candidates'].size]
         results = list(get_output(results, settings))
         logger.info('Accumulated results: %s', len(results))
-        pept_prot = {}
-        prots = {}
-        peptides = set()
-        pept_neighbors = {}
-        for x in results:
-            peptides.update(re.sub(r'[^A-Z]', '', normalize_mods(x['candidates'][i][1], settings)) for i in range(
-                1 or len(x['candidates'])))
-        seen_target.clear()
-        seen_decoy.clear()
-        for desc, prot in prot_gen(settings):
-            dbinfo = desc.split(' ')[0]
-            prots[dbinfo] = desc
-            for pep, startposition in prot_peptides(prot, get_enzyme(enzyme), mc, minlen, maxlen, desc.startswith(prefix), dont_use_seen_peptides=True, snp=snp, desc=desc, position=True):
-                if snp:
-                    if 'snp' not in pep:
-                        seqm = pep
-                    else:
-                        tmp = pep.split('snp')
-                        seqm = tmp[0] + tmp[1].split('at')[0].split('to')[-1] + tmp[2]
-                else:
-                    seqm = pep
-                if seqm in peptides:
-                    pept_prot.setdefault(seqm, []).append(dbinfo)
-                    pept_neighbors[seqm] = (prot[startposition-1] if startposition != 0 else 'N/A',
-                            prot[startposition+len(seqm)] if startposition + len(seqm) < len(prot) else 'N/A')
+        pept_prot, prots, pept_neighbors = build_pept_prot(settings, results)
         if settings.has_option('misc', 'aa_mass'):
             aa_mass = settings.get('misc', 'aa_mass')
         else:
             aa_mass = get_aa_mass(settings)
         vmods = set()
-        variablemods =  settings.get('modifications', 'variable')
+        variablemods = settings.get('modifications', 'variable')
         if variablemods:
             for k, v in variablemods.items():
                 for aa in v:
@@ -1095,21 +1101,23 @@ def write_pepxml(inputfile, settings, results):
 
 def write_csv(inputfile, settings, results):
     df = dataframe(inputfile, settings, results)
-    fname = get_outpath(inputfile, settings, '.csv')
+    fname = get_outpath(inputfile, settings, 'csv')
+    logger.info('Writing %s ...', fname)
     df.to_csv(fname, index=False)
 
 def dataframe(inputfile, settings, results):
+    import pandas as pd
     results = list(get_output(results, settings))
     logger.info('Accumulated results: %s', len(results))
-    ensure_decoy(settings)
-    pept_prot, prots = build_pept_prot(settings, results)
+#   ensure_decoy(settings)
+    pept_prot, prots, pept_neighbors = build_pept_prot(settings, results)
     if settings.has_option('misc', 'aa_mass'):
         aa_mass = settings.get('misc', 'aa_mass')
     else:
         aa_mass = get_aa_mass(settings)
 
     vmods = set()
-    variablemods =  settings.get('modifications', 'variable')
+    variablemods = settings.get('modifications', 'variable')
     if variablemods:
         for k, v in variablemods.items():
             for aa in v:
@@ -1157,7 +1165,7 @@ def dataframe(inputfile, settings, results):
 #                   row['Description'] = protein_descr
 
                     row.append(sum(v.sum() for v in match.values()))
-                    row.append(candidate[4]['total_matched'])
+                    row.append((len(sequence) - 1) * 2)
                     neutral_mass_theor = cmass.fast_mass(sequence, aa_mass=aa_mass)
                     row.append(neutral_mass_theor)
                     row.append(candidate[4]['mzdiff']['Da'])
