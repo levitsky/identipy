@@ -157,7 +157,10 @@ def peptide_processor(peptide, **kwargs):
         seqm = peptide
         aachange_pos = False
         snp_label = False
-    m = cmass.fast_mass(seqm, aa_mass=kwargs['aa_mass'])
+    nterm_mass = kwargs.get('nterm_mass')
+    cterm_mass = kwargs.get('cterm_mass')
+    m = utils.custom_mass(seqm, aa_mass=kwargs['aa_mass'], nterm_mass = nterm_mass, cterm_mass = cterm_mass)
+    # m = cmass.fast_mass(seqm, aa_mass=kwargs['aa_mass']) + (nterm_mass - 1.007825) + (cterm_mass - 17.002735)
     rel = kwargs['rel']
     acc_l = kwargs['acc_l']
     acc_r = kwargs['acc_r']
@@ -184,7 +187,7 @@ def peptide_processor(peptide, **kwargs):
 
         if idx:
             cand_idx[c] = idx
-            theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=True, acc_frag=kwargs['acc_frag'])
+            theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=True, acc_frag=kwargs['acc_frag'], nterm_mass = nterm_mass, cterm_mass = cterm_mass)
 
     results = []
     for fc, ind in cand_idx.iteritems():
@@ -240,6 +243,8 @@ def process_peptides(fname, settings):
     func = peptide_processor_iter_isoforms
     kwargs['min_matched'] = settings.getint('output', 'minimum matched')
     kwargs['snp'] = settings.getint('search', 'snp')
+    kwargs['nterm_mass'] = settings.getfloat('modifications', 'protein nterm cleavage')
+    kwargs['cterm_mass'] = settings.getfloat('modifications', 'protein cterm cleavage')
     logger.info('Running the search ...')
     n = settings.getint('performance', 'processes')
     leg = {}

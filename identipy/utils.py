@@ -24,6 +24,9 @@ try:
 except:
     import customparser as cparser
 
+def custom_mass(sequence, nterm_mass, cterm_mass, **kwargs):
+    return cmass.fast_mass(sequence, **kwargs) + (nterm_mass - 1.007825) + (cterm_mass - 17.002735)
+
 def get_RCs(sequences, RTs, lcp = -0.21,
             term_aa = False, **kwargs):
 
@@ -564,7 +567,13 @@ def get_info(spectrum, result, settings, aa_mass=None):
         params['max_ucharge'] = params['maxcharge']
 
     masses, states = zip(*neutral_masses(spectrum, params))
-    idx = find_nearest(masses, cmass.fast_mass(str(result['candidates'][0][1]), aa_mass=aa_mass))
+    # idx = find_nearest(masses, cmass.fast_mass(str(result['candidates'][0][1]), aa_mass=aa_mass))
+
+
+    nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage')
+    cterm_mass = settings.getfloat('modifications', 'protein cterm cleavage')
+
+    idx = find_nearest(masses, custom_mass(str(result['candidates'][0][1]), aa_mass=aa_mass, nterm_mass=nterm_mass, cterm_mass=cterm_mass))
     return (masses[idx], states[idx], RT)
 
 
@@ -580,14 +589,14 @@ def theor_spectrum(peptide, acc_frag, types=('b', 'y'), maxcharge=None, reshape=
             nterminal = ion_type[0] in 'abc'
             if nterminal:
                 maxpart = peptide[:-1]
-                maxmass = cmass.fast_mass(maxpart, ion_type=ion_type, charge=charge, **kwargs)
+                maxmass = cmass.fast_mass(maxpart, ion_type=ion_type, charge=charge, **kwargs) + (kwargs.get('nterm_mass') - 1.007825)
                 marr = np.zeros((pl, ), dtype=float)
                 marr[0] = maxmass
                 for i in range(1, pl):
                     marr[i] = marr[i-1] - kwargs['aa_mass'][maxpart[-i]]/charge
             else:
                 maxpart = peptide[1:]
-                maxmass = cmass.fast_mass(maxpart, ion_type=ion_type, charge=charge, **kwargs)
+                maxmass = cmass.fast_mass(maxpart, ion_type=ion_type, charge=charge, **kwargs) + (kwargs.get('cterm_mass') - 17.002735)
                 marr = np.zeros((pl, ), dtype=float)
                 marr[pl-1] = maxmass
                 for i in range(pl-2, -1, -1):
@@ -695,10 +704,10 @@ def get_aa_mass(settings):
                     aa_mass[mod+aa] = aa_mass[mod] + aa_mass[aa]
     return aa_mass
 
-def cand_charge(result):
-    mz = result['spectrum']['params']['pepmass'][0]
-    m = np.array(map(lambda x: cmass.fast_mass(str(x)), result['candidates']['seq']))
-    return np.round(m/mz).astype(np.int8)
+# def cand_charge(result):
+#     mz = result['spectrum']['params']['pepmass'][0]
+#     m = np.array(map(lambda x: cmass.fast_mass(str(x)), result['candidates']['seq']))
+#     return np.round(m/mz).astype(np.int8)
 
 def multimap(n, func, it, **kw):
     if n == 0:
@@ -864,6 +873,8 @@ def write_pepxml(inputfile, settings, results):
     missed_cleavages = settings.getint('search', 'number of missed cleavages')
     fmods = settings.get('modifications', 'fixed')
     snp = settings.getint('search', 'snp')
+    nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage')
+    cterm_mass = settings.getfloat('modifications', 'protein cterm cleavage')
 
     with open(filename, 'w') as output:
         logger.info('Writing %s...', filename)
@@ -1016,7 +1027,8 @@ def write_pepxml(inputfile, settings, results):
                         tmp3.set('num_tot_proteins', str(num_tot_proteins))
                         tmp3.set('num_matched_ions', str(sum(v.sum() for v in match.values())))
                         tmp3.set('tot_num_ions', str((len(sequence) - 1) * 2))
-                        neutral_mass_theor = cmass.fast_mass(sequence, aa_mass=aa_mass)
+                        neutral_mass_theor = custom_mass(sequence, aa_mass=aa_mass, nterm_mass = nterm_mass, cterm_mass = cterm_mass)
+                        # neutral_mass_theor = cmass.fast_mass(sequence, aa_mass=aa_mass)
                         tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
                         tmp3.set('massdiff', str(candidate[4]['mzdiff']['Da']))
                         tmp3.set('num_tol_term', '2')  # ???
@@ -1107,6 +1119,9 @@ def dataframe(inputfile, settings, results):
         aa_mass = settings.get('misc', 'aa_mass')
     else:
         aa_mass = get_aa_mass(settings)
+    
+    nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage')
+    cterm_mass = settings.getfloat('modifications', 'protein cterm cleavage')
 
     vmods = set()
     variablemods =  settings.get('modifications', 'variable')
@@ -1158,7 +1173,8 @@ def dataframe(inputfile, settings, results):
 
                     row.append(sum(v.sum() for v in match.values()))
                     row.append(candidate[4]['total_matched'])
-                    neutral_mass_theor = cmass.fast_mass(sequence, aa_mass=aa_mass)
+                    neutral_mass_theor = custom_mass(sequence, aa_mass=aa_mass, nterm_mass = nterm_mass, cterm_mass = cterm_mass)
+                    # neutral_mass_theor = cmass.fast_mass(sequence, aa_mass=aa_mass)
                     row.append(neutral_mass_theor)
                     row.append(candidate[4]['mzdiff']['Da'])
 #                   row['num_tol_term'] = '2')  # ???)
