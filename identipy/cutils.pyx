@@ -20,7 +20,7 @@ print(dtype_t)
 @cython.boundscheck(False)
 @cython.wraparound(True)
 cdef tuple ctheor_spectrum(str peptide, float acc_frag, tuple types,
-                           int maxcharge, bint reshape, dict kwargs):
+                           int maxcharge, bint reshape, float nterm_mass, float cterm_mass, dict kwargs):
     cdef int pl, charge, i, n, i_type, n_types
     cdef bint nterminal
     cdef str ion_type, maxpart, part
@@ -47,7 +47,7 @@ cdef tuple ctheor_spectrum(str peptide, float acc_frag, tuple types,
                 maxpart = <str>PySequence_GetSlice(peptide, 0, -1)
                 maxmass = fast_mass(
                     maxpart, ion_type, charge, mass_data, aa_mass,
-                    ion_comp)
+                    ion_comp) + (nterm_mass - 1.007825)
                 marr = np.zeros(pl, dtype=float)
                 marr[0] = maxmass
                 for i in range(1, pl):
@@ -58,7 +58,7 @@ cdef tuple ctheor_spectrum(str peptide, float acc_frag, tuple types,
                 maxpart = <str>PySequence_GetSlice(peptide, 1, pl + 2)
                 maxmass = fast_mass(
                     maxpart, ion_type, charge, mass_data, aa_mass,
-                    ion_comp)
+                    ion_comp) + (cterm_mass - 17.002735)
                 marr = np.zeros(pl, dtype=float)
                 marr[pl-1] = maxmass
                 for i in range(pl-2, -1, -1):
@@ -85,7 +85,7 @@ cdef tuple ctheor_spectrum(str peptide, float acc_frag, tuple types,
     return peaks, theoretical_set
 
 
-def theor_spectrum(peptide, acc_frag, types=('b', 'y'), maxcharge=None, reshape=False, **kwargs):
+def theor_spectrum(peptide, acc_frag, nterm_mass, cterm_mass, types=('b', 'y'), maxcharge=None, reshape=False, **kwargs):
     if not maxcharge:
         maxcharge = 1 + int(ec.charge(peptide, pH=2))
-    return ctheor_spectrum(peptide, acc_frag, tuple(types), maxcharge, reshape, kwargs)
+    return ctheor_spectrum(peptide, acc_frag, nterm_mass, cterm_mass, tuple(types), maxcharge, reshape, kwargs)
