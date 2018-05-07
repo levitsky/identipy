@@ -577,7 +577,7 @@ def get_info(spectrum, result, settings, aa_mass=None):
     return (masses[idx], states[idx], RT)
 
 
-def theor_spectrum(peptide, acc_frag, types=('b', 'y'), maxcharge=None, reshape=False, **kwargs):
+def theor_spectrum(peptide, acc_frag, nterm_mass, cterm_mass, types=('b', 'y'), maxcharge=None, reshape=False, **kwargs):
     peaks = {}
     theoretical_set = dict()#defaultdict(set)#set()
     # theoretical_set = set()
@@ -589,14 +589,14 @@ def theor_spectrum(peptide, acc_frag, types=('b', 'y'), maxcharge=None, reshape=
             nterminal = ion_type[0] in 'abc'
             if nterminal:
                 maxpart = peptide[:-1]
-                maxmass = cmass.fast_mass(maxpart, ion_type=ion_type, charge=charge, **kwargs) + (kwargs.get('nterm_mass') - 1.007825)
+                maxmass = cmass.fast_mass(maxpart, ion_type=ion_type, charge=charge, **kwargs) + (nterm_mass - 1.007825)
                 marr = np.zeros((pl, ), dtype=float)
                 marr[0] = maxmass
                 for i in range(1, pl):
                     marr[i] = marr[i-1] - kwargs['aa_mass'][maxpart[-i]]/charge
             else:
                 maxpart = peptide[1:]
-                maxmass = cmass.fast_mass(maxpart, ion_type=ion_type, charge=charge, **kwargs) + (kwargs.get('cterm_mass') - 17.002735)
+                maxmass = cmass.fast_mass(maxpart, ion_type=ion_type, charge=charge, **kwargs) + (cterm_mass - 17.002735)
                 marr = np.zeros((pl, ), dtype=float)
                 marr[pl-1] = maxmass
                 for i in range(pl-2, -1, -1):
