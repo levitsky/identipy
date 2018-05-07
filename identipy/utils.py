@@ -1131,9 +1131,9 @@ def write_pepxml(inputfile, settings, results):
 
 def write_csv(inputfile, settings, results):
     df = dataframe(inputfile, settings, results)
-    fname = get_outpath(inputfile, settings, 'csv')
+    fname = get_outpath(inputfile, settings, 'tsv')
     logger.info('Writing %s ...', fname)
-    df.to_csv(fname, index=False)
+    df.to_csv(fname, index=False, sep='\t')
 
 def dataframe(inputfile, settings, results):
     results = list(get_output(results, settings))
@@ -1231,7 +1231,7 @@ def dataframe(inputfile, settings, results):
 
 
 def write_output(inputfile, settings, results):
-    formats = {'pepxml': write_pepxml, 'csv': write_csv}
+    formats = {'pepxml': write_pepxml, 'csv': write_csv, 'tsv': write_csv}
     of = settings.get('output', 'format')
     writer = formats[re.sub(r'[^a-z]', '', of.lower())]
 
