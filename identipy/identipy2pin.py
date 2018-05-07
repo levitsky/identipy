@@ -88,7 +88,12 @@ def prepare_dataframe(infile_path, decoy_prefix='DECOY_', use_rt=1):
     df1['Label'] = df1['decoy'].apply(getlabel)
     df1['SpecId'] = df1['index'] + 1
     df1['ScanNr'] = df1['index'] + 1
-    df1['Peptide'] = df1['peptide'].apply(lambda x: 'K.' + x + '.K')
+    try:
+        prev_aa = df1['peptide_prev_aa'][0]
+        next_aa = df1['peptide_next_aa'][0]
+        df1['Peptide'] = df1['peptide'].apply(lambda x: prev_aa + '.' + x + '.' + next_aa)
+    except:
+        df1['Peptide'] = df1['peptide'].apply(lambda x: 'K.' + x + '.K')
     df1['Proteins'] = df1['protein']
     
     return df1
