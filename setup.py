@@ -23,5 +23,6 @@ setup(
                         'Topic :: Scientific/Engineering :: Bio-Informatics',
                         'Topic :: Software Development :: Libraries'],
     license          = 'License :: OSI Approved :: Apache Software License',
-    entry_points     = {'console_scripts': ['identipy = identipy.cli:run']}
+    entry_points     = {'console_scripts': ['identipy = identipy.cli:run',
+                                            'identipy2pin = identipy.identipy2pin:run']}
     )
