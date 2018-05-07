@@ -20,11 +20,11 @@ print(dtype_t)
 @cython.boundscheck(False)
 @cython.wraparound(True)
 cdef tuple ctheor_spectrum(str peptide, float acc_frag, tuple types,
-                           int maxcharge, bint reshape, dict kwargs):
+                           int maxcharge, bint reshape, float nterm_mass, float cterm_mass, dict kwargs):
     cdef int pl, charge, i, n, i_type, n_types
     cdef bint nterminal
     cdef str ion_type, maxpart, part
-    cdef float maxmass, part_mass, nterm_mass, cterm_mass
+    cdef float maxmass, part_mass
     cdef dict peaks, theoretical_set
     cdef dict aa_mass, ion_comp, mass_data
     cdef set theoretical_set_item, ions_scaled
@@ -33,8 +33,6 @@ cdef tuple ctheor_spectrum(str peptide, float acc_frag, tuple types,
     aa_mass = kwargs.get("aa_mass")
     ion_comp = kwargs.get("ion_comp")
     mass_data = kwargs.get("mass_data")
-    nterm_mass = kwargs.get('nterm_mass')
-    cterm_mass = kwargs.get('cterm_mass')
 
     peaks = {}
     theoretical_set = dict()
@@ -87,7 +85,7 @@ cdef tuple ctheor_spectrum(str peptide, float acc_frag, tuple types,
     return peaks, theoretical_set
 
 
-def theor_spectrum(peptide, acc_frag, types=('b', 'y'), maxcharge=None, reshape=False, **kwargs):
+def theor_spectrum(peptide, acc_frag, nterm_mass, cterm_mass, types=('b', 'y'), maxcharge=None, reshape=False, **kwargs):
     if not maxcharge:
         maxcharge = 1 + int(ec.charge(peptide, pH=2))
-    return ctheor_spectrum(peptide, acc_frag, tuple(types), maxcharge, reshape, kwargs)
+    return ctheor_spectrum(peptide, acc_frag, nterm_mass, cterm_mass, tuple(types), maxcharge, reshape, kwargs)
