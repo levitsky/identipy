@@ -19,8 +19,8 @@ print(dtype_t)
 @cython.cdivision(True)
 @cython.boundscheck(False)
 @cython.wraparound(True)
-cdef tuple ctheor_spectrum(str peptide, float acc_frag, tuple types,
-                           int maxcharge, bint reshape, float nterm_mass, float cterm_mass, dict kwargs):
+cdef tuple ctheor_spectrum(str peptide, float acc_frag, float nterm_mass, float cterm_mass, tuple types,
+                           int maxcharge, bint reshape, dict kwargs):
     cdef int pl, charge, i, n, i_type, n_types
     cdef bint nterminal
     cdef str ion_type, maxpart, part
