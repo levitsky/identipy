@@ -259,9 +259,9 @@ def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_
                     if snp == 1:
                         for ff, seq_new in custom_snp(f, startposition):
                             if not seq_new:
-                                yield ff if not position else (f, startposition)
-                            if seq_new not in seen_decoy and seq_new not in seen_target:
-                                yield ff if not position else (f, startposition)
+                                yield ff if not position else (ff, startposition)
+                            else:
+                                yield ff if not position else (ff, startposition)
                     else:
                         yield f if not position else (f, startposition)
                 else:
@@ -273,9 +273,9 @@ def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_
                         if snp == 1:
                             for ff, seq_new in custom_snp(f, startposition):
                                 if not seq_new:
-                                    yield ff if not position else (f, startposition)
+                                    yield ff if not position else (ff, startposition)
                                 if seq_new not in seen_decoy and seq_new not in seen_target:
-                                    yield ff if not position else (f, startposition)
+                                    yield ff if not position else (ff, startposition)
                         elif snp == 2:
                             if desc and startposition <= pos <= startposition + plen:
                                 if len(aach) == 3 and aach[0] in parser.std_amino_acids and aach[2] in parser.std_amino_acids:
