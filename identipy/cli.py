@@ -1,4 +1,3 @@
-from . import main, utils
 import argparse
 import string
 import logging.config
@@ -31,6 +30,7 @@ LOGGING = {
 }
 
 logging.config.dictConfig(LOGGING)
+from . import main, utils
 
 
 def get_label(modmass, labels):

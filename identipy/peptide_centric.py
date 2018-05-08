@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 try:
     from pyteomics import cmass
 except ImportError:
-    logger.warning('cmass could not be imported')
+#   logger.warning('cmass could not be imported')
     cmass = mass
 
 try:
