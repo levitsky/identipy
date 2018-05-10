@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 try:
     from pyteomics import cmass
 except ImportError:
+    logger.warning('pyteomics.cythonize not found. It is highly recommended for good performance.')
     cmass = mass
 try:
     import pyximport; pyximport.install()
@@ -295,7 +296,8 @@ def custom_snp(peptide, startposition):
         for aa in parser.std_amino_acids:
             if aa != 'L' and aa != peptide[j] and not (aa == 'I' and peptide[j] == 'L'):
                 aa_label = 'snp%sto%sat%ssnp' % (peptide[j], aa, str(j + startposition))
-                yield peptide[:j] + aa_label + peptide[j+1:], peptide[:j] + aa + peptide[j+1:]
+                out = peptide[:j] + aa_label + peptide[j+1:], peptide[:j] + aa + peptide[j+1:]
+                yield out
         j -= 1
 
 def normalize_mods(sequence, settings):
@@ -1139,6 +1141,7 @@ def dataframe(inputfile, settings, results):
     results = list(get_output(results, settings))
     logger.info('Accumulated results: %s', len(results))
 #   ensure_decoy(settings)
+    set_mod_dict(settings)
     pept_prot, prots, pept_neighbors = build_pept_prot(settings, results)
     if settings.has_option('misc', 'aa_mass'):
         aa_mass = settings.get('misc', 'aa_mass')
