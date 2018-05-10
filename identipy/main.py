@@ -6,27 +6,21 @@ import logging
 import re
 logger = logging.getLogger(__name__)
 
-def process_file(fname, settings):
-
-    fmods = settings.get('modifications', 'fixed')
-    if fmods:
-        newfixed = []
-        for mod in re.split(r'[,;]\s*', fmods):
-            if mod.startswith('-'):
-                mod_label = mod[1:]
-                mass_change = settings.getfloat('modifications', mod_label)
-                prev_cterm_mass = settings.getfloat('modifications', 'protein cterm cleavage')
-                settings.set('modifications', 'protein cterm cleavage', prev_cterm_mass + mass_change)
-            elif mod.endswith('-'):
-                mod_label = mod[:-1]
-                mass_change = settings.getfloat('modifications', mod_label)
-                prev_nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage')
-                settings.set('modifications', 'protein nterm cleavage', prev_nterm_mass + mass_change)
-            else:
-                newfixed.append(mod)
-    # settings.set('modifications', 'fixed', ','.join(newfixed))
-            # m, aa = parser._split_label(mod)
-            # aa_mass[aa] += settings.getfloat('modifications', m)
+def process_file(fname, settings, initial_run=True):
+    if initial_run:
+        fmods = settings.get('modifications', 'fixed')
+        if fmods:
+            for mod in re.split(r'[,;]\s*', fmods):
+                if initial_run and mod.startswith('-'):
+                    mod_label = mod[1:]
+                    mass_change = settings.getfloat('modifications', mod_label)
+                    prev_cterm_mass = settings.getfloat('modifications', 'protein cterm cleavage')
+                    settings.set('modifications', 'protein cterm cleavage', prev_cterm_mass + mass_change)
+                elif initial_run and  mod.endswith('-'):
+                    mod_label = mod[:-1]
+                    mass_change = settings.getfloat('modifications', mod_label)
+                    prev_nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage')
+                    settings.set('modifications', 'protein nterm cleavage', prev_nterm_mass + mass_change)
 
     add_decoy = settings.getboolean('input', 'add decoy')
     prefix = settings.get('input', 'decoy prefix')
@@ -54,7 +48,7 @@ def double_run(fname, settings, stage1):
     new_settings = stage1(fname, settings)
     logger.info('[double run] stage 2 starting ...')
     new_settings.set('misc', 'fast first stage', 0)
-    return process_file(fname, new_settings)
+    return process_file(fname, new_settings, initial_run=False)
 
 
 def settings(fname=None, default_name=os.path.join(
