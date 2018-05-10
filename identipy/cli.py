@@ -185,11 +185,12 @@ def run():
     _update(settings, 'modifications', 'protein nterm cleavage', args['ncleave'])
     _update(settings, 'modifications', 'protein cterm cleavage', args['ccleave'])
     _update(settings, 'output', 'path', args['out'])
-    if args['at'] == 'yes':
-        ao_setting = 'identipy.extras.optimization'
-    else:
-        ao_setting = ''
-    _update(settings, 'misc', 'first stage', ao_setting)
+    if args['at']:
+        if args['at'] == 'yes':
+            ao_setting = 'identipy.extras.optimization'
+        elif args['at'] == 'no':
+            ao_setting = ''
+        _update(settings, 'misc', 'first stage', ao_setting)
     _update(settings, 'optimization', 'increase precursor mass tolerance', args['pwide'])
 
 
