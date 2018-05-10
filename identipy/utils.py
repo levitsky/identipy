@@ -1141,6 +1141,7 @@ def dataframe(inputfile, settings, results):
     results = list(get_output(results, settings))
     logger.info('Accumulated results: %s', len(results))
 #   ensure_decoy(settings)
+    set_mod_dict(settings)
     pept_prot, prots, pept_neighbors = build_pept_prot(settings, results)
     if settings.has_option('misc', 'aa_mass'):
         aa_mass = settings.get('misc', 'aa_mass')
