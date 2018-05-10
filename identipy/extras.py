@@ -53,7 +53,7 @@ def optimization(fname, settings):
     if right < 100 and wide:
         settings.set('search', 'precursor accuracy right', 100)
     settings.set('search', 'precursor accuracy unit', 'ppm')
-    results = process_file(fname, settings)
+    results = process_file(fname, settings, initial_run=False)
     filtered = get_subset(results, settings, fdr=0.01)
     logger.info('%s PSMs with 1%% FDR.', len(filtered))
     if len(filtered) < 50:
