@@ -208,7 +208,9 @@ def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False):
         dist, ind = spectrum['__KDTree'].query(fragments, distance_upper_bound=acc)
         mask1 = (dist != np.inf)
         if acc_ppm:
-            mask2 = (dist / spectrum['m/z array'][ind] * 1e6 <= acc_ppm)
+            nacc = np.where(dist[mask1] / mz_array[ind[mask1]] * 1e6 > acc_ppm)[0]
+            mask2 = mask1.copy()
+            mask2[nacc] = False
         else:
             mask2 = mask1
         nmatched = mask2.sum()
@@ -220,7 +222,7 @@ def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False):
             score += sumi / spectrum['norm']
             dist_all.extend(dist[mask2])
         match[ion] = mask2
-        match2[ion] = mask1
+        match2[ion] = mask2
     if not total_matched:
         return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
     if position:
