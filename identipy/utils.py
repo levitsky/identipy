@@ -309,14 +309,14 @@ def normalize_mods(sequence, settings):
                     sequence = sequence.replace(char, ''.join(leg[char][:2]))
     return sequence
 
-def custom_isoforms(peptide, variable_mods, maxmods=2, nterm=False, cterm=False):
+def custom_isoforms(peptide, variable_mods, maxmods=2, nterm=False, cterm=False, snp=False):
     if not variable_mods:
         yield peptide
     else:
         to_char = variable_mods[-1][0]
         from_char = variable_mods[-1][1]
         term = variable_mods[-1][2]
-        sites = [s[0] for s in enumerate(peptide) if (from_char == '-' or s[1] == from_char) and (not term or (term == '[' and s[0] == 0) or (term == ']' and s[0] == len(peptide)-1))]
+        sites = [s[0] for s in enumerate(peptide) if (not snp or (s[0] - 4 < 0 or peptide[s[0]-4:s[0]-1] != 'snp')) and (from_char == '-' or s[1] == from_char) and (not term or (term == '[' and s[0] == 0) or (term == ']' and s[0] == len(peptide)-1))]
         for m in range(maxmods+1):
             for comb in combinations(sites, m):
                 flag = 0
@@ -342,7 +342,7 @@ def custom_isoforms(peptide, variable_mods, maxmods=2, nterm=False, cterm=False)
                         cc_prev = cc + 1
                 if not flag:
                     v = v + peptide[cc_prev:]
-                    for z in custom_isoforms(v, variable_mods[:-1], maxmods=maxmods - m, nterm=tmpnterm, cterm=tmpcterm):
+                    for z in custom_isoforms(v, variable_mods[:-1], maxmods=maxmods - m, nterm=tmpnterm, cterm=tmpcterm, snp=snp):
                         yield z
 
 def deisotope(spectrum, acc, charge):

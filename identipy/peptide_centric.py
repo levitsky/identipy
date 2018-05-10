@@ -130,7 +130,7 @@ def peptide_processor_iter_isoforms(peptide, **kwargs):
     nmods, maxmods = op.itemgetter('nmods', 'maxmods')(kwargs)
     if nmods and maxmods:
         out = []
-        for form in utils.custom_isoforms(peptide, variable_mods=nmods, maxmods=maxmods):
+        for form in utils.custom_isoforms(peptide, variable_mods=nmods, maxmods=maxmods, snp=kwargs['snp']):
             res = peptide_processor(form, **kwargs)
             if res:
                 out.append(res)
