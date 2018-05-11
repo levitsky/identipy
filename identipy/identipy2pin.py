@@ -58,7 +58,10 @@ def getlabel(decoy):
 def prepare_dataframe(infile_path, decoy_prefix='DECOY_', use_rt=1):
     df1 = pepxml.DataFrame(infile_path, read_schema=False)
     df1['length'] = df1['peptide'].apply(len)
-    df1['y-b_ions'] = df1['matched_y1_ions'] - df1['matched_b1_ions']
+    try:
+        df1['y-b_ions'] = df1['matched_y1_ions'] - df1['matched_b1_ions']
+    except:
+        pass
     df1 = df1[df1['length'] >= 6]
     df1['spectrum'] = df1['spectrum'].apply(lambda x: x.split(' RTINSECONDS')[0])
     df1['massdiff_int'] = df1['massdiff'].apply(lambda x: int(round(x, 0)))
