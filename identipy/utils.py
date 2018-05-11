@@ -1142,6 +1142,7 @@ def dataframe(inputfile, settings, results):
     logger.info('Accumulated results: %s', len(results))
 #   ensure_decoy(settings)
     set_mod_dict(settings)
+    fmods = settings.get('modifications', 'fixed')
     pept_prot, prots, pept_neighbors = build_pept_prot(settings, results)
     if settings.has_option('misc', 'aa_mass'):
         aa_mass = settings.get('misc', 'aa_mass')
@@ -1220,6 +1221,15 @@ def dataframe(inputfile, settings, results):
                     row.append(len(proteins))
 
                     row.append(sequence)
+                    if fmods:
+                        for mod in re.split(r'[,;]\s*', fmods):
+                            if '-' not in mod:
+                                m, aa = parser._split_label(mod)
+                                mod_sequence = mod_sequence.replace(aa, m+aa)
+                            elif mod[0] == '-':
+                                mod_sequence = mod_sequence + mod
+                            elif mod[-1] == '-':
+                                mod_sequence = mod + mod_sequence
                     row.append(mod_sequence)
 
                     row.append(candidate[0])
