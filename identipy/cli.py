@@ -83,6 +83,7 @@ def run():
     parser.add_argument('-massmax', help='max mass of peptides', type=int)
     parser.add_argument('-e',       help='cleavage rule in quotes!. X!Tandem style for cleavage rules')
     parser.add_argument('-mc',      help='number of missed cleavages', type=int)
+    parser.add_argument('-semi',    help='include semitryptic peptides', type=int)
     parser.add_argument('-cmin',    help='min precursor charge', type=int)
     parser.add_argument('-cmax',    help='max precursor charge', type=int)
     parser.add_argument('-cumin',   help='min unknown precursor charge', type=int)
@@ -118,7 +119,8 @@ def run():
 
     labels = {'i': 0, 'j': 0, 'k': 0}
 
-
+    fmods_array = []
+    vmods_array = []
     if args['fmods']:
         for mod in args['fmods'].split(','):
             modmass, modaa = mod.split('@')
@@ -129,9 +131,11 @@ def run():
                 ntermlabel, modaa, ctermlabel = '', '', '-'
             else:
                 ntermlabel, ctermlabel = '', ''
-            settings.set('modifications', 'fixed', ctermlabel + lbl + modaa + ntermlabel)
+            fmods_array.append(ctermlabel + lbl + modaa + ntermlabel)
             if flag:
                 settings.set('modifications', lbl, modmass)
+    if len(fmods_array):
+        settings.set('modifications', 'fixed', ','.join(fmods_array))
 
     if args['vmods']:
         for mod in args['vmods'].split(','):
@@ -143,9 +147,11 @@ def run():
                 ntermlabel, modaa, ctermlabel = '', '', '-'
             else:
                 ntermlabel, ctermlabel = '', ''
-            settings.set('modifications', 'variable', ctermlabel + lbl + modaa + ntermlabel)
+            vmods_array.append(ctermlabel + lbl + modaa + ntermlabel)
             if flag:
                 settings.set('modifications', lbl, modmass)
+    if len(vmods_array):
+        settings.set('modifications', 'variable', ','.join(vmods_array))
 
 
     _update(settings, 'input', 'database', args['db'])
@@ -161,6 +167,7 @@ def run():
     _update(settings, 'search', 'peptide minimum mass', args['massmin'])
     _update(settings, 'search', 'enzyme', args['e'])
     _update(settings, 'search', 'number of missed cleavages', args['mc'])
+    _update(settings, 'search', 'semitryptic', args['semi'])
     _update(settings, 'search', 'maximum charge', args['cmax'])
     _update(settings, 'search', 'minimum charge', args['cmin'])
     _update(settings, 'search', 'maximum unknown charge', args['cumax'])
