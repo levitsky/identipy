@@ -12,6 +12,7 @@ from ConfigParser import RawConfigParser
 import tempfile
 import os
 import logging
+import itertools as it
 logger = logging.getLogger(__name__)
 
 try:
@@ -209,12 +210,13 @@ def iterate_and_preprocess(fname, params, settings):
 def peptide_gen(settings):
     prefix = settings.get('input', 'decoy prefix')
     enzyme = get_enzyme(settings.get('search', 'enzyme'))
+    semitryptic = settings.getint('search', 'semitryptic')
     mc = settings.getint('search', 'number of missed cleavages')
     minlen = settings.getint('search', 'peptide minimum length')
     maxlen = settings.getint('search', 'peptide maximum length')
     snp = settings.getint('search', 'snp')
     for prot in prot_gen(settings):
-        for pep in prot_peptides(prot[1], enzyme, mc, minlen, maxlen, is_decoy=prot[0].startswith(prefix), snp=snp, desc=prot[0]):
+        for pep in prot_peptides(prot[1], enzyme, mc, minlen, maxlen, is_decoy=prot[0].startswith(prefix), snp=snp, desc=prot[0], semitryptic=semitryptic):
             yield pep
 
 def prot_gen(settings):
@@ -228,9 +230,21 @@ def prot_gen(settings):
         for p in f:
             yield p
 
+def get_peptides(prot_seq, enzyme, mc, semitryptic=False):
+    peptides = cparser._cleave(prot_seq, enzyme, mc)
+    for pep, startposition in peptides:
+        plen = len(pep)
+        if not semitryptic:
+            yield pep, startposition, plen
+        else:
+            for i in range(plen):
+                yield pep[i:], startposition + i, plen - i
+            for i in range(1, plen, 1):
+                yield pep[:-i], startposition, plen - i
+
 seen_target = set()
 seen_decoy = set()
-def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_peptides=False, snp=False, desc=False, position=False):
+def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_peptides=False, snp=False, desc=False, position=False, semitryptic=False):
 
     dont_use_fast_valid = parser.fast_valid(prot_seq)
     methionine_check = prot_seq[0] == 'M'
@@ -242,9 +256,10 @@ def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_
                 aach = tmp[2]
             except:
                 desc = False
-    peptides = cparser._cleave(prot_seq, enzyme, mc)
-    for pep, startposition in peptides:
-        plen = len(pep)
+    # peptides = cparser._cleave(prot_seq, enzyme, mc)
+    # for pep, startposition in peptides:
+    #     plen = len(pep)
+    for pep, startposition, plen in get_peptides(prot_seq, enzyme, mc, semitryptic):
         if minlen <= plen <= maxlen:
             loopcnt = 0
             if pep not in seen_target and pep not in seen_decoy and (dont_use_fast_valid or parser.fast_valid(pep)):
@@ -771,7 +786,7 @@ def get_RT(spectrum):
                     return 60 * np.average([float(x) for x in spectrum['params']['title'].split('lution from: ')[-1].split(' period:')[0].split(' to ')])
                 except:
                     return 0
-    return spectrum['scanList']['scan'][0]['scan start time']
+    return spectrum['scanList']['scan'][0]['scan start time'] * 60
 
 def get_title(spectrum):
     if 'params' in spectrum:
@@ -860,16 +875,22 @@ def build_pept_prot(settings, results):
     prots = {}
     peptides = set()
     pept_neighbors = {}
+    pept_ntts = {} 
     enzyme = settings.get('search', 'enzyme')
+    semitryptic = settings.getint('search', 'semitryptic')
     for x in results:
         peptides.update(re.sub(r'[^A-Z]', '', normalize_mods(x['candidates'][i][1], settings)) for i in range(
             1 or len(x['candidates'])))
     seen_target.clear()
     seen_decoy.clear()
+    enzyme_rule = get_enzyme(enzyme)
     for desc, prot in prot_gen(settings):
         dbinfo = desc.split(' ')[0]
         prots[dbinfo] = desc
-        for pep, startposition in prot_peptides(prot, get_enzyme(enzyme), mc, minlen, maxlen, desc.startswith(prefix), dont_use_seen_peptides=True, snp=snp, desc=desc, position=True):
+        if semitryptic:
+            cl_positions = set(z for z in it.chain([x.end() for x in re.finditer(enzyme_rule, prot)],
+                   [0, 1, len(prot)]))
+        for pep, startposition in prot_peptides(prot, enzyme_rule, mc, minlen, maxlen, desc.startswith(prefix), dont_use_seen_peptides=True, snp=snp, desc=desc, position=True, semitryptic=semitryptic):
             if snp:
                 if 'snp' not in pep:
                     seqm = pep
@@ -879,10 +900,30 @@ def build_pept_prot(settings, results):
             else:
                 seqm = pep
             if seqm in peptides:
-                pept_prot.setdefault(seqm, []).append(dbinfo)
-                pept_neighbors[seqm] = (prot[startposition-1] if startposition != 0 else 'N/A',
+                if not semitryptic:
+                    pept_prot.setdefault(seqm, []).append(dbinfo)
+                    pept_neighbors[seqm] = (prot[startposition-1] if startposition != 0 else 'N/A',
                         prot[startposition+len(seqm)] if startposition + len(seqm) < len(prot) else 'N/A')
-    return pept_prot, prots, pept_neighbors
+                    pept_ntts[seqm] = 2
+                else:
+                    ntt = (startposition in cl_positions) + ((startposition + len(seqm)) in cl_positions)
+                    if seqm in pept_ntts:
+                        best_ntt = pept_ntts[seqm]
+                        if best_ntt <= ntt:
+                            if best_ntt < ntt:
+                                del pept_prot[seqm]
+                                del pept_ntts[seqm]
+                            pept_prot.setdefault(seqm, []).append(dbinfo)
+                            pept_neighbors[seqm] = (prot[startposition-1] if startposition != 0 else 'N/A',
+                                prot[startposition+len(seqm)] if startposition + len(seqm) < len(prot) else 'N/A')
+                            pept_ntts[seqm] = ntt
+                    else:
+                        pept_prot.setdefault(seqm, []).append(dbinfo)
+                        pept_neighbors[seqm] = (prot[startposition-1] if startposition != 0 else 'N/A',
+                            prot[startposition+len(seqm)] if startposition + len(seqm) < len(prot) else 'N/A')
+                        pept_ntts[seqm] = ntt
+
+    return pept_prot, prots, pept_neighbors, pept_ntts
 
 def get_outpath(inputfile, settings, suffix):
     outpath = settings.get('output', 'path')
@@ -977,7 +1018,7 @@ def write_pepxml(inputfile, settings, results):
         results = [x for x in results if x['candidates'].size]
         results = list(get_output(results, settings))
         logger.info('Accumulated results: %s', len(results))
-        pept_prot, prots, pept_neighbors = build_pept_prot(settings, results)
+        pept_prot, prots, pept_neighbors, pept_ntts = build_pept_prot(settings, results)
         if settings.has_option('misc', 'aa_mass'):
             aa_mass = settings.get('misc', 'aa_mass')
         else:
@@ -1051,7 +1092,7 @@ def write_pepxml(inputfile, settings, results):
                         # neutral_mass_theor = cmass.fast_mass(sequence, aa_mass=aa_mass)
                         tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
                         tmp3.set('massdiff', str(candidate[4]['mzdiff']['Da']))
-                        tmp3.set('num_tol_term', '2')  # ???
+                        tmp3.set('num_tol_term', str(pept_ntts.get(sequence, '?')))
                         tmp3.set('num_missed_cleavages', str(len(parser.cleave(sequence, get_enzyme(enzyme), 0)) - 1))
                         tmp3.set('is_rejected', '0')  # ???
 
@@ -1065,7 +1106,7 @@ def write_pepxml(inputfile, settings, results):
                                     except:
                                         protein_descr = ''
                                     tmp4.set('protein_descr', protein_descr)
-                                    tmp4.set('num_tol_term', '2') # ???
+                                    tmp4.set('num_tol_term', str(pept_ntts.get(sequence, '?')))
                                     tmp3.append(copy(tmp4))
 
                         labels = parser.std_labels + [la.rstrip('[]') for la in leg if len(la) > 1]
@@ -1143,7 +1184,7 @@ def dataframe(inputfile, settings, results):
 #   ensure_decoy(settings)
     set_mod_dict(settings)
     fmods = settings.get('modifications', 'fixed')
-    pept_prot, prots, pept_neighbors = build_pept_prot(settings, results)
+    pept_prot, prots, pept_neighbors, pept_ntts = build_pept_prot(settings, results)
     if settings.has_option('misc', 'aa_mass'):
         aa_mass = settings.get('misc', 'aa_mass')
     else:
