@@ -59,6 +59,7 @@ def prepare_peptide_processor(fname, settings):
 
     params['dacc'] = settings.getfloat('input', 'deisotoping mass tolerance')
     params['deisotope'] = settings.getboolean('input', 'deisotope')
+    params['tags'] = utils.get_tags(settings.get('output', 'tags'))
 
     if not spectra:
         logger.info('Reading spectra ...')
