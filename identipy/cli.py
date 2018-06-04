@@ -110,6 +110,7 @@ def run():
     parser.add_argument('-ccleave', help='protein cterm cleavage', type=float)
     parser.add_argument('-fmods',   help='fixed modifications. in mass1@aminoacid1,mass2@aminoacid2 format')
     parser.add_argument('-vmods',   help='variable modifications. in mass1@aminoacid1,mass2@aminoacid2 format')
+    parser.add_argument('-tags',   help='Add quantitation tags to the pepXML output. Can be tmt10plex, tmt6plex or custom format label1:mass1,label2:mass2...')
 
     args = vars(parser.parse_args())
     if args['cfg']:
@@ -192,6 +193,7 @@ def run():
     _update(settings, 'modifications', 'protein nterm cleavage', args['ncleave'])
     _update(settings, 'modifications', 'protein cterm cleavage', args['ccleave'])
     _update(settings, 'output', 'path', args['out'])
+    _update(settings, 'output', 'tags', args['tags'])
     if args['at']:
         if args['at'] == 'yes':
             ao_setting = 'identipy.extras.optimization'
