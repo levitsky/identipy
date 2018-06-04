@@ -26,6 +26,42 @@ try:
 except:
     import customparser as cparser
 
+default_tags = {
+'tmt10plex': {
+    'tmt_126': 126.12773,
+    'tmt_127N': 127.12476,
+    'tmt_128C': 128.13443,
+    'tmt_129N': 129.13147,
+    'tmt_130C': 130.14114,
+    'tmt_131': 131.13818,
+    'tmt_127C': 127.13108,
+    'tmt_128N': 128.12811,
+    'tmt_129C': 129.13779,
+    'tmt_130N': 130.13482
+},
+'tmt6plex':{
+    'tmt_126': 126.12773,
+    'tmt_127N': 127.12476,
+    'tmt_128C': 128.13443,
+    'tmt_129N': 129.13147,
+    'tmt_130C': 130.14114,
+    'tmt_131': 131.13818
+}
+}
+
+def get_tags(tags):
+    if tags:
+        if tags in default_tags:
+            return default_tags[tags]
+        else:
+            ctags = dict()
+            for tag in str(tags).split(','):
+                for lbl, mss in tag.split(':'):
+                    ctags[lbl] = float(mss)
+            return ctags
+    else:
+        return tags
+
 def custom_mass(sequence, nterm_mass, cterm_mass, **kwargs):
     return cmass.fast_mass(sequence, **kwargs) + (nterm_mass - 1.007825) + (cterm_mass - 17.002735)
 
@@ -404,6 +440,7 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
     dynrange = kwargs['dynrange']#settings.getfloat('scoring', 'dynamic range')
     acc = kwargs['acc']#settings.getfloat('search', 'product accuracy')
     dacc = kwargs['dacc']#settings.getfloat('search', 'product accuracy')
+    tags = kwargs['tags']
 
     _, states = get_expmass(spectrum, kwargs)#, settings)
     if not states:
@@ -420,6 +457,19 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
         return None
 
     spectrum['intensity array'] = spectrum['intensity array'].astype(np.float32)
+
+    if tags:
+        # TODO optimize performance
+        max_mass_label_val = max(tags.values()) + 1.0
+        tmp_idx = np.nonzero(mz <= max_mass_label_val)
+        tags_res = defaultdict(float)
+        for tmt_label, tmt_mass in tags.iteritems():
+            for t_m, t_i in zip(mz[tmp_idx], spectrum['intensity array'][tmp_idx]):
+                if abs(t_m - tmt_mass) / tmt_mass <= 1e-5:
+                    tags_res[tmt_label] += t_i 
+        for tmt_label, tmt_intensity in tags_res.iteritems():
+            spectrum[tmt_label] = tmt_intensity
+
 
     if dynrange:
         i = spectrum['intensity array'] > spectrum['intensity array'].max(
@@ -950,6 +1000,7 @@ def write_pepxml(inputfile, settings, results):
     snp = settings.getint('search', 'snp')
     nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage')
     cterm_mass = settings.getfloat('modifications', 'protein cterm cleavage')
+    tags = get_tags(settings.get('output', 'tags'))
 
     nterm_fixed = 0
     cterm_fixed = 0
@@ -1162,6 +1213,13 @@ def write_pepxml(inputfile, settings, results):
                         tmp4.set('name', 'fragmentMT')
                         tmp4.set('value', str(candidate[6]))
                         tmp3.append(copy(tmp4))
+
+                        if tags:
+                            for tag_label in tags.keys():
+                                tmp4 = etree.Element('search_score')
+                                tmp4.set('name', tag_label)
+                                tmp4.set('value', str(spectrum.get(tag_label, 0)))
+                                tmp3.append(copy(tmp4))
 
                         tmp2.append(copy(tmp3))
                 if flag:
