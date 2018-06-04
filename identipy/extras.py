@@ -7,7 +7,7 @@ from scoring import get_fragment_mass_tol
 import logging
 logger = logging.getLogger(__name__)
 import numpy as np
-from utils import get_info, get_aa_mass, get_output, get_enzyme, get_output, calculate_RT
+from utils import get_info, get_aa_mass, get_enzyme, calculate_RT
 try:
     from pyteomics import cmass
 except ImportError:
@@ -31,8 +31,8 @@ def FDbinSize(X):
 
 def get_subset(results, settings, fdr=0.01):
     """Filter results to given FDR using top 1 candidates"""
-    out = get_output(results, settings)
-    subset = aux.filter(out, key=lambda x: x['e-values'][0],
+#   out = get_output(results, settings)
+    subset = aux.filter(results, key=lambda x: x['e-values'][0],
             is_decoy = lambda x: x['candidates'][0][2] == 'd',
             fdr=fdr)
     return subset
@@ -110,7 +110,7 @@ def precursor_mass_optimization(results, settings):
     settings_nopime = settings.copy()
     settings_nopime.set('search', 'precursor isotope mass error', '0')
     settings_nopime.set('search', 'shifts', '0')
-    results = get_output(results, settings_nopime)
+#   results = get_output(results, settings_nopime)
 
     settings = settings.copy()
     mass_left = settings.getfloat('search', 'precursor accuracy left')
