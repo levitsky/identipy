@@ -266,17 +266,18 @@ def prot_gen(settings):
         for p in f:
             yield p
 
-def get_peptides(prot_seq, enzyme, mc, semitryptic=False):
+def get_peptides(prot_seq, enzyme, mc, minlen, maxlen, semitryptic=False):
     peptides = cparser._cleave(prot_seq, enzyme, mc)
     for pep, startposition in peptides:
         plen = len(pep)
-        if not semitryptic:
-            yield pep, startposition, plen
-        else:
-            for i in range(plen):
-                yield pep[i:], startposition + i, plen - i
-            for i in range(1, plen, 1):
-                yield pep[:-i], startposition, plen - i
+        if minlen <= plen <= maxlen:
+            if not semitryptic:
+                yield pep, startposition, plen
+            else:
+                for i in range(plen-minlen+1):
+                    yield pep[i:], startposition + i, plen - i
+                for i in range(1, plen-minlen+1, 1):
+                    yield pep[:-i], startposition, plen - i
 
 seen_target = set()
 seen_decoy = set()
@@ -295,50 +296,49 @@ def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_
     # peptides = cparser._cleave(prot_seq, enzyme, mc)
     # for pep, startposition in peptides:
     #     plen = len(pep)
-    for pep, startposition, plen in get_peptides(prot_seq, enzyme, mc, semitryptic):
-        if minlen <= plen <= maxlen:
-            loopcnt = 0
-            if pep not in seen_target and pep not in seen_decoy and (dont_use_fast_valid or parser.fast_valid(pep)):
-                loopcnt = 1
-                if methionine_check and startposition == 0:
-                    if minlen <= plen - 2:
-                        loopcnt = 3
-                    elif minlen <= plen - 1:
-                        loopcnt = 2
-            while loopcnt:
-                f = pep[loopcnt-1:]
-                if dont_use_seen_peptides:
+    for pep, startposition, plen in get_peptides(prot_seq, enzyme, mc, minlen, maxlen, semitryptic):
+        loopcnt = 0
+        if pep not in seen_target and pep not in seen_decoy and (dont_use_fast_valid or parser.fast_valid(pep)):
+            loopcnt = 1
+            if methionine_check and startposition == 0:
+                if minlen <= plen - 2:
+                    loopcnt = 3
+                elif minlen <= plen - 1:
+                    loopcnt = 2
+        while loopcnt:
+            f = pep[loopcnt-1:]
+            if dont_use_seen_peptides:
+                if snp == 1:
+                    for ff, seq_new in custom_snp(f, startposition):
+                        if not seq_new:
+                            yield ff if not position else (ff, startposition)
+                        else:
+                            yield ff if not position else (ff, startposition)
+                else:
+                    yield f if not position else (f, startposition)
+            else:
+                if f not in seen_target and f not in seen_decoy:
+                    if is_decoy:
+                        seen_decoy.add(f)
+                    else:
+                        seen_target.add(f)
                     if snp == 1:
                         for ff, seq_new in custom_snp(f, startposition):
                             if not seq_new:
                                 yield ff if not position else (ff, startposition)
-                            else:
+                            if seq_new not in seen_decoy and seq_new not in seen_target:
                                 yield ff if not position else (ff, startposition)
-                    else:
-                        yield f if not position else (f, startposition)
-                else:
-                    if f not in seen_target and f not in seen_decoy:
-                        if is_decoy:
-                            seen_decoy.add(f)
-                        else:
-                            seen_target.add(f)
-                        if snp == 1:
-                            for ff, seq_new in custom_snp(f, startposition):
-                                if not seq_new:
-                                    yield ff if not position else (ff, startposition)
-                                if seq_new not in seen_decoy and seq_new not in seen_target:
-                                    yield ff if not position else (ff, startposition)
-                        elif snp == 2:
-                            if desc and startposition <= pos <= startposition + plen:
-                                if len(aach) == 3 and aach[0] in parser.std_amino_acids and aach[2] in parser.std_amino_acids:
-                                    pos_diff = pos - startposition
-                                    f = f[:pos_diff] + 'snp%sto%sat%ssnp' % (aach.split('>')[0], aach.split('>')[-1], pos) + f[pos_diff+1:]
-                                    yield f if not position else (f, startposition)
-                            else:
+                    elif snp == 2:
+                        if desc and startposition <= pos <= startposition + plen:
+                            if len(aach) == 3 and aach[0] in parser.std_amino_acids and aach[2] in parser.std_amino_acids:
+                                pos_diff = pos - startposition
+                                f = f[:pos_diff] + 'snp%sto%sat%ssnp' % (aach.split('>')[0], aach.split('>')[-1], pos) + f[pos_diff+1:]
                                 yield f if not position else (f, startposition)
                         else:
                             yield f if not position else (f, startposition)
-                loopcnt -= 1
+                    else:
+                        yield f if not position else (f, startposition)
+            loopcnt -= 1
 
 def custom_snp(peptide, startposition):
     yield peptide, None
