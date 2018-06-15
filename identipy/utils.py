@@ -13,6 +13,12 @@ import tempfile
 import os
 import logging
 import itertools as it
+try:
+    from lxml import etree
+except ImportError:
+    etree = None
+from time import strftime
+from os import path
 logger = logging.getLogger(__name__)
 
 try:
@@ -61,6 +67,38 @@ def get_tags(tags):
             return ctags
     else:
         return tags
+
+def get_child_for_mods(mods_str, settings, fixed=True):
+    for mod in re.split(r'[,;]\s*', mods_str):
+        term = False
+        if '-' not in mod:
+            mod_label, mod_aa = parser._split_label(mod)
+            mod_mass = mass.std_aa_mass.get(mod_aa, 0)
+            mod_massdiff = settings.getfloat('modifications', mod_label)
+
+            child_mod = etree.Element('aminoacid_modification')
+            child_mod.set('aminoacid', mod_aa)
+            child_mod.set('massdiff', str(mod_massdiff))
+            child_mod.set('mass', str(mod_mass))
+            child_mod.set('variable', 'Y' if not fixed else 'N')
+            yield child_mod
+        elif mod[0] == '-':
+            term = 'c'
+            mod_label = mod[1:]
+            mod_term_mass = settings.getfloat('modifications', 'protein cterm cleavage')
+        elif mod[-1] == '-':
+            term = 'n'
+            mod_label = mod[:-1]
+            mod_term_mass = settings.getfloat('modifications', 'protein nterm cleavage')
+        
+        if term:
+            mod_massdiff = settings.getfloat('modifications', mod_label)
+            child_mod = etree.Element('terminal_modification')
+            child_mod.set('terminus', term)
+            child_mod.set('massdiff', str(mod_massdiff))
+            child_mod.set('mass', str(mod_massdiff+mod_term_mass))
+            child_mod.set('variable', 'Y' if not fixed else 'N')
+            yield child_mod
 
 def custom_mass(sequence, nterm_mass, cterm_mass, **kwargs):
     return cmass.fast_mass(sequence, **kwargs) + (nterm_mass - 1.007825) + (cterm_mass - 17.002735)
@@ -513,6 +551,7 @@ def relative(unit):
 
 def set_mod_dict(settings):
     mods = settings.get('modifications', 'variable')
+    settings.set('modifications', 'variable_original', mods)
     if isinstance(mods, basestring):
         mods = mods.strip()
         mod_dict = {}
@@ -749,7 +788,7 @@ def get_aa_mass(settings):
     aa_mass = mass.std_aa_mass.copy()
     aa_mass['-'] = 0.0
     for k, v in settings.items('modifications'):
-        if k not in {'fixed', 'variable'}:
+        if k not in {'fixed', 'variable', 'variable_original'}:
             aa_mass[k] = float(v)
     fmods = settings.get('modifications', 'fixed')
     if fmods:
@@ -981,10 +1020,6 @@ def get_outpath(inputfile, settings, suffix):
     return filename
 
 def write_pepxml(inputfile, settings, results):
-    from lxml import etree
-    from time import strftime
-    from os import path
-
     outpath = settings.get('output', 'path')
     logger.debug('Output path: %s', outpath)
 
@@ -1059,6 +1094,11 @@ def write_pepxml(inputfile, settings, results):
         child4.set('precursor_mass_type', 'monoisotopic')
         child4.set('fragment_mass_type', 'monoisotopic')
         child4.set('search_id', '1')
+
+        for child_mod in get_child_for_mods(settings.get('modifications', 'fixed'), settings, fixed=True):
+            child4.append(child_mod)
+        for child_mod in get_child_for_mods(settings.get('modifications', 'variable_original'), settings, fixed=False):
+            child4.append(child_mod)
 
         child1.append(child4)
 
