@@ -1030,7 +1030,14 @@ def write_pepxml(inputfile, settings, results):
         child1.set("base_name", filename)
         child1.set("search_engine", search_engine)
         child1.set("raw_data_type", "raw")  # ?
-        child1.set("raw_data", ".?")  # ?
+
+        ftype = fname.rsplit('.', 1)[-1].lower()
+        if ftype == 'mgf':
+            child1.set("raw_data", ".mgf")
+        elif ftype == 'mzml':
+            child1.set("raw_data", ".mzML")
+        else:
+            child1.set("raw_data", ".?")
         root.append(child1)
 
         child2 = etree.Element('sample_enzyme')
