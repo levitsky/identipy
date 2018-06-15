@@ -40,6 +40,7 @@ def get_label(modmass, labels):
         return labels[modmass], labels, 0
     else:
         labels[modmass] = abt[labels['i']] + abt[labels['j']] + abt[labels['k']]
+        labels['k'] += 1
         if labels['k'] > abt_l:
             labels['k'] = 0
             labels['j'] += 1
