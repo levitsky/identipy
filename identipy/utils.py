@@ -1018,6 +1018,9 @@ def write_pepxml(inputfile, settings, results):
         <?xml-stylesheet type="text/xsl" href="pepXML_std.xsl"?>\n'
         output.write(line1)
 
+        base_name, ftype = path.splitext(inputfile)
+        ftype = ftype.lower()
+
         root = etree.Element('msms_pipeline_analysis')
         root.set("date", strftime("%Y:%m:%d:%H:%M:%S"))
         root.set("summary_xml", '')
@@ -1027,14 +1030,13 @@ def write_pepxml(inputfile, settings, results):
         #root.set("xsi:schemaLocation", 'http://sashimi.sourceforge.net/schema_revision/pepXML/pepXML_v117.xsd')
 
         child1 = etree.Element('msms_run_summary')
-        child1.set("base_name", filename)
+        child1.set("base_name", base_name)
         child1.set("search_engine", search_engine)
         child1.set("raw_data_type", "raw")  # ?
 
-        ftype = fname.rsplit('.', 1)[-1].lower()
-        if ftype == 'mgf':
+        if ftype == '.mgf':
             child1.set("raw_data", ".mgf")
-        elif ftype == 'mzml':
+        elif ftype == '.mzml':
             child1.set("raw_data", ".mzML")
         else:
             child1.set("raw_data", ".?")
@@ -1052,7 +1054,7 @@ def write_pepxml(inputfile, settings, results):
         child2.append(child3)
 
         child4 = etree.Element('search_summary')
-        child4.set('base_name', filename)
+        child4.set('base_name', base_name)
         child4.set('search_engine', search_engine)
         child4.set('precursor_mass_type', 'monoisotopic')
         child4.set('fragment_mass_type', 'monoisotopic')
