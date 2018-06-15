@@ -17,8 +17,8 @@ def is_decoy(proteins, decoy_prefix):
 def parse_mods(df_raw):
     mods_counter = Counter()
     sequence, mods = df_raw['peptide'], df_raw['modifications']
-    if mods:
-        for mod in mods.split(','):
+    if isinstance(mods, list):
+        for mod in mods:
             mod_mass, aa_ind = mod.split('@')
             mod_mass = float(mod_mass)
             aa_ind = int(aa_ind)
