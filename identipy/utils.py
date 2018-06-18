@@ -79,7 +79,7 @@ def get_child_for_mods(mods_str, settings, fixed=True):
             child_mod = etree.Element('aminoacid_modification')
             child_mod.set('aminoacid', mod_aa)
             child_mod.set('massdiff', str(mod_massdiff))
-            child_mod.set('mass', str(mod_mass))
+            child_mod.set('mass', str(mod_mass+mod_massdiff))
             child_mod.set('variable', 'Y' if not fixed else 'N')
             yield child_mod
         elif mod[0] == '-':
@@ -96,7 +96,7 @@ def get_child_for_mods(mods_str, settings, fixed=True):
             child_mod = etree.Element('terminal_modification')
             child_mod.set('terminus', term)
             child_mod.set('massdiff', str(mod_massdiff))
-            child_mod.set('mass', str(mod_massdiff+mod_term_mass))
+            child_mod.set('mass', str((mod_massdiff if not fixed else 0)+mod_term_mass))
             child_mod.set('variable', 'Y' if not fixed else 'N')
             yield child_mod
 
@@ -1143,6 +1143,7 @@ def write_pepxml(inputfile, settings, results):
                 tmp = etree.Element('spectrum_query')
                 spectrum = result['spectrum']
                 tmp.set('spectrum', get_title(spectrum))
+                tmp.set('spectrumNativeID', get_title(spectrum))
                 tmp.set('start_scan', str(idx))  # ???
                 tmp.set('end_scan', str(idx))  # ???
                 tmp.set('index', str(idx))  # ???
