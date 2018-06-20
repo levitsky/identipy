@@ -69,36 +69,37 @@ def get_tags(tags):
         return tags
 
 def get_child_for_mods(mods_str, settings, fixed=True):
-    for mod in re.split(r'[,;]\s*', mods_str):
-        term = False
-        if '-' not in mod:
-            mod_label, mod_aa = parser._split_label(mod)
-            mod_mass = mass.std_aa_mass.get(mod_aa, 0)
-            mod_massdiff = settings.getfloat('modifications', mod_label)
+    if mods_str:
+        for mod in re.split(r'[,;]\s*', mods_str):
+            term = False
+            if '-' not in mod:
+                mod_label, mod_aa = parser._split_label(mod)
+                mod_mass = mass.std_aa_mass.get(mod_aa, 0)
+                mod_massdiff = settings.getfloat('modifications', mod_label)
 
-            child_mod = etree.Element('aminoacid_modification')
-            child_mod.set('aminoacid', mod_aa)
-            child_mod.set('massdiff', str(mod_massdiff))
-            child_mod.set('mass', str(mod_mass+mod_massdiff))
-            child_mod.set('variable', 'Y' if not fixed else 'N')
-            yield child_mod
-        elif mod[0] == '-':
-            term = 'c'
-            mod_label = mod[1:]
-            mod_term_mass = settings.getfloat('modifications', 'protein cterm cleavage')
-        elif mod[-1] == '-':
-            term = 'n'
-            mod_label = mod[:-1]
-            mod_term_mass = settings.getfloat('modifications', 'protein nterm cleavage')
-        
-        if term:
-            mod_massdiff = settings.getfloat('modifications', mod_label)
-            child_mod = etree.Element('terminal_modification')
-            child_mod.set('terminus', term)
-            child_mod.set('massdiff', str(mod_massdiff))
-            child_mod.set('mass', str((mod_massdiff if not fixed else 0)+mod_term_mass))
-            child_mod.set('variable', 'Y' if not fixed else 'N')
-            yield child_mod
+                child_mod = etree.Element('aminoacid_modification')
+                child_mod.set('aminoacid', mod_aa)
+                child_mod.set('massdiff', str(mod_massdiff))
+                child_mod.set('mass', str(mod_mass+mod_massdiff))
+                child_mod.set('variable', 'Y' if not fixed else 'N')
+                yield child_mod
+            elif mod[0] == '-':
+                term = 'c'
+                mod_label = mod[1:]
+                mod_term_mass = settings.getfloat('modifications', 'protein cterm cleavage')
+            elif mod[-1] == '-':
+                term = 'n'
+                mod_label = mod[:-1]
+                mod_term_mass = settings.getfloat('modifications', 'protein nterm cleavage')
+            
+            if term:
+                mod_massdiff = settings.getfloat('modifications', mod_label)
+                child_mod = etree.Element('terminal_modification')
+                child_mod.set('terminus', term)
+                child_mod.set('massdiff', str(mod_massdiff))
+                child_mod.set('mass', str((mod_massdiff if not fixed else 0)+mod_term_mass))
+                child_mod.set('variable', 'Y' if not fixed else 'N')
+                yield child_mod
 
 def custom_mass(sequence, nterm_mass, cterm_mass, **kwargs):
     return cmass.fast_mass(sequence, **kwargs) + (nterm_mass - 1.007825) + (cterm_mass - 17.002735)
