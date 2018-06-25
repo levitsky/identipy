@@ -1085,7 +1085,7 @@ def write_pepxml(inputfile, settings, results):
         child3 = etree.Element('specificity')
         child3.set("cut", "KR")
         child3.set("no_cut", "P")
-        child3.set("sence", "C")
+        child3.set("sense", "C")
 
         child2.append(child3)
 
