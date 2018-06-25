@@ -192,22 +192,6 @@ def peptide_processor(peptide, **kwargs):
 
     results = []
     for fc, ind in cand_idx.iteritems():
-        # breaker = False
-        # if len(ind) > 1:
-        #     megaspectra = {'m/z array': np.concatenate([spectra[fc][i]['m/z array'] for i in ind]), 'intensity array': np.concatenate([spectra[fc][i]['intensity array'] for i in ind])}
-        #     score = kwargs['score'](megaspectra, theor[fc], kwargs['acc_frag'])  # FIXME (?)
-        #     sc = score.pop('score')
-        #     if score.pop('total_matched') < kwargs['min_matched'] or all(-sc >= best_res.get(utils.get_title(spectra[fc][i]), 0) for i in ind):
-        #         breaker = True
-        # if not breaker:
-        #     for i in ind:
-        #         s = spectra[fc][i]
-        #         score = kwargs['score'](s, theor[fc], kwargs['acc_frag']) # FIXME (?)
-        #         sc = score.pop('score')
-        #         st = utils.get_title(s)
-        #         if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
-        #             results.append((sc, st, score, m, charges[fc][i]))
-
         for i in ind:
             s = spectra[fc][i]
             if kwargs['score_fast']:
@@ -236,6 +220,7 @@ def peptide_processor(peptide, **kwargs):
     # results = np.array(results, dtype=[('score', np.float32), ('title', np.str_, 30), ('spectrum', np.object_), ('info', np.object_)])
     if results:
         return seqm, results
+    return seqm, []
 
 def process_peptides(fname, settings):
     spec_results = defaultdict(dict)
