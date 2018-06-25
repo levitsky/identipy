@@ -1289,6 +1289,7 @@ def write_csv(inputfile, settings, results):
 
 def dataframe(inputfile, settings, results):
 #   results = list(get_output(results, settings))
+    results = list(results)
     logger.info('Accumulated results: %s', len(results))
 #   ensure_decoy(settings)
     set_mod_dict(settings)
@@ -1303,7 +1304,7 @@ def dataframe(inputfile, settings, results):
     cterm_mass = settings.getfloat('modifications', 'protein cterm cleavage')
 
     vmods = set()
-    variablemods =  settings.get('modifications', 'variable')
+    variablemods = settings.get('modifications', 'variable')
     if variablemods:
         for k, v in variablemods.items():
             for aa in v:
