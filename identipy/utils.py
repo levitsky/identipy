@@ -1394,8 +1394,20 @@ def dataframe(inputfile, settings, results):
     return df
 
 
+def write_pickle(inputfile, settings, results):
+    results = list(results)
+    logger.info('Accumulated results: %s', len(results))
+    try:
+        import cPickle as pickle
+    except ImportError:
+        import pickle
+    filename = get_outpath(inputfile, settings, 'pickle')
+    with open(filename, 'wb') as output:
+        pickle.dump((inputfile, settings, results), output, -1)
+
+
 def write_output(inputfile, settings, results):
-    formats = {'pepxml': write_pepxml, 'csv': write_csv, 'tsv': write_csv}
+    formats = {'pepxml': write_pepxml, 'csv': write_csv, 'tsv': write_csv, 'pickle': write_pickle}
     of = settings.get('output', 'format')
     writer = formats[re.sub(r'[^a-z]', '', of.lower())]
 
