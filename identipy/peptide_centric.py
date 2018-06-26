@@ -15,7 +15,7 @@ except ImportError:
     cmass = mass
 
 try:
-    import pyximport; pyximport.install()
+    # import pyximport; pyximport.install()
     from cutils import theor_spectrum
 except:
     from utils import theor_spectrum
@@ -188,7 +188,9 @@ def peptide_processor(peptide, **kwargs):
 
         if idx:
             cand_idx[c] = idx
-            theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=True, acc_frag=kwargs['acc_frag'], nterm_mass = nterm_mass, cterm_mass = cterm_mass)
+            theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=True,
+                                                          acc_frag=kwargs['acc_frag'], nterm_mass = nterm_mass,
+                                                          cterm_mass = cterm_mass)
 
     results = []
     for fc, ind in cand_idx.iteritems():
