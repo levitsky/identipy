@@ -5,21 +5,28 @@ from cpython.float cimport PyFloat_AsDouble
 from cpython.tuple cimport PyTuple_GetItem
 
 from pyteomics import cmass
-from pyteomics.cmass cimport fast_mass
+
+cimport pyteomics.cmass as cmass
+
 from pyteomics import electrochem as ec
 import numpy as np
 cimport numpy as np
 
 np.import_array()
 
-cdef np.dtype dtype_t = np.PyArray_DescrFromType(float)
-print(dtype_t)
 
+cdef:
+    dict std_aa_mass = cmass.std_aa_mass
+    dict std_ion_comp = cmass.std_ion_comp
+    dict nist_mass = cmass._nist_mass
+
+
+cdef object np_zeros = np.zeros
 
 @cython.cdivision(True)
 @cython.boundscheck(False)
 @cython.wraparound(True)
-cdef tuple ctheor_spectrum(str peptide, float acc_frag, float nterm_mass, float cterm_mass, tuple types,
+cdef tuple ctheor_spectrum(str peptide, double acc_frag, double nterm_mass, double cterm_mass, tuple types,
                            int maxcharge, bint reshape, dict kwargs):
     cdef int pl, charge, i, n, i_type, n_types
     cdef bint nterminal
@@ -28,12 +35,18 @@ cdef tuple ctheor_spectrum(str peptide, float acc_frag, float nterm_mass, float 
     cdef dict peaks, theoretical_set
     cdef dict aa_mass, ion_comp, mass_data
     cdef set theoretical_set_item, ions_scaled
-    cdef np.ndarray[float, ndim=1, mode='c'] marr
+    cdef np.ndarray[double, ndim=1, mode='c'] marr
+    cdef object marr_storage
 
     aa_mass = kwargs.get("aa_mass")
+    if aa_mass is None:
+        aa_mass = std_aa_mass
     ion_comp = kwargs.get("ion_comp")
+    if ion_comp is None:
+        ion_comp = std_ion_comp
     mass_data = kwargs.get("mass_data")
-
+    if mass_data is None:
+        mass_data = nist_mass
     peaks = {}
     theoretical_set = dict()
 
@@ -45,10 +58,11 @@ cdef tuple ctheor_spectrum(str peptide, float acc_frag, float nterm_mass, float 
             nterminal = ion_type[0] in 'abc'
             if nterminal:
                 maxpart = <str>PySequence_GetSlice(peptide, 0, -1)
-                maxmass = fast_mass(
+                maxmass = cmass.fast_mass(
                     maxpart, ion_type, charge, mass_data, aa_mass,
-                    ion_comp) + (nterm_mass - 1.007825)
-                marr = np.zeros(pl, dtype=float)
+                    ion_comp)
+                maxmass += (nterm_mass - 1.007825)
+                marr = np_zeros(pl, dtype=float)
                 marr[0] = maxmass
                 for i in range(1, pl):
                     part = <str>maxpart[-i]
@@ -56,10 +70,11 @@ cdef tuple ctheor_spectrum(str peptide, float acc_frag, float nterm_mass, float 
                     marr[i] = marr[i - 1] - part_mass / charge
             else:
                 maxpart = <str>PySequence_GetSlice(peptide, 1, pl + 2)
-                maxmass = fast_mass(
+                maxmass = cmass.fast_mass(
                     maxpart, ion_type, charge, mass_data, aa_mass,
-                    ion_comp) + (cterm_mass - 17.002735)
-                marr = np.zeros(pl, dtype=float)
+                    ion_comp)
+                maxmass += (cterm_mass - 17.002735)
+                marr = np_zeros(pl, dtype=float)
                 marr[pl-1] = maxmass
                 for i in range(pl-2, -1, -1):
                     part = <str>maxpart[-(i + 2)]
@@ -77,11 +92,11 @@ cdef tuple ctheor_spectrum(str peptide, float acc_frag, float nterm_mass, float 
                 theoretical_set[ion_type] = ions_scaled
 
             if not reshape:
-                marr.sort()
+                marr_storage = marr.sort()
             else:
                 n = marr.size
-                marr = marr.reshape((n, 1))
-            peaks[ion_type, charge] = marr
+                marr_storage = marr.reshape((n, 1))
+            peaks[ion_type, charge] = marr_storage
     return peaks, theoretical_set
 
 

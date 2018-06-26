@@ -91,7 +91,7 @@ def get_child_for_mods(mods_str, settings, fixed=True):
                 term = 'n'
                 mod_label = mod[:-1]
                 mod_term_mass = settings.getfloat('modifications', 'protein nterm cleavage')
-            
+
             if term:
                 mod_massdiff = settings.getfloat('modifications', mod_label)
                 child_mod = etree.Element('terminal_modification')
@@ -449,7 +449,7 @@ def deisotope(spectrum, acc, charge):
     while i >= 0:
         j = mz.size-1
         while j > i:
-            d = mz[j] - mz[i] 
+            d = mz[j] - mz[i]
             if d > 1.5*h:
                 j -= 1
                 continue
@@ -505,7 +505,7 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
         for tmt_label, tmt_mass in tags.iteritems():
             for t_m, t_i in zip(mz[tmp_idx], spectrum['intensity array'][tmp_idx]):
                 if abs(t_m - tmt_mass) / tmt_mass <= 1e-5:
-                    tags_res[tmt_label] += t_i 
+                    tags_res[tmt_label] += t_i
         for tmt_label, tmt_intensity in tags_res.iteritems():
             spectrum[tmt_label] = tmt_intensity
 
@@ -557,7 +557,7 @@ def set_mod_dict(settings):
         mods = mods.strip()
         mod_dict = {}
         legend = {}
-        
+
         if mods:
             mods = [custom_split_label(l) for l in re.split(r',\s*', mods)]
             mods.sort(key=lambda x: len(x[0]), reverse=True)
@@ -917,7 +917,7 @@ def is_db_target_only(db, decoy_prefix):
 #        rel = settings.get('search', 'precursor accuracy unit') == 'ppm'
 #
 #    shifts_and_pime = get_shifts_and_pime(settings)
-#    
+#
 #    count = 0
 #    discard_count = 0
 #    for result in results:
@@ -937,7 +937,7 @@ def is_db_target_only(db, decoy_prefix):
 #        for c_ in c:
 #            mask.append(any(-dm_l < (c_[4]['mzdiff']['Da'] - sh_) / c_[3] < dm_r for sh_ in shifts_and_pime))
 #        c = c[np.array(mask, dtype=bool)]
-#    
+#
 #        if (not c.size) and not show_empty:
 #            discard_count += 1
 #            continue
@@ -945,16 +945,16 @@ def is_db_target_only(db, decoy_prefix):
 #        yield result
 #    logger.info('Unfiltered results: %s', count)
 #    logger.info('Discarded empty results: %s', discard_count)
-    
+
 def get_shifts_and_pime(settings):
-    pime = settings.getint('search', 'precursor isotope mass error') 
+    pime = settings.getint('search', 'precursor isotope mass error')
     shifts =[float(x) for x in settings.get('search', 'shifts').split(',')]
     dM = mass.nist_mass['C'][13][0] - mass.nist_mass['C'][12][0]
     shifts_and_pime = shifts[:]
     for i in range(pime):
         shifts_and_pime += [x + (i + 1) * dM for x in shifts]
     return shifts_and_pime
-    
+
 def build_pept_prot(settings, results):
     mc = settings.getint('search', 'number of missed cleavages')
     minlen = settings.getint('search', 'peptide minimum length')
@@ -965,7 +965,7 @@ def build_pept_prot(settings, results):
     prots = {}
     peptides = set()
     pept_neighbors = {}
-    pept_ntts = {} 
+    pept_ntts = {}
     enzyme = settings.get('search', 'enzyme')
     semitryptic = settings.getint('search', 'semitryptic')
     for x in results:
@@ -1178,7 +1178,7 @@ def write_pepxml(inputfile, settings, results):
                         tmp3.set('peptide_prev_aa', neighbors[0])
                         tmp3.set('peptide_next_aa', neighbors[1])
                         proteins = pept_prot[re.sub(r'[^A-Z]', '', sequence)]
-                        
+
                         tmp3.set('protein', prots[proteins[0]].split(' ', 1)[0] + (('_' + candidate[7]) if snp else ''))
                         try:
                             protein_descr = prots[proteins[0]].split(' ', 1)[1]
@@ -1361,7 +1361,7 @@ def dataframe(inputfile, settings, results):
 
                     proteins = [allproteins[0]]
                     if len(allproteins) > 1:
-                        if snp: 
+                        if snp:
                             wilds = any('wild' in prots[p].split(' ', 1)[0] for p in allproteins)
                         for prot in allproteins[1:]:
                             d = prots[prot].split(' ', 1)[0]
@@ -1408,4 +1408,4 @@ def write_output(inputfile, settings, results):
         outpath = os.path.dirname(inputfile)
         settings.set('output', 'path', outpath)
 
-    return writer(inputfile, settings, results) 
+    return writer(inputfile, settings, results)
