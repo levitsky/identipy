@@ -69,6 +69,8 @@ def run():
     parser.add_argument('-db',      help='path to protein fasta file')
     parser.add_argument('-cfg',     help='path to file with parameters')
     parser.add_argument('-out',     help='output path')
+    parser.add_argument('-of',      help='output format')
+    parser.add_argument('-sep',     help='output column separator')
     parser.add_argument('-at',      help='Use auto-tuning of search parameters. yes or no', type=str)
     parser.add_argument('-pwide',   help='Increase initial precursor mass accuracy for auto-tuning. yes or no', type=str)
     parser.add_argument('-punit',   help='precursor mass tolerance unit. Can be ppm or Da', type=str)
@@ -156,7 +158,7 @@ def run():
         settings.set('modifications', 'variable', ','.join(vmods_array))
 
 
-    _update(settings, 'input', 'database', args['db'])
+    _update(settings, 'input',  'database', args['db'])
     _update(settings, 'search', 'precursor accuracy unit', args['punit'])
     _update(settings, 'search', 'precursor accuracy left', (args['ptol'] if not args['lptol'] else args['lptol']))
     _update(settings, 'search', 'precursor accuracy right', (args['ptol'] if not args['rptol'] else args['rptol']))
@@ -178,11 +180,11 @@ def run():
     _update(settings, 'search', 'shifts', args['shifts'])
     _update(settings, 'search', 'snp', args['snp'])
     _update(settings, 'output', 'minimum matched', args['mm'])
-    _update(settings, 'input', 'add decoy', args['ad'])
-    _update(settings, 'input', 'decoy prefix', args['prefix'])
-    _update(settings, 'input', 'decoy method', args['method'])
-    _update(settings, 'input', 'deisotope', args['deis'])
-    _update(settings, 'input', 'deisotoping mass tolerance', args['deistol'])
+    _update(settings, 'input',  'add decoy', args['ad'])
+    _update(settings, 'input',  'decoy prefix', args['prefix'])
+    _update(settings, 'input',  'decoy method', args['method'])
+    _update(settings, 'input',  'deisotope', args['deis'])
+    _update(settings, 'input',  'deisotoping mass tolerance', args['deistol'])
     if args['score']:
         _update(settings, 'scoring', 'score', 'identipy.scoring.' + args['score'])
     _update(settings, 'scoring', 'minimum peaks', args['minp'])
@@ -194,6 +196,8 @@ def run():
     _update(settings, 'modifications', 'protein nterm cleavage', args['ncleave'])
     _update(settings, 'modifications', 'protein cterm cleavage', args['ccleave'])
     _update(settings, 'output', 'path', args['out'])
+    _update(settings, 'output', 'format', args['of'])
+    _update(settings, 'output', 'separator', args['sep'])
     _update(settings, 'output', 'tags', args['tags'])
     if args['at']:
         if args['at'] == 'yes':
