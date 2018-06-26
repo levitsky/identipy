@@ -901,51 +901,6 @@ def is_db_target_only(db, decoy_prefix):
     return bool(balance)
 
 
-#def get_output(results, settings):
-#    show_empty = settings.getboolean('output', 'show empty')
-#    score_threshold = settings.getfloat('output', 'score threshold')
-#    # min_matched = settings.getint('output', 'minimum matched')
-#    # num_candidates = settings.getint('output', 'candidates') or None
-#    try:
-#        acc_l = settings.getfloat('output', 'precursor accuracy left')
-#        acc_r = settings.getfloat('output', 'precursor accuracy right')
-#        rel = settings.get('output', 'precursor accuracy unit') == 'ppm'
-#    except ValueError:
-#        logger.debug('Using [search] parameters for [output]')
-#        acc_l = settings.getfloat('search', 'precursor accuracy left')
-#        acc_r = settings.getfloat('search', 'precursor accuracy right')
-#        rel = settings.get('search', 'precursor accuracy unit') == 'ppm'
-#
-#    shifts_and_pime = get_shifts_and_pime(settings)
-#
-#    count = 0
-#    discard_count = 0
-#    for result in results:
-#        mz = get_precursor_mz(result['spectrum'])
-#        dm_l = acc_l * mz / 1.0e6 if rel else acc_l
-#        dm_r = acc_r * mz / 1.0e6 if rel else acc_r
-#        count += 1
-#        c = result['candidates']
-#        c = c[c['score'] > score_threshold]
-#        # if min_matched:
-#        #     mask = np.array([
-#        #         c_[4]['match'] is not None and
-#        #         sum(m.sum() for m in c_[4]['match'].values()) >= min_matched
-#        #         for c_ in c], dtype=bool)
-#        #     c = c[mask]
-#        mask = []
-#        for c_ in c:
-#            mask.append(any(-dm_l < (c_[4]['mzdiff']['Da'] - sh_) / c_[3] < dm_r for sh_ in shifts_and_pime))
-#        c = c[np.array(mask, dtype=bool)]
-#
-#        if (not c.size) and not show_empty:
-#            discard_count += 1
-#            continue
-#        result['candidates'] = c#c[:num_candidates]
-#        yield result
-#    logger.info('Unfiltered results: %s', count)
-#    logger.info('Discarded empty results: %s', discard_count)
-
 def get_shifts_and_pime(settings):
     pime = settings.getint('search', 'precursor isotope mass error')
     shifts =[float(x) for x in settings.get('search', 'shifts').split(',')]
@@ -1283,13 +1238,24 @@ def write_pepxml(inputfile, settings, results):
 
 def write_csv(inputfile, settings, results):
     df = dataframe(inputfile, settings, results)
-    fname = get_outpath(inputfile, settings, 'tsv')
+    if df is None:
+        logger.info('No results to write. File not created.')
+        return
+
+    sep = settings.get('output', 'separator')
+    of = settings.get('output', 'format').lower()
+    if not sep:
+        sep = ',' if of == 'csv' else '\t'
+    fname = get_outpath(inputfile, settings, of)
     logger.info('Writing %s ...', fname)
-    df.to_csv(fname, index=False, sep='\t')
+    df.to_csv(fname, index=False, sep=sep)
 
 def dataframe(inputfile, settings, results):
 #   results = list(get_output(results, settings))
     results = list(results)
+    if not results:
+        return None
+
     logger.info('Accumulated results: %s', len(results))
 #   ensure_decoy(settings)
     set_mod_dict(settings)
@@ -1404,6 +1370,7 @@ def write_pickle(inputfile, settings, results):
     filename = get_outpath(inputfile, settings, 'pickle')
     with open(filename, 'wb') as output:
         pickle.dump((inputfile, settings, results), output, -1)
+
 
 
 def write_output(inputfile, settings, results):
