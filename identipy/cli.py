@@ -7,10 +7,10 @@ LOGGING = {
     'disable_existing_loggers': True,
     'formatters': {
         'verbose': {
-            'format': '%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s',
+            'format': '%(levelname)7s %(asctime)s %(module)s %(process)d %(thread)d %(message)s',
         },
         'simple': {
-            'format': '%(levelname)s: %(asctime)s %(message)s',
+            'format': '%(levelname)7s: %(asctime)s %(message)s',
             'datefmt': '[%H:%M:%S]',
         },
     },
@@ -71,8 +71,8 @@ def run():
     parser.add_argument('-out',     help='output path')
     parser.add_argument('-of',      help='output format')
     parser.add_argument('-sep',     help='output column separator')
-    parser.add_argument('-at',      help='Use auto-tuning of search parameters. yes or no', type=str)
-    parser.add_argument('-pwide',   help='Increase initial precursor mass accuracy for auto-tuning. yes or no', type=str)
+    parser.add_argument('-at',      help='Use auto-tuning of search parameters', action='store_true')
+    parser.add_argument('-nopwide', help='Do not increase initial precursor mass accuracy for auto-tuning', action='store_true')
     parser.add_argument('-punit',   help='precursor mass tolerance unit. Can be ppm or Da', type=str)
     parser.add_argument('-ptol',    help='precursor mass tolerance', type=float)
     parser.add_argument('-lptol',   help='*left precursor mass tolerance', type=float)
@@ -97,8 +97,9 @@ def run():
     parser.add_argument('-shifts',  help='shifts. example: 0,16.000,23.000,12')
     parser.add_argument('-snp',     help='1 means make SNP changes for ALL peptides', type=int)
     parser.add_argument('-mm',      help='number of minimum matched ions', type=int)
-    parser.add_argument('-ad',      help='add decoy')
+    parser.add_argument('-ad',      help='add decoy', action='store_true')
     parser.add_argument('-prefix',  help='decoy prefix')
+    parser.add_argument('-infix',   help='decoy infix')
     parser.add_argument('-method',  help='reverse or random')
     parser.add_argument('-deis',    help='use MS/MS deisotoping. yes or no')
     parser.add_argument('-deistol', help='deisotope mass accuracy', type=float)
@@ -113,9 +114,13 @@ def run():
     parser.add_argument('-ccleave', help='protein cterm cleavage', type=float)
     parser.add_argument('-fmods',   help='fixed modifications. in mass1@aminoacid1,mass2@aminoacid2 format')
     parser.add_argument('-vmods',   help='variable modifications. in mass1@aminoacid1,mass2@aminoacid2 format')
-    parser.add_argument('-tags',   help='Add quantitation tags to the pepXML output. Can be tmt10plex, tmt6plex or custom format label1:mass1,label2:mass2...')
+    parser.add_argument('-tags',    help='Add quantitation tags to the pepXML output. Can be tmt10plex, tmt6plex or custom format label1:mass1,label2:mass2...')
+    parser.add_argument('-debug',  help='Print debugging messages', action='store_true')
 
     args = vars(parser.parse_args())
+    if args['debug']:
+        logging.getLogger('identipy').setLevel(logging.DEBUG)
+
     if args['cfg']:
         settings = main.settings(args['cfg'])
     else:
@@ -180,8 +185,9 @@ def run():
     _update(settings, 'search', 'shifts', args['shifts'])
     _update(settings, 'search', 'snp', args['snp'])
     _update(settings, 'output', 'minimum matched', args['mm'])
-    _update(settings, 'input',  'add decoy', args['ad'])
+    _update(settings, 'input',  'add decoy', str(args['ad']))
     _update(settings, 'input',  'decoy prefix', args['prefix'])
+    _update(settings, 'input',  'decoy infix', args['infix'])
     _update(settings, 'input',  'decoy method', args['method'])
     _update(settings, 'input',  'deisotope', args['deis'])
     _update(settings, 'input',  'deisotoping mass tolerance', args['deistol'])
@@ -200,12 +206,12 @@ def run():
     _update(settings, 'output', 'separator', args['sep'])
     _update(settings, 'output', 'tags', args['tags'])
     if args['at']:
-        if args['at'] == 'yes':
-            ao_setting = 'identipy.extras.optimization'
-        elif args['at'] == 'no':
-            ao_setting = ''
-        _update(settings, 'misc', 'first stage', ao_setting)
-    _update(settings, 'optimization', 'increase precursor mass tolerance', args['pwide'])
+        ao_setting = 'identipy.extras.optimization'
+        if args['nopwide']:
+            _update(settings, 'optimization', 'increase precursor mass tolerance', 'no')
+    else:
+        ao_setting = ''
+    _update(settings, 'misc', 'first stage', ao_setting)
 
 
     inputfile = args['file']

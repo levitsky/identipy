@@ -282,8 +282,19 @@ def iterate_and_preprocess(fname, params, settings):
     n = settings.getint('performance', 'processes')
     return multimap(n, preprocess_spectrum, it, kwargs=params)
 
-def peptide_gen(settings):
+def is_decoy_function(settings):
     prefix = settings.get('input', 'decoy prefix')
+    infix = settings.get('input', 'decoy infix')
+    if infix is not None:
+        return lambda d: infix in d
+    elif prefix is not None:
+        return lambda d: d.startswith(prefix)
+    else:
+        logger.error('No decoy label specified. One of "decoy prefix" or "decoy infix" is needed.')
+
+
+def peptide_gen(settings):
+    isdecoy = is_decoy_function(settings)
     enzyme = get_enzyme(settings.get('search', 'enzyme'))
     semitryptic = settings.getint('search', 'semitryptic')
     mc = settings.getint('search', 'number of missed cleavages')
@@ -291,17 +302,15 @@ def peptide_gen(settings):
     maxlen = settings.getint('search', 'peptide maximum length')
     snp = settings.getint('search', 'snp')
     for prot in prot_gen(settings):
-        for pep in prot_peptides(prot[1], enzyme, mc, minlen, maxlen, is_decoy=prot[0].startswith(prefix), snp=snp, desc=prot[0], semitryptic=semitryptic):
+        for pep in prot_peptides(prot[1], enzyme, mc, minlen, maxlen, is_decoy=isdecoy(prot[0]), snp=snp, desc=prot[0], semitryptic=semitryptic):
             yield pep
 
 def prot_gen(settings):
     db = settings.get('input', 'database')
     add_decoy = settings.getboolean('input', 'add decoy')
     prefix = settings.get('input', 'decoy prefix')
-    mode = settings.get('input', 'decoy method')
 
-    read = [fasta.read, lambda f: fasta.decoy_db(f, mode=mode, prefix=prefix)][add_decoy and is_db_target_only(db, prefix)]
-    with read(db) as f:
+    with fasta.read(db) as f:
         for p in f:
             yield p
 
@@ -891,10 +900,12 @@ def get_precursor_mz(spectrum):
         return spectrum['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z']
 
 
-def is_db_target_only(db, decoy_prefix):
+def is_db_target_only(settings):
+    db = settings.get('input', 'database')
+    isdecoy = is_decoy_function(settings)
     balance = 0
     for prot in fasta.read(db):
-        if prot[0].startswith(decoy_prefix):
+        if isdecoy(prot[0]):
             balance -= 1
         else:
             balance += 1
@@ -914,7 +925,8 @@ def build_pept_prot(settings, results):
     mc = settings.getint('search', 'number of missed cleavages')
     minlen = settings.getint('search', 'peptide minimum length')
     maxlen = settings.getint('search', 'peptide maximum length')
-    prefix = settings.get('input', 'decoy prefix')
+    isdecoy = is_decoy_function(settings)
+
     snp = settings.getint('search', 'snp')
     pept_prot = {}
     prots = {}
@@ -935,7 +947,7 @@ def build_pept_prot(settings, results):
         if semitryptic:
             cl_positions = set(z for z in it.chain([x.end() for x in re.finditer(enzyme_rule, prot)],
                    [0, 1, len(prot)]))
-        for pep, startposition in prot_peptides(prot, enzyme_rule, mc, minlen, maxlen, desc.startswith(prefix), dont_use_seen_peptides=True, snp=snp, desc=desc, position=True, semitryptic=semitryptic):
+        for pep, startposition in prot_peptides(prot, enzyme_rule, mc, minlen, maxlen, isdecoy(desc), dont_use_seen_peptides=True, snp=snp, desc=desc, position=True, semitryptic=semitryptic):
             if snp:
                 if 'snp' not in pep:
                     seqm = pep
@@ -981,7 +993,6 @@ def write_pepxml(inputfile, settings, results):
 
     set_mod_dict(settings)
     db = settings.get('input', 'database')
-    prefix = settings.get('input', 'decoy prefix')
 
     enzyme = settings.get('search', 'enzyme')
     search_engine = 'IdentiPy'

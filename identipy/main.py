@@ -24,9 +24,14 @@ def process_file(fname, settings, initial_run=True):
 
     add_decoy = settings.getboolean('input', 'add decoy')
     prefix = settings.get('input', 'decoy prefix')
+    infix = settings.get('input', 'decoy infix')
+    if infix and add_decoy:
+        if not prefix:
+            prefix = infix
+        logger.warning('infix is specified with "add decoy" = True. Generated decoys will have PREFIX %s', prefix)
     mode = settings.get('input', 'decoy method')
     db = settings.get('input', 'database')
-    if add_decoy and utils.is_db_target_only(db, prefix):
+    if add_decoy and utils.is_db_target_only(settings):
         ft = tempfile.NamedTemporaryFile(mode='w', delete=False)
         fasta.write_decoy_db(db, ft, mode=mode, prefix=prefix)
         ft.flush()
