@@ -111,7 +111,7 @@ def morpheusscore(spectrum, theoretical, acc, acc_ppm=False, position=False):
             if not (yions[plen - position] and yions[plen - position - 1]) or (bions[position - 1] and bions[position - 2]):
                 return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
 
-    score += nmatched
+    score += total_matched
     sumI = np.log10(sumI)
 
     return {'score': score, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched}
