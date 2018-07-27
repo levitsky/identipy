@@ -960,7 +960,8 @@ def build_pept_prot(settings, results):
                 if not semitryptic:
                     pept_prot.setdefault(seqm, []).append(dbinfo)
                     pept_neighbors[seqm] = (prot[startposition-1] if startposition != 0 else 'N/A',
-                        prot[startposition+len(seqm)] if startposition + len(seqm) < len(prot) else 'N/A')
+                        prot[startposition+len(seqm)] if startposition + len(seqm) < len(prot) else 'N/A',
+                                            startposition, min(startposition + len(seqm), len(prot)))
                     pept_ntts[seqm] = 2
                 else:
                     ntt = (startposition in cl_positions) + ((startposition + len(seqm)) in cl_positions)
@@ -972,7 +973,8 @@ def build_pept_prot(settings, results):
                                 del pept_ntts[seqm]
                             pept_prot.setdefault(seqm, []).append(dbinfo)
                             pept_neighbors[seqm] = (prot[startposition-1] if startposition != 0 else 'N/A',
-                                prot[startposition+len(seqm)] if startposition + len(seqm) < len(prot) else 'N/A')
+                                prot[startposition+len(seqm)] if startposition + len(seqm) < len(prot) else 'N/A',
+                                                    startposition, min(startposition + len(seqm), len(prot)))
                             pept_ntts[seqm] = ntt
                     else:
                         pept_prot.setdefault(seqm, []).append(dbinfo)
