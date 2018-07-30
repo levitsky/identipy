@@ -217,3 +217,7 @@ def run():
     inputfile = args['file']
 
     utils.write_output(inputfile, settings, main.process_file(inputfile, settings))
+
+
+if __name__ == '__main__':
+    run()
