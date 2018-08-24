@@ -185,7 +185,8 @@ def run():
     _update(settings, 'search', 'shifts', args['shifts'])
     _update(settings, 'search', 'snp', args['snp'])
     _update(settings, 'output', 'minimum matched', args['mm'])
-    _update(settings, 'input',  'add decoy', str(args['ad']))
+    if args['ad']:
+        _update(settings, 'input', 'add decoy', 'yes')
     _update(settings, 'input',  'decoy prefix', args['prefix'])
     _update(settings, 'input',  'decoy infix', args['infix'])
     _update(settings, 'input',  'decoy method', args['method'])
@@ -210,9 +211,8 @@ def run():
         if args['nopwide']:
             _update(settings, 'optimization', 'increase precursor mass tolerance', 'no')
     else:
-        ao_setting = ''
+        ao_setting = None
     _update(settings, 'misc', 'first stage', ao_setting)
-
 
     inputfile = args['file']
 
