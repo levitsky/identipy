@@ -283,14 +283,13 @@ def iterate_and_preprocess(fname, params, settings):
     return multimap(n, preprocess_spectrum, it, kwargs=params)
 
 def is_decoy_function(settings):
-    prefix = settings.get('input', 'decoy prefix')
-    infix = settings.get('input', 'decoy infix')
-    if infix is not None:
+    prefix = settings.get('input', 'decoy prefix').strip()
+    infix = settings.get('input', 'decoy infix').strip()
+    if infix:
         return lambda d: infix in d
-    elif prefix is not None:
+    if prefix:
         return lambda d: d.startswith(prefix)
-    else:
-        logger.error('No decoy label specified. One of "decoy prefix" or "decoy infix" is needed.')
+    logger.error('No decoy label specified. One of "decoy prefix" or "decoy infix" is needed.')
 
 
 def peptide_gen(settings):
