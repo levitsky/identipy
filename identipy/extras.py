@@ -31,7 +31,6 @@ def FDbinSize(X):
 
 def get_subset(results, settings, fdr=0.01):
     """Filter results to given FDR using top 1 candidates"""
-#   out = get_output(results, settings)
     subset = aux.filter(results, key=lambda x: x['e-values'][0],
             is_decoy = lambda x: x['candidates'][0][2] == 'd',
             fdr=fdr)

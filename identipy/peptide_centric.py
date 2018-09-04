@@ -272,7 +272,6 @@ def process_peptides(fname, settings):
     dtype = np.dtype([('score', np.float64),
         ('seq', np.str_, maxlen), ('note', np.str_, 1),
         ('charge', np.int8), ('info', np.object_), ('sumI', np.float64), ('fragmentMT', np.float64), ('snp_label', np.str_, 15)])
-
     for spec_name, val in spec_results.iteritems():
         s = val['spectrum']
         c = []
@@ -283,7 +282,10 @@ def process_peptides(fname, settings):
         seq = mseq
         info = val['info']#[idx]
         for x in set(mseq).intersection(punctuation):
-            seq = seq.replace(x, leg[x][1])
+            repl = leg[x][1]
+            if repl == '-':
+                repl = ''
+            seq = seq.replace(x, repl)
         pnm = info['pep_nm']
         c.append((-score, mseq, 't' if seq in utils.seen_target else 'd',
             info['charge'], info, info.pop('sumI'), np.median(info.pop('dist')), val['snp_label']))
