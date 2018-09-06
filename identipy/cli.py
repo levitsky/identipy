@@ -100,7 +100,7 @@ def run():
     parser.add_argument('-ad',      help='add decoy', action='store_true')
     parser.add_argument('-prefix',  help='decoy prefix')
     parser.add_argument('-infix',   help='decoy infix')
-    parser.add_argument('-method',  help='reverse or random')
+    parser.add_argument('-method',  help='reverse or shuffle')
     parser.add_argument('-deis',    help='use MS/MS deisotoping. yes or no')
     parser.add_argument('-deistol', help='deisotope mass accuracy', type=float)
     parser.add_argument('-score',   help='used score. Can be RNHS, hyperscore or morpheusscore')
