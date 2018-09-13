@@ -455,18 +455,19 @@ def deisotope(spectrum, acc, charge):
     skip = set()
     add = []
     while i >= 0:
-        j = mz.size-1
+        j = min(mz.size-1, mz.searchsorted(mz[i] + 1.5, side='right'))
         while j > i:
-            d = mz[j] - mz[i]
-            if d > 1.5*h:
-                j -= 1
-                continue
-            for z in range(1, charge+1):
-                if abs(d - 1./z) < acc and intens[i] > intens[j]:
-                    skip.add(j)
-                    if z > 1:
-#                         skip.add(i)
-                        add.append((i, z))
+            if intens[i] > intens[j]:
+                d = mz[j] - mz[i]
+                if d > 1.5*h:
+                    j -= 1
+                    continue
+                for z in xrange(1, charge+1):
+                    if abs(d - 1./z) < acc:
+                        skip.add(j)
+                        if z > 1:
+    #                         skip.add(i)
+                            add.append((i, z))
             j -= 1
         i -= 1
     ix = np.delete(np.arange(mz.size, dtype=int), list(skip))
