@@ -18,7 +18,7 @@ try:
     # import pyximport; pyximport.install()
     from cutils import theor_spectrum
 except:
-    from utils import theor_spectrum
+    from utils import theor_spectrum, reshape_theor_spectrum
 
 spectra = {}
 best_res = {}
@@ -182,15 +182,17 @@ def peptide_processor(peptide, **kwargs):
         for shift in shifts_and_pime:
             start = nmasses[c].searchsorted(m + shift - dm_l)
             end   = nmasses[c].searchsorted(m + shift + dm_r)
-            idx.update(range(start, end))
+            if end - start:
+                idx.update(range(start, end))
         if kwargs['cond']:
             idx = {i for i in idx if kwargs['cond'](spectra[c][i], seqm, settings)}
 
         if idx:
             cand_idx[c] = idx
-            theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=True,
+            theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=False,
                                                           acc_frag=kwargs['acc_frag'], nterm_mass = nterm_mass,
-                                                          cterm_mass = cterm_mass)
+                                                          cterm_mass = cterm_mass, nm=m)
+            reshaped = False
 
     results = []
     for fc, ind in cand_idx.iteritems():
@@ -205,6 +207,9 @@ def peptide_processor(peptide, **kwargs):
                             sc = hf[1]
                             score = {'match': [], 'sumI': 1, 'dist': [], 'total_matched': 999}
                         else:
+                            if not reshaped:
+                                theor[fc] = reshape_theor_spectrum(theor[fc])
+                                reshaped = True
                             score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos)#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
                             sc = score.pop('score')
                         # st = utils.get_title(s)
@@ -212,6 +217,9 @@ def peptide_processor(peptide, **kwargs):
                             results.append((sc, st, score, m, charges[fc][i], snp_label))
             else:
                 st = utils.get_title(s)
+                if not reshaped:
+                    theor[fc] = reshape_theor_spectrum(theor[fc])
+                    reshaped = True
                 score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos)#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
                 sc = score.pop('score')
                 if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
