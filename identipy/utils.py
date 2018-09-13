@@ -544,7 +544,7 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
     tmp = spectrum['m/z array'] / acc
     tmp = tmp.astype(int)
     tmp = np.concatenate((tmp, tmp-1, tmp+1))
-    spectrum['fastset'] = set(tmp)
+    spectrum['fastset'] = set(tmp.tolist())
     spectrum['Isum'] = spectrum['intensity array'].sum()
     spectrum['RT'] = get_RT(spectrum)
 
@@ -691,44 +691,70 @@ def get_info(spectrum, result, settings, aa_mass=None):
     idx = find_nearest(masses, custom_mass(str(result['candidates'][0][1]), aa_mass=aa_mass, nterm_mass=nterm_mass, cterm_mass=cterm_mass))
     return (masses[idx], states[idx], RT)
 
+def reshape_theor_spectrum(peaks):
+    for k in peaks.keys():
+        n = peaks[k].size
+        peaks[k] = peaks[k].reshape((n, 1))
+    return peaks
+
+
+ion_shift_dict = {
+    'a': 46.00547930326002,
+    'b': 18.010564683699954,
+    'c': 0.984015582689949,
+    'x': -25.979264555419945,
+    'y': 0.0,
+    'z': 17.026549101010005,
+}
+
+def calc_ions_from_neutral_mass(peptide, nm, ion_type, charge, aa_mass, cterm_mass, nterm_mass):
+    if ion_type in 'abc':
+        nmi = nm - aa_mass[peptide[-1]] - ion_shift_dict[ion_type] - (cterm_mass - 17.002735)
+    else:
+        nmi = nm - aa_mass[peptide[0]] - ion_shift_dict[ion_type] - (nterm_mass - 1.007825)
+    return (nmi + 1.0072764667700085 * charge) / charge 
 
 def theor_spectrum(peptide, acc_frag, nterm_mass, cterm_mass, types=('b', 'y'), maxcharge=None, reshape=False, **kwargs):
     peaks = {}
-    theoretical_set = dict()#defaultdict(set)#set()
-    # theoretical_set = set()
+    theoretical_set = dict()
+    # back_acc_frag = 1 / acc_frag
+    if 'nm' in kwargs:
+        nm = kwargs['nm']
+    else:
+        nm = custom_mass(peptide, aa_mass=kwargs['aa_mass'], nterm_mass = nterm_mass, cterm_mass = cterm_mass)
     pl = len(peptide) - 1
     if not maxcharge:
         maxcharge = 1 + int(ec.charge(peptide, pH=2))
-    for charge in range(1, maxcharge + 1):
+    for charge in xrange(1, maxcharge + 1):
         for ion_type in types:
-            nterminal = ion_type[0] in 'abc'
+            nterminal = (ion_type[0] == 'b' or ion_type[0] == 'a' or ion_type[0] == 'c')# in 'abc'
             if nterminal:
                 maxpart = peptide[:-1]
-                maxmass = cmass.fast_mass(maxpart, ion_type=ion_type, charge=charge, **kwargs) + (nterm_mass - 1.007825)
-                marr = np.zeros((pl, ), dtype=float)
+                maxmass = calc_ions_from_neutral_mass(peptide, nm, ion_type=ion_type, charge=charge,
+                                aa_mass=kwargs['aa_mass'], cterm_mass=cterm_mass, nterm_mass=nterm_mass)
+                marr = np.empty((pl, ), dtype=float)
                 marr[0] = maxmass
-                for i in range(1, pl):
+                for i in xrange(1, pl):
                     marr[i] = marr[i-1] - kwargs['aa_mass'][maxpart[-i]]/charge
             else:
                 maxpart = peptide[1:]
-                maxmass = cmass.fast_mass(maxpart, ion_type=ion_type, charge=charge, **kwargs) + (cterm_mass - 17.002735)
-                marr = np.zeros((pl, ), dtype=float)
+                maxmass = calc_ions_from_neutral_mass(peptide, nm, ion_type=ion_type, charge=charge,
+                                aa_mass=kwargs['aa_mass'], cterm_mass=cterm_mass, nterm_mass=nterm_mass)
+                marr = np.empty((pl, ), dtype=float)
                 marr[pl-1] = maxmass
-                for i in range(pl-2, -1, -1):
+                for i in xrange(pl-2, -1, -1):
                     marr[i] = marr[i+1] - kwargs['aa_mass'][maxpart[-(i+2)]]/charge
+                marr = marr[::-1]
 
             tmp = marr / acc_frag
-            # tmp = tmp.astype(int)
-            # tmp = np.concatenate((tmp, tmp-1, tmp+1))
-            # theoretical_set.update(tmp)
+            tmp = tmp.astype(int)
+            tmp = set(tmp.tolist())
             if ion_type in theoretical_set:
-                theoretical_set[ion_type].update(set(tmp.astype(int)))
+                theoretical_set[ion_type].update(tmp)
             else:
-                theoretical_set[ion_type] = set(tmp.astype(int))
+                theoretical_set[ion_type] = tmp
 
-            if not reshape:
-                marr.sort()
-            else:
+            if reshape:
                 n = marr.size
                 marr = marr.reshape((n, 1))
             peaks[ion_type, charge] = marr
