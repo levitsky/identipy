@@ -196,6 +196,7 @@ def peptide_processor(peptide, **kwargs):
 
     results = []
     for fc, ind in cand_idx.iteritems():
+        reshaped = False
         for i in ind:
             s = spectra[fc][i]
             if kwargs['score_fast']:
