@@ -143,7 +143,7 @@ def run():
             fmods_array.append(ctermlabel + lbl + modaa + ntermlabel)
             if flag:
                 settings.set('modifications', lbl, modmass)
-    if len(fmods_array):
+    if fmods_array or args['fmods'] is not None:
         settings.set('modifications', 'fixed', ','.join(fmods_array))
 
     if args['vmods']:
@@ -159,7 +159,7 @@ def run():
             vmods_array.append(ctermlabel + lbl + modaa + ntermlabel)
             if flag:
                 settings.set('modifications', lbl, modmass)
-    if len(vmods_array):
+    if vmods_array or args['vmods'] is not None:
         settings.set('modifications', 'variable', ','.join(vmods_array))
 
 
