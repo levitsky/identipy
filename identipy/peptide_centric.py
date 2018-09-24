@@ -18,7 +18,8 @@ try:
     # import pyximport; pyximport.install()
     from cutils import theor_spectrum
 except:
-    from utils import theor_spectrum, reshape_theor_spectrum
+    from utils import theor_spectrum
+from utils import reshape_theor_spectrum
 
 spectra = {}
 best_res = {}
