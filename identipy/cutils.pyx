@@ -92,7 +92,7 @@ cdef tuple ctheor_spectrum(str peptide, double acc_frag, double nterm_mass, doub
                 theoretical_set[ion_type] = ions_scaled
 
             if not reshape:
-                marr_storage = marr.sort()
+                marr_storage = marr
             else:
                 n = marr.size
                 marr_storage = marr.reshape((n, 1))
