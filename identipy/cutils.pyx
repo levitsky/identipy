@@ -20,8 +20,49 @@ cdef:
     dict std_ion_comp = cmass.std_ion_comp
     dict nist_mass = cmass._nist_mass
 
+cdef dict ion_shift_dict
 
-cdef object np_zeros = np.zeros
+ion_shift_dict = {
+    'a': 46.00547930326002,
+    'b': 18.010564683699954,
+    'c': 0.984015582689949,
+    'x': -25.979264555419945,
+    'y': 0.0,
+    'z': 17.026549101010005,
+}
+
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.wraparound(True)
+cdef float calc_ions_from_neutral_mass(str peptide, float nm, str ion_type, int charge, dict aa_mass, float cterm_mass, float nterm_mass):
+    cdef float nmi
+    if ion_type in 'abc':
+        nmi = nm - aa_mass[peptide[-1]] - ion_shift_dict[ion_type] - (cterm_mass - 17.002735)
+    else:
+        nmi = nm - aa_mass[peptide[0]] - ion_shift_dict[ion_type] - (nterm_mass - 1.007825)
+    return (nmi + 1.0072764667700085 * charge) / charge 
+
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.wraparound(True)
+cdef list get_n_ions(str peptide, float maxmass, int pl, int charge, dict k_aa_mass):
+    cdef int i
+    cdef list tmp
+    tmp = [maxmass, ]
+    for i in xrange(1, pl):
+        tmp.append(tmp[-1] - k_aa_mass[peptide[-i-1]]/charge)
+    return tmp
+
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.wraparound(True)
+cdef list get_c_ions(str peptide, float maxmass, int pl, int charge, dict k_aa_mass):
+    cdef int i
+    cdef list tmp
+    tmp = [maxmass, ]
+    for i in xrange(pl-2, -1, -1):
+        tmp.append(tmp[-1] - k_aa_mass[peptide[-(i+2)]]/charge)
+    return tmp
 
 @cython.cdivision(True)
 @cython.boundscheck(False)
@@ -31,11 +72,11 @@ cdef tuple ctheor_spectrum(str peptide, double acc_frag, double nterm_mass, doub
     cdef int pl, charge, i, n, i_type, n_types
     cdef bint nterminal
     cdef str ion_type, maxpart, part
-    cdef float maxmass, part_mass
+    cdef float maxmass, part_mass, nm
     cdef dict peaks, theoretical_set
     cdef dict aa_mass, ion_comp, mass_data
-    cdef set theoretical_set_item, ions_scaled
-    cdef np.ndarray[double, ndim=1, mode='c'] marr
+    cdef set theoretical_set_item
+    cdef list ions_scaled, marr
     cdef object marr_storage
 
     aa_mass = kwargs.get("aa_mass")
@@ -47,6 +88,9 @@ cdef tuple ctheor_spectrum(str peptide, double acc_frag, double nterm_mass, doub
     mass_data = kwargs.get("mass_data")
     if mass_data is None:
         mass_data = nist_mass
+    nm = kwargs.get("nm")
+    if nm is None:
+        nm = cmass.fast_mass(peptide, **kwargs) + (nterm_mass - 1.007825) + (cterm_mass - 17.002735)
     peaks = {}
     theoretical_set = dict()
 
@@ -57,46 +101,28 @@ cdef tuple ctheor_spectrum(str peptide, double acc_frag, double nterm_mass, doub
             ion_type = <str>PyTuple_GetItem(types, i_type)
             nterminal = ion_type[0] in 'abc'
             if nterminal:
-                maxpart = <str>PySequence_GetSlice(peptide, 0, -1)
-                maxmass = cmass.fast_mass(
-                    maxpart, ion_type, charge, mass_data, aa_mass,
-                    ion_comp)
-                maxmass += (nterm_mass - 1.007825)
-                marr = np_zeros(pl, dtype=float)
-                marr[0] = maxmass
-                for i in range(1, pl):
-                    part = <str>maxpart[-i]
-                    part_mass = PyFloat_AsDouble(<object>PyDict_GetItem(aa_mass, part))
-                    marr[i] = marr[i - 1] - part_mass / charge
+                maxmass = calc_ions_from_neutral_mass(peptide, nm, ion_type=ion_type, charge=charge,
+                                aa_mass=kwargs['aa_mass'], cterm_mass=cterm_mass, nterm_mass=nterm_mass)
+                marr = get_n_ions(peptide, maxmass, pl, charge, kwargs['aa_mass'])
             else:
-                maxpart = <str>PySequence_GetSlice(peptide, 1, pl + 2)
-                maxmass = cmass.fast_mass(
-                    maxpart, ion_type, charge, mass_data, aa_mass,
-                    ion_comp)
-                maxmass += (cterm_mass - 17.002735)
-                marr = np_zeros(pl, dtype=float)
-                marr[pl-1] = maxmass
-                for i in range(pl-2, -1, -1):
-                    part = <str>maxpart[-(i + 2)]
-                    part_mass = PyFloat_AsDouble(<object>PyDict_GetItem(aa_mass, part))
-                    marr[i] = marr[i + 1] - part_mass / charge
+                maxmass = calc_ions_from_neutral_mass(peptide, nm, ion_type=ion_type, charge=charge,
+                                aa_mass=kwargs['aa_mass'], cterm_mass=cterm_mass, nterm_mass=nterm_mass)
+                marr = get_c_ions(peptide, maxmass, pl, charge, kwargs['aa_mass'])
 
-            ions_scaled = set()
-            for i in range(marr.shape[0]):
-                ions_scaled.add(<int>(marr[i] / acc_frag))
-
+            ions_scaled = [<int>(x / acc_frag) for x in marr]
             if ion_type in theoretical_set:
                 theoretical_set_item = <set>PyDict_GetItem(theoretical_set, ion_type)
                 theoretical_set_item.update(ions_scaled)
             else:
                 theoretical_set[ion_type] = ions_scaled
 
-            if not reshape:
-                marr_storage = marr
+            if reshape:
+                marr_storage = np.array(marr)
+                n = marr_storage.size
+                marr_storage = marr_storage.reshape((n, 1))
+                peaks[ion_type, charge] = marr_storage
             else:
-                n = marr.size
-                marr_storage = marr.reshape((n, 1))
-            peaks[ion_type, charge] = marr_storage
+                peaks[ion_type, charge] = marr
     return peaks, theoretical_set
 
 
