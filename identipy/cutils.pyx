@@ -5,6 +5,7 @@ from cpython.float cimport PyFloat_AsDouble
 from cpython.tuple cimport PyTuple_GetItem
 
 from pyteomics import cmass
+from math import factorial
 
 cimport pyteomics.cmass as cmass
 
@@ -30,6 +31,20 @@ ion_shift_dict = {
     'y': 0.0,
     'z': 17.026549101010005,
 }
+
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.wraparound(True)
+def RNHS_fast(set spectrum_fastset, dict theoretical_set, int min_matched):
+    cdef int matched_approx_b, matched_approx_y, matched_approx
+    matched_approx_b = len(spectrum_fastset.intersection(theoretical_set['b']))
+    matched_approx_y = len(spectrum_fastset.intersection(theoretical_set['y']))
+    matched_approx = matched_approx_b + matched_approx_y
+    if matched_approx >= min_matched:
+        return matched_approx, factorial(matched_approx_b) * factorial(matched_approx_y)
+    else:
+        return 0, 0
+
 
 @cython.cdivision(True)
 @cython.boundscheck(False)
