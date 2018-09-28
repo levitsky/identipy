@@ -95,7 +95,14 @@ def prepare_peptide_processor(fname, settings):
     aa_mass = utils.get_aa_mass(settings)
     score = utils.import_(settings.get('scoring', 'score'))
     try:
-        score_fast = utils.import_(settings.get('scoring', 'score') + '_fast')
+        score_fast_name = settings.get('scoring', 'score') + '_fast'
+        if score_fast_name == 'identipy.scoring.RNHS_fast':
+            try:
+                from cutils import RNHS_fast as score_fast
+            except: 
+                score_fast = utils.import_(settings.get('scoring', 'score') + '_fast')
+        else:
+            score_fast = utils.import_(settings.get('scoring', 'score') + '_fast')
     except Exception as e:
         score_fast = False
         logging.debug('No fast score imported: %s', e)
