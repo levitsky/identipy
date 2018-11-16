@@ -1,6 +1,8 @@
 import argparse
 import string
 import logging.config
+import os
+import subprocess
 
 LOGGING = {
     'version': 1,
@@ -30,6 +32,8 @@ LOGGING = {
 }
 
 logging.config.dictConfig(LOGGING)
+import logging
+logger = logging.getLogger(__name__)
 from . import main, utils
 
 
@@ -116,6 +120,7 @@ def run():
     parser.add_argument('-vmods',   help='variable modifications. in mass1@aminoacid1,mass2@aminoacid2 format')
     parser.add_argument('-tags',    help='Add quantitation tags to the pepXML output. Can be tmt10plex, tmt6plex or custom format label1:mass1,label2:mass2...')
     parser.add_argument('-debug',  help='Print debugging messages', action='store_true')
+    parser.add_argument('-dino', help='path to Dinosaur. Used for chimeric spectrum processing and MS1 Intensity calculation', default=False)
 
     args = vars(parser.parse_args())
     if args['debug']:
@@ -215,6 +220,26 @@ def run():
     _update(settings, 'misc', 'first stage', ao_setting)
 
     inputfile = args['file']
+
+    dino_path = args['dino']
+    if dino_path:
+        if os.path.splitext(inputfile)[1].lower() != '.mzml':
+            logger.info(os.path.splitext(inputfile)[1].lower())
+            logger.info('Only mzml supported for Dinosaur!\n')
+        else:
+            try:
+                advpath = '--advParams=' + os.path.join(os.path.dirname(os.path.realpath(__file__)), 'adv.txt')
+                logger.info(advpath)
+                subprocess.call(['java', '-Djava.awt.headless=true', '-jar', os.path.realpath(dino_path), advpath, '--concurrency=12', inputfile])
+                path_to_features = os.path.splitext(inputfile)[0] + os.extsep + 'features' + os.extsep + 'tsv'
+                logger.info(path_to_features)
+                logger.info('Start demultiplexing...\n')
+                path_to_mgf = utils.demix_chimeric(path_to_features, inputfile, 0.65)
+                logger.info('Demultiplexing was finished...\n')
+                utils.write_output(path_to_mgf, settings, main.process_file(path_to_mgf, settings))
+                return
+            except:
+                pass
 
     utils.write_output(inputfile, settings, main.process_file(inputfile, settings))
 
