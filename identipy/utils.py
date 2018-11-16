@@ -1461,9 +1461,13 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
     chs = []
     titles = []
     ms2_map = {}
-
+    isolation_window_left = False
+    isolation_window_right = False
     for a in mzml.read(path_to_mzml):
         if a['ms level'] == 2:
+            if not isolation_window_left:
+                isolation_window_left = float(a['precursorList']['precursor'][0]['isolationWindow']['isolation window lower offset'])
+                isolation_window_right = float(a['precursorList']['precursor'][0]['isolationWindow']['isolation window upper offset'])
             pepmass = float(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
             RT = float(a['scanList']['scan'][0]['scan start time'])
             charge_val = int(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['charge state'])
@@ -1484,7 +1488,7 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
     chs = chs[idx]
     titles = titles[idx]
 
-    df1['MSMS'] = df1.apply(findMSMS, axis=1, args = (isolation_window, mzs, RTs, titles,))
+    df1['MSMS'] = df1.apply(findMSMS, axis=1, args = (isolation_window_left, isolation_window_right, mzs, RTs, titles,))
     df1['MSMS_accurate'] = df1.apply(findMSMS_accurate, axis=1, args = (mzs, RTs,))
 
     outmgf_name = os.path.splitext(path_to_mzml)[0] + '_identipy' + os.extsep + 'mgf'
@@ -1540,15 +1544,15 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
 
     return outmgf_name
 
-def findMSMS(raw, isolation_window, mzs, RTs, titles):
+def findMSMS(raw, isolation_window_left, isolation_window_right, mzs, RTs, titles):
     out = []
-    acc = 0.65
     isotope_fix = raw['nIsotopes'] / raw['charge']
     mz = raw['mz']
     RT_l = raw['rtStart']
     RT_r = raw['rtEnd']
-    id_l = mzs.searchsorted(mz - acc)
-    id_r = mzs.searchsorted(mz + acc + isotope_fix, side='right')
+    # There is no error below: -right and +left!
+    id_l = mzs.searchsorted(mz - isolation_window_right)
+    id_r = mzs.searchsorted(mz + isolation_window_left + isotope_fix, side='right')
     for idx, RT in enumerate(RTs[id_l:id_r]):
         if RT_l <= RT <= RT_r:
             out.append(titles[id_l+idx])
