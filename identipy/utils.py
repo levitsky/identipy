@@ -1265,6 +1265,25 @@ def write_pepxml(inputfile, settings, results):
                         tmp4.set('value', str(candidate[6]))
                         tmp3.append(copy(tmp4))
 
+                        if 'params' in spectrum:
+                            if 'isowidthdiff' in spectrum['params']:
+                                tmp4 = etree.Element('search_score')
+                                tmp4.set('name', 'ISOWIDTHDIFF')
+                                tmp4.set('value', str(spectrum['params'].get('isowidthdiff', 0)))
+                                tmp3.append(copy(tmp4))
+
+                            if 'rtwidth' in spectrum['params']:
+                                tmp4 = etree.Element('search_score')
+                                tmp4.set('name', 'RTwidth')
+                                tmp4.set('value', str(spectrum['params'].get('rtwidth', 0)))
+                                tmp3.append(copy(tmp4))
+
+                            if 'ms1intensity' in spectrum['params']:
+                                tmp4 = etree.Element('search_score')
+                                tmp4.set('name', 'MS1Intensity')
+                                tmp4.set('value', str(spectrum['params'].get('ms1intensity', 0)))
+                                tmp3.append(copy(tmp4))
+
                         if tags:
                             for tag_label in tags.keys():
                                 tmp4 = etree.Element('search_score')
@@ -1433,3 +1452,120 @@ def write_output(inputfile, settings, results):
         settings.set('output', 'path', outpath)
 
     return writer(inputfile, settings, results)
+
+def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
+    df1 = pd.read_table(path_to_features)
+
+    mzs = []
+    RTs = []
+    chs = []
+    titles = []
+    ms2_map = {}
+
+    for a in mzml.read(path_to_mzml):
+        if a['ms level'] == 2:
+            pepmass = float(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
+            RT = float(a['scanList']['scan'][0]['scan start time'])
+            charge_val = int(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['charge state'])
+            title = a['id']
+            mzs.append(pepmass)
+            RTs.append(RT)
+            chs.append(charge_val)
+            titles.append(title)
+            ms2_map[title] = a
+            
+    mzs = np.array(mzs)
+    RTs = np.array(RTs)
+    chs = np.array(chs)
+    titles = np.array(titles)
+    idx = np.argsort(mzs)
+    mzs = mzs[idx]
+    RTs = RTs[idx]
+    chs = chs[idx]
+    titles = titles[idx]
+
+    df1['MSMS'] = df1.apply(findMSMS, axis=1, args = (isolation_window, mzs, RTs, titles,))
+    df1['MSMS_accurate'] = df1.apply(findMSMS_accurate, axis=1, args = (mzs, RTs,))
+
+    outmgf_name = os.path.splitext(path_to_mzml)[0] + '_identipy' + os.extsep + 'mgf'
+    outmgf = open(outmgf_name, 'w')
+
+    t_i = 1
+
+    added_MSMS = set()
+
+    for z in df1[['mz', 'rtApex', 'charge', 'intensityApex', 'MSMS', 'MSMS_accurate', 'rtStart', 'rtEnd']].values:
+        mz, RT, ch, Intensity, ttls, ttl_ac, rt_ll, rt_rr = z[0], z[1], z[2], z[3], z[4], z[5], z[6], z[7]
+        if ttls:
+            for ttl in ttls:
+                if ttl_ac:
+                    added_MSMS.add(ttl)
+                mz_arr, I_arr = ms2_map[ttl]['m/z array'], ms2_map[ttl]['intensity array']
+                pepmass = float(ms2_map[ttl]['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
+                outmgf.write('BEGIN IONS\n')
+                outmgf.write('TITLE=20161214_HF_DBJ_SA_Exp3B_Hela_1ug_7min_15000_01.%d.%d.%d\n' % (t_i, t_i, ch))
+                outmgf.write('RTINSECONDS=%f\n' % (RT * 60, ))
+                outmgf.write('PEPMASS=%f %f\n' % (mz, Intensity))
+                outmgf.write('CHARGE=%d+\n' % (ch, ))
+                outmgf.write('ISOWIDTHDIFF=%f\n' % (mz - pepmass, ))
+                outmgf.write('RTwidth=%f\n' % (rt_rr - rt_ll, ))
+                outmgf.write('MS1Intensity=%f\n' % (Intensity, ))
+                for mz_val, I_val in zip(mz_arr, I_arr):
+                    outmgf.write('%f %f\n' % (mz_val, I_val))
+                outmgf.write('END IONS\n\n')
+                t_i += 1
+        
+        
+    for k in ms2_map.keys():
+        if k not in added_MSMS:
+            a = ms2_map[k]
+            mz_arr, I_arr = a['m/z array'], a['intensity array']
+            mz = float(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
+            RT = float(a['scanList']['scan'][0]['scan start time'])
+            ch = int(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['charge state'])
+            outmgf.write('BEGIN IONS\n')
+            outmgf.write('TITLE=20161214_HF_DBJ_SA_Exp3B_Hela_1ug_7min_15000_01.%d.%d.%d\n' % (t_i, t_i, ch))
+            outmgf.write('RTINSECONDS=%f\n' % (RT * 60, ))
+            outmgf.write('PEPMASS=%f %f\n' % (mz, 0))
+            outmgf.write('CHARGE=%d+\n' % (ch, ))
+            outmgf.write('ISOWIDTHDIFF=%f\n' % (0.0, ))
+            outmgf.write('RTwidth=%f\n' % (0.0, ))
+            outmgf.write('MS1Intensity=%f\n' % (0.0, ))
+            for mz_val, I_val in zip(mz_arr, I_arr):
+                outmgf.write('%f %f\n' % (mz_val, I_val))
+            outmgf.write('END IONS\n\n')
+            t_i += 1        
+        
+    outmgf.close()
+
+    return outmgf_name
+
+def findMSMS(raw, isolation_window, mzs, RTs, titles):
+    out = []
+    acc = 0.65
+    isotope_fix = raw['nIsotopes'] / raw['charge']
+    mz = raw['mz']
+    RT_l = raw['rtStart']
+    RT_r = raw['rtEnd']
+    id_l = mzs.searchsorted(mz - acc)
+    id_r = mzs.searchsorted(mz + acc + isotope_fix, side='right')
+    for idx, RT in enumerate(RTs[id_l:id_r]):
+        if RT_l <= RT <= RT_r:
+            out.append(titles[id_l+idx])
+    if len(out):
+        return out
+    else:
+        return None
+    
+def findMSMS_accurate(raw, mzs, RTs):
+    acc = 10
+    mz = raw['mz']
+    RT_l = raw['rtStart']
+    RT_r = raw['rtEnd']
+    acc_rel = mz * acc * 1e-6
+    id_l = mzs.searchsorted(mz - acc_rel)
+    id_r = mzs.searchsorted(mz + acc_rel, side='right')
+    for idx, RT in enumerate(RTs[id_l:id_r]):
+        if RT_l <= RT <= RT_r:
+            return True
+    return False
