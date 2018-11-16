@@ -224,15 +224,13 @@ def run():
     dino_path = args['dino']
     if dino_path:
         if os.path.splitext(inputfile)[1].lower() != '.mzml':
-            logger.info(os.path.splitext(inputfile)[1].lower())
             logger.info('Only mzml supported for Dinosaur!\n')
         else:
             try:
                 advpath = '--advParams=' + os.path.join(os.path.dirname(os.path.realpath(__file__)), 'adv.txt')
-                logger.info(advpath)
-                subprocess.call(['java', '-Djava.awt.headless=true', '-jar', os.path.realpath(dino_path), advpath, '--concurrency=12', inputfile])
+                logger.info('Start Dinosaur...\n')
+                subprocess.call(['java', '-Djava.awt.headless=true', '-jar', os.path.realpath(dino_path), advpath, '--concurrency=12', inputfile], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 path_to_features = os.path.splitext(inputfile)[0] + os.extsep + 'features' + os.extsep + 'tsv'
-                logger.info(path_to_features)
                 logger.info('Start demultiplexing...\n')
                 path_to_mgf = utils.demix_chimeric(path_to_features, inputfile, 0.65)
                 logger.info('Demultiplexing was finished...\n')
