@@ -50,11 +50,11 @@ def prepare_peptide_processor(fname, settings):
     params['min_mz'] = settings.getfloat('search', 'product minimum m/z')
     params['maxcharge'] = settings.getint('search', 'maximum charge') or None
     params['mincharge'] = settings.getint('search', 'minimum charge') or None
-    if settings.has_option('search', 'minimum unknown charge'):
+    if settings.has_option('search', 'minimum unknown charge') and settings.getint('search', 'minimum unknown charge'):
         params['min_ucharge'] = max(settings.getint('search', 'minimum unknown charge'), params['mincharge'])
     else:
         params['min_ucharge'] = params['mincharge']
-    if settings.has_option('search', 'maximum unknown charge'):
+    if settings.has_option('search', 'maximum unknown charge') and settings.getint('search', 'maximum unknown charge'):
         params['max_ucharge'] = min(settings.getint('search', 'maximum unknown charge'), params['maxcharge'])
     else:
         params['max_ucharge'] = params['maxcharge']
