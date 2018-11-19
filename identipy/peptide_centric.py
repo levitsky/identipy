@@ -248,7 +248,7 @@ def peptide_processor(peptide, **kwargs):
     # results = np.array(results, dtype=[('score', np.float32), ('title', np.str_, 30), ('spectrum', np.object_), ('info', np.object_)])
     if results:
         return seqm, results
-    return seqm, []
+    # return seqm, []
 
 def process_peptides(fname, settings):
     spec_results = defaultdict(dict)
@@ -266,7 +266,7 @@ def process_peptides(fname, settings):
         leg = settings.get('misc', 'legend')
     for y in utils.multimap(n, func, peps, **kwargs):
         for x in y:
-            if x is not None:
+            if x[1] is not None:
                 peptide, result = x
                 for score, spec_t, info, m, c, snp_label in result:
                     spec_results[spec_t]['spectrum'] = t2s[spec_t]
