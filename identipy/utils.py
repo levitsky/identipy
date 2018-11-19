@@ -673,11 +673,11 @@ def get_info(spectrum, result, settings, aa_mass=None):
     params = {}
     params['maxcharge'] = settings.getint('search', 'maximum charge') or None
     params['mincharge'] = settings.getint('search', 'minimum charge') or None
-    if settings.has_option('search', 'minimum unknown charge'):
+    if settings.has_option('search', 'minimum unknown charge') and settings.getint('search', 'minimum unknown charge'):
         params['min_ucharge'] = max(settings.getint('search', 'minimum unknown charge'), params['mincharge'])
     else:
         params['min_ucharge'] = params['mincharge']
-    if settings.has_option('search', 'maximum unknown charge'):
+    if settings.has_option('search', 'maximum unknown charge') and settings.getint('search', 'maximum unknown charge'):
         params['max_ucharge'] = min(settings.getint('search', 'maximum unknown charge'), params['maxcharge'])
     else:
         params['max_ucharge'] = params['maxcharge']
@@ -772,15 +772,6 @@ def get_expmass(spectrum, kwargs):
     mincharge = kwargs['mincharge'] or None
     min_ucharge = kwargs['min_ucharge']
     max_ucharge = kwargs['max_ucharge']
-    # if settings.has_option('search', 'minimum unknown charge'):
-    #     min_ucharge = max(settings.getint('search', 'minimum unknown charge'), mincharge)
-    # else:
-    #     min_ucharge = mincharge
-    # if settings.has_option('search', 'maximum unknown charge'):
-    #     max_ucharge = min(settings.getint('search', 'maximum unknown charge'), maxcharge)
-    # else:
-    #     max_ucharge = maxcharge
-
 
     if 'params' in spectrum:
         exp_mass = spectrum['params']['pepmass'][0]
@@ -1520,7 +1511,7 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
                 t_i += 1
         
         
-    for k in ms2_map.keys():
+    for k in ms2_map:
         if k not in added_MSMS:
             a = ms2_map[k]
             mz_arr, I_arr = a['m/z array'], a['intensity array']
