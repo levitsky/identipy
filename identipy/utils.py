@@ -760,9 +760,9 @@ def theor_spectrum(peptide, acc_frag, nterm_mass, cterm_mass, types=('b', 'y'), 
 
             tmp = [int(x / acc_frag) for x in marr]
             if ion_type in theoretical_set:
-                theoretical_set[ion_type].update(tmp)
+                theoretical_set[ion_type].extend(tmp)
             else:
-                theoretical_set[ion_type] = set(tmp)
+                theoretical_set[ion_type] = tmp
 
             if reshape:
                 marr = np.array(marr)
