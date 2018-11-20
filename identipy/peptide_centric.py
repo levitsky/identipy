@@ -234,7 +234,7 @@ def peptide_processor(peptide, **kwargs):
                     results.append((sc, st, score, m, charges[fc][i], snp_label))
 
 
-    results.sort(reverse=True, key=op.itemgetter(0))
+    # results.sort(reverse=True, key=op.itemgetter(0))
     # results = np.array(results, dtype=[('score', np.float32), ('title', np.str_, 30), ('spectrum', np.object_), ('info', np.object_)])
     if results:
         return seqm, results
