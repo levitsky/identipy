@@ -48,17 +48,7 @@ def prepare_peptide_processor(fname, settings):
     params['dynrange'] = settings.getfloat('scoring', 'dynamic range')
     params['acc'] = settings.getfloat('search', 'product accuracy')
     params['min_mz'] = settings.getfloat('search', 'product minimum m/z')
-    params['maxcharge'] = settings.getint('search', 'maximum charge') or None
-    params['mincharge'] = settings.getint('search', 'minimum charge') or None
-    if settings.has_option('search', 'minimum unknown charge') and settings.getint('search', 'minimum unknown charge'):
-        params['min_ucharge'] = max(settings.getint('search', 'minimum unknown charge'), params['mincharge'])
-    else:
-        params['min_ucharge'] = params['mincharge']
-    if settings.has_option('search', 'maximum unknown charge') and settings.getint('search', 'maximum unknown charge'):
-        params['max_ucharge'] = min(settings.getint('search', 'maximum unknown charge'), params['maxcharge'])
-    else:
-        params['max_ucharge'] = params['maxcharge']
-
+    params.update(utils._charge_params(settings)) 
     params['dacc'] = settings.getfloat('input', 'deisotoping mass tolerance')
     params['deisotope'] = settings.getboolean('input', 'deisotope')
     params['tags'] = utils.get_tags(settings.get('output', 'tags'))

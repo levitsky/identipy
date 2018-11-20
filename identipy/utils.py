@@ -663,13 +663,7 @@ class CustomRawConfigParser(RawConfigParser, object):
 def find_nearest(array, value):
     return (np.abs(np.array(array) - value)).argmin()
 
-
-def get_info(spectrum, result, settings, aa_mass=None):
-    'Returns neutral mass, charge state and retention time of the top candidate'
-    if not aa_mass:
-        aa_mass = get_aa_mass(settings)
-    RT = spectrum['RT']#get_RT(spectrum)
-
+def _charge_params(settings):
     params = {}
     params['maxcharge'] = settings.getint('search', 'maximum charge') or None
     params['mincharge'] = settings.getint('search', 'minimum charge') or None
@@ -681,7 +675,17 @@ def get_info(spectrum, result, settings, aa_mass=None):
         params['max_ucharge'] = min(settings.getint('search', 'maximum unknown charge'), params['maxcharge'])
     else:
         params['max_ucharge'] = params['maxcharge']
+    return params
 
+
+def get_info(spectrum, result, settings, aa_mass=None):
+    'Returns neutral mass, charge state and retention time of the top candidate'
+    if not aa_mass:
+        aa_mass = get_aa_mass(settings)
+    RT = spectrum['RT']#get_RT(spectrum)
+
+    params = _charge_params(settings)
+    
     masses, states = zip(*neutral_masses(spectrum, params))
     # idx = find_nearest(masses, cmass.fast_mass(str(result['candidates'][0][1]), aa_mass=aa_mass))
 
