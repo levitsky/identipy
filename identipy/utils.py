@@ -870,7 +870,9 @@ def multimap(n, func, it, **kw):
             n = 1
     if n == 1:
         for s in it:
-            yield func(s, **kw)
+            res = func(s, **kw)
+            if res:
+                yield res
     else:
         def worker(qin, qout, shift, step):
             maxval = len(qin)
