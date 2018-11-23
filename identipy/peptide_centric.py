@@ -23,6 +23,7 @@ except:
 from utils import reshape_theor_spectrum
 
 spectra = {}
+titles = {}
 best_res = {}
 nmasses = {}
 t2s = {}
@@ -30,6 +31,7 @@ charges = {}
 def prepare_peptide_processor(fname, settings):
     global spectra
     global nmasses
+    global titles
     global t2s
     global charges
     global best_res
@@ -58,11 +60,13 @@ def prepare_peptide_processor(fname, settings):
         for spec in utils.iterate_spectra(fname):
             ps = utils.preprocess_spectrum(spec, params)
             if ps is not None:
-                t2s[utils.get_title(ps)] = ps
+                ttl = utils.get_title(ps)
+                t2s[ttl] = ps
                 for m, c in utils.neutral_masses(ps, params):
                     effc = maxcharges[c]
                     nmasses.setdefault(effc, []).append(m)
                     spectra.setdefault(effc, []).append(ps)
+                    titles.setdefault(effc, []).append(ttl)
                     charges.setdefault(effc, []).append(c)
                     ps.setdefault('nm', {})[c] = m
         logger.info('%s spectra pass quality criteria.', sum(map(len, spectra.itervalues())))
@@ -70,6 +74,7 @@ def prepare_peptide_processor(fname, settings):
             i = np.argsort(nmasses[c])
             nmasses[c] = np.array(nmasses[c])[i]
             spectra[c] = np.array(spectra[c])[i]
+            titles[c] = np.array(titles[c])[i]
             charges[c] = np.array(charges[c])[i]
     else:
         logger.info('Reusing %s spectra from previous run.', sum(map(len, spectra.itervalues())))
@@ -198,7 +203,8 @@ def peptide_processor(peptide, **kwargs):
         reshaped = False
         for i in ind:
             s = spectra[fc][i]
-            st = utils.get_title(s)
+            # st = utils.get_title(s)
+            st = titles[fc][i]
             if kwargs['score_fast']:
                 hf = kwargs['score_fast'](s['fastset'], s['idict'], theoretical_set[fc], kwargs['min_matched'])
                 if hf[0]:
@@ -215,7 +221,7 @@ def peptide_processor(peptide, **kwargs):
                         if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
                             results.append((sc, st, score, m, charges[fc][i], snp_label))
             else:
-                st = utils.get_title(s)
+                # st = utils.get_title(s)
                 if not reshaped:
                     theor[fc] = reshape_theor_spectrum(theor[fc])
                     reshaped = True
