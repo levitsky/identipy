@@ -199,17 +199,9 @@ def peptide_processor(peptide, **kwargs):
         for i in ind:
             s = spectra[fc][i]
             st = utils.get_title(s)
-            # print(st)
-            # if st == '20100609_Velos1_TaGe_SA_293_4.11283.11283.2':
-            #     print('HERE')
             if kwargs['score_fast']:
                 hf = kwargs['score_fast'](s['fastset'], s['idict'], theoretical_set[fc], kwargs['min_matched'])
-                # if st == '20100609_Velos1_TaGe_SA_293_4.11283.11283.2':
-                if seqm == 'HYNNASGADWVIISK':
-                    # if seqm == ''
-                    print(seqm, hf, best_res.get(st, 0), st)
                 if hf[0]:
-                    # st = utils.get_title(s)
                     if -hf[1] <= best_res.get(st, 0):
                         if kwargs['fast first stage']:
                             sc = hf[1]
@@ -220,7 +212,6 @@ def peptide_processor(peptide, **kwargs):
                                 reshaped = True
                             score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos)#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
                             sc = score.pop('score')
-                        # st = utils.get_title(s)
                         if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
                             results.append((sc, st, score, m, charges[fc][i], snp_label))
             else:
