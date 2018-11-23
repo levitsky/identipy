@@ -541,13 +541,23 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
     if minpeaks and spectrum['intensity array'].size < minpeaks:
         return None
 
+    spectrum['Isum'] = spectrum['intensity array'].sum()
 
+    tmp2 = dict()
     tmp = spectrum['m/z array'] / acc
+#    tmp2 = spectrum['intensity array'] + 1
     tmp = tmp.astype(int)
+#    tmp2 = tmp.astype(int)
+    for idx, mt in enumerate(tmp):
+        i_val = spectrum['intensity array'][idx] / spectrum['Isum']
+        tmp2[mt] = i_val
+        tmp2[mt-1] = i_val
+        tmp2[mt+1] = i_val
     tmp = np.concatenate((tmp, tmp-1, tmp+1))
     spectrum['fastset'] = set(tmp.tolist())
-    spectrum['Isum'] = spectrum['intensity array'].sum()
+    #spectrum['Isum'] = spectrum['intensity array'].sum()
     spectrum['RT'] = get_RT(spectrum)
+    spectrum['idict'] = tmp2
 
     return spectrum
 

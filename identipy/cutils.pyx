@@ -35,13 +35,23 @@ ion_shift_dict = {
 @cython.cdivision(True)
 @cython.boundscheck(False)
 @cython.wraparound(True)
-def RNHS_fast(set spectrum_fastset, dict theoretical_set, int min_matched):
+def RNHS_fast(set spectrum_fastset, dict spectrum_idict , dict theoretical_set, int min_matched):
     cdef int matched_approx_b, matched_approx_y, matched_approx
-    matched_approx_b = len(spectrum_fastset.intersection(theoretical_set['b']))
-    matched_approx_y = len(spectrum_fastset.intersection(theoretical_set['y']))
+    cdef set matched_b, matched_y
+    matched_b = spectrum_fastset.intersection(theoretical_set['b'])
+    matched_y = spectrum_fastset.intersection(theoretical_set['y'])
+    matched_approx_b = len(matched_b)
+    matched_approx_y = len(matched_y)
+    #matched_approx_b = len(spectrum_fastset.intersection(theoretical_set['b']))
+    #matched_approx_y = len(spectrum_fastset.intersection(theoretical_set['y']))
     matched_approx = matched_approx_b + matched_approx_y
     if matched_approx >= min_matched:
-        return matched_approx, factorial(matched_approx_b) * factorial(matched_approx_y)
+        isum = 0
+        for fr in matched_b:
+            isum += spectrum_idict[fr]
+        for fr in matched_y:
+            isum += spectrum_idict[fr]
+        return matched_approx, factorial(matched_approx_b) * factorial(matched_approx_y) * isum
     else:
         return 0, 0
 

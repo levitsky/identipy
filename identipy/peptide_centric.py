@@ -203,7 +203,7 @@ def peptide_processor(peptide, **kwargs):
             # if st == '20100609_Velos1_TaGe_SA_293_4.11283.11283.2':
             #     print('HERE')
             if kwargs['score_fast']:
-                hf = kwargs['score_fast'](s['fastset'], theoretical_set[fc], kwargs['min_matched'])
+                hf = kwargs['score_fast'](s['fastset'], s['idict'], theoretical_set[fc], kwargs['min_matched'])
                 # if st == '20100609_Velos1_TaGe_SA_293_4.11283.11283.2':
                 if seqm == 'HYNNASGADWVIISK':
                     # if seqm == ''
