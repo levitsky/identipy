@@ -42,8 +42,6 @@ def RNHS_fast(set spectrum_fastset, dict spectrum_idict , dict theoretical_set, 
     matched_y = spectrum_fastset.intersection(theoretical_set['y'])
     matched_approx_b = len(matched_b)
     matched_approx_y = len(matched_y)
-    #matched_approx_b = len(spectrum_fastset.intersection(theoretical_set['b']))
-    #matched_approx_y = len(spectrum_fastset.intersection(theoretical_set['y']))
     matched_approx = matched_approx_b + matched_approx_y
     if matched_approx >= min_matched:
         isum = 0
