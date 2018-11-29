@@ -262,8 +262,10 @@ def rt_filtering(results, settings):
     best_RT_l = scoreatpercentile(deltaRT, 0.05)
     best_RT_r = scoreatpercentile(deltaRT, 99.95)
 
-    def condition(spectrum, cand, _):
-        rtd = spectrum['RT'] - calculate_RT(cand, RC_dict)
-        return best_RT_l <= rtd <= best_RT_r
+    def condition(spectrum, cand, _, stored_value=False):
+        if not stored_value:
+            stored_value = calculate_RT(cand, RC_dict)
+        rtd = spectrum['RT'] - stored_value
+        return best_RT_l <= rtd <= best_RT_r, stored_value
     settings.set('scoring', 'condition', condition)
     return settings
