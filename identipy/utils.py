@@ -1477,22 +1477,18 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
                 isolation_window_right = float(a['precursorList']['precursor'][0]['isolationWindow']['isolation window upper offset'])
             pepmass = float(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
             RT = float(a['scanList']['scan'][0]['scan start time'])
-            charge_val = int(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['charge state'])
             title = a['id']
             mzs.append(pepmass)
             RTs.append(RT)
-            chs.append(charge_val)
             titles.append(title)
             ms2_map[title] = a
             
     mzs = np.array(mzs)
     RTs = np.array(RTs)
-    chs = np.array(chs)
     titles = np.array(titles)
     idx = np.argsort(mzs)
     mzs = mzs[idx]
     RTs = RTs[idx]
-    chs = chs[idx]
     titles = titles[idx]
 
     df1['MSMS'] = df1.apply(findMSMS, axis=1, args = (isolation_window_left, isolation_window_right, mzs, RTs, titles,))
@@ -1533,12 +1529,16 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
             mz_arr, I_arr = a['m/z array'], a['intensity array']
             mz = float(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
             RT = float(a['scanList']['scan'][0]['scan start time'])
-            ch = int(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['charge state'])
+            try:
+                ch = int(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['charge state'])
+            except:
+                ch = ''
             outmgf.write('BEGIN IONS\n')
-            outmgf.write('TITLE=20161214_HF_DBJ_SA_Exp3B_Hela_1ug_7min_15000_01.%d.%d.%d\n' % (t_i, t_i, ch))
+            outmgf.write('TITLE=20161214_HF_DBJ_SA_Exp3B_Hela_1ug_7min_15000_01.%d.%d.%s\n' % (t_i, t_i, str(ch)))
             outmgf.write('RTINSECONDS=%f\n' % (RT * 60, ))
             outmgf.write('PEPMASS=%f %f\n' % (mz, 0))
-            outmgf.write('CHARGE=%d+\n' % (ch, ))
+            if ch:
+                outmgf.write('CHARGE=%d+\n' % (ch, ))
             outmgf.write('ISOWIDTHDIFF=%f\n' % (0.0, ))
             outmgf.write('RTwidth=%f\n' % (0.0, ))
             outmgf.write('MS1Intensity=%f\n' % (0.0, ))

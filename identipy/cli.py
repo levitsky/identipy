@@ -236,8 +236,8 @@ def run():
                 logger.info('Demultiplexing was finished...\n')
                 utils.write_output(path_to_mgf, settings, main.process_file(path_to_mgf, settings))
                 return
-            except:
-                pass
+            except Exception as e:
+                logger.error(e)
 
     utils.write_output(inputfile, settings, main.process_file(inputfile, settings))
 
