@@ -174,6 +174,7 @@ def peptide_processor(peptide, **kwargs):
     theor = {}
     theoretical_set = {}
     cand_idx = {}
+    stored_value = False
     if rel:
         dm_l = acc_l * m / 1.0e6
         dm_r = acc_r * m / 1.0e6
@@ -189,7 +190,12 @@ def peptide_processor(peptide, **kwargs):
             if end - start:
                 idx.update(range(start, end))
         if kwargs['cond']:
-            idx = {i for i in idx if kwargs['cond'](spectra[c][i], seqm, settings)}
+            idx2 = set()
+            for i in idx:
+                cond_val, stored_value = kwargs['cond'](spectra[c][i], seqm, settings, stored_value)
+                if cond_val:
+                    idx2.add(i)
+            idx = idx2
 
         if idx:
             cand_idx[c] = idx
