@@ -252,6 +252,7 @@ def process_peptides(fname, settings):
     kwargs['snp'] = settings.getint('search', 'snp')
     kwargs['nterm_mass'] = settings.getfloat('modifications', 'protein nterm cleavage')
     kwargs['cterm_mass'] = settings.getfloat('modifications', 'protein cterm cleavage')
+    kwargs['qsize'] = settings.getint('performance', 'out queue size')
     logger.info('Running the search ...')
     n = settings.getint('performance', 'processes')
     leg = {}
