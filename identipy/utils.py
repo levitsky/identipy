@@ -884,7 +884,8 @@ def multimap(n, func, it, **kw):
                     qout.put(result)
                 start += step
             qout.put(None)
-        qout = Queue()
+        qsize = kw.pop('qsize')
+        qout = Queue(qsize)
         count = 0
 
         while True:
@@ -907,7 +908,7 @@ def multimap(n, func, it, **kw):
             for p in procs:
                 p.join()
 
-#           print 'Cycle finished.'
+
 def allow_all(*args):
     return True
 
