@@ -8,7 +8,10 @@ import numpy as np
 from multiprocessing import Queue, Process, cpu_count
 from string import punctuation
 from copy import copy
-from ConfigParser import RawConfigParser
+try:
+    from ConfigParser import RawConfigParser
+except ImportError:
+    from configparser import RawConfigParser
 import tempfile
 import os
 import logging
@@ -28,9 +31,9 @@ except ImportError:
     cmass = mass
 try:
     import pyximport; pyximport.install()
-    import cparser
+    from . import cparser
 except:
-    import customparser as cparser
+    from . import customparser as cparser
 
 default_tags = {
 'tmt10plex': {
