@@ -16,11 +16,11 @@ except ImportError:
 
 try:
     # import pyximport; pyximport.install()
-    from cutils import theor_spectrum
+    from .cutils import theor_spectrum
 except:
     logger.info('Cython modules were not loaded...')
-    from utils import theor_spectrum
-from utils import reshape_theor_spectrum
+    from .utils import theor_spectrum
+from .utils import reshape_theor_spectrum
 
 spectra = {}
 titles = {}
