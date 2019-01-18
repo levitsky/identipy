@@ -2,12 +2,12 @@ from scipy.stats import percentileofscore, scoreatpercentile
 from scipy.optimize import curve_fit
 from pyteomics import achrom, auxiliary as aux, parser, mass
 from collections import Counter
-from main import *
-from scoring import get_fragment_mass_tol
+from .main import *
+from .scoring import get_fragment_mass_tol
 import logging
 logger = logging.getLogger(__name__)
 import numpy as np
-from utils import get_info, get_aa_mass, get_enzyme, calculate_RT
+from .utils import get_info, get_aa_mass, get_enzyme, calculate_RT
 try:
     from pyteomics import cmass
 except ImportError:
