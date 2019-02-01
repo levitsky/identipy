@@ -1496,7 +1496,7 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
     titles = titles[idx]
 
     df1['MSMS'] = df1.apply(findMSMS, axis=1, args = (isolation_window_left, isolation_window_right, mzs, RTs, titles,))
-    df1['MSMS_accurate'] = df1.apply(findMSMS_accurate, axis=1, args = (mzs, RTs,))
+    df1['MSMS_accurate'] = df1.apply(findMSMS_accurate, axis=1, args = (mzs, RTs, titles,))
 
     outmgf_name = os.path.splitext(path_to_mzml)[0] + '_identipy' + os.extsep + 'mgf'
     outmgf = open(outmgf_name, 'w')
@@ -1509,7 +1509,7 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
         mz, RT, ch, Intensity, ttls, ttl_ac, rt_ll, rt_rr = z[0], z[1], z[2], z[3], z[4], z[5], z[6], z[7]
         if ttls:
             for ttl in ttls:
-                if ttl_ac:
+                if ttl in ttl_ac:
                     added_MSMS.add(ttl)
                 mz_arr, I_arr = ms2_map[ttl]['m/z array'], ms2_map[ttl]['intensity array']
                 pepmass = float(ms2_map[ttl]['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
@@ -1572,7 +1572,8 @@ def findMSMS(raw, isolation_window_left, isolation_window_right, mzs, RTs, title
     else:
         return None
     
-def findMSMS_accurate(raw, mzs, RTs):
+def findMSMS_accurate(raw, mzs, RTs, titles):
+    out = set()
     acc = 10
     mz = raw['mz']
     RT_l = raw['rtStart']
@@ -1582,5 +1583,7 @@ def findMSMS_accurate(raw, mzs, RTs):
     id_r = mzs.searchsorted(mz + acc_rel, side='right')
     for idx, RT in enumerate(RTs[id_l:id_r]):
         if RT_l <= RT <= RT_r:
-            return True
-    return False
+            out.add(titles[id_l+idx])
+            # return True
+    # return False
+    return out
