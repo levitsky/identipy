@@ -118,7 +118,7 @@ def run():
     parser.add_argument('-ccleave', help='protein cterm cleavage', type=float)
     parser.add_argument('-fmods',   help='fixed modifications. in mass1@aminoacid1,mass2@aminoacid2 format')
     parser.add_argument('-vmods',   help='variable modifications. in mass1@aminoacid1,mass2@aminoacid2 format')
-    parser.add_argument('-tags',    help='Add quantitation tags to the pepXML output. Can be tmt10plex, tmt6plex or custom format label1:mass1,label2:mass2...')
+    parser.add_argument('-tags',    help='Add quantitation tags to the pepXML output. Can be tmt10plex, tmt6plex, tmt11plex or custom format label1:mass1,label2:mass2...')
     parser.add_argument('-debug',  help='Print debugging messages', action='store_true')
     parser.add_argument('-dino', help='path to Dinosaur. Used for chimeric spectrum processing and MS1 Intensity calculation', default=False)
 
