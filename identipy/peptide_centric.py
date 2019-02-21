@@ -158,10 +158,12 @@ def peptide_processor(peptide, **kwargs):
             seqm = tmp[0] + tmp[1].split('at')[0].split('to')[-1] + tmp[2]
             aachange_pos = len(tmp[0]) + 1
             snp_label = tmp[1]
+        aachange_pos = False
     else:
         seqm = peptide
         aachange_pos = False
         snp_label = False
+
     nterm_mass = kwargs.get('nterm_mass')
     cterm_mass = kwargs.get('cterm_mass')
     m = utils.custom_mass(seqm, aa_mass=kwargs['aa_mass'], nterm_mass = nterm_mass, cterm_mass = cterm_mass)
@@ -212,7 +214,7 @@ def peptide_processor(peptide, **kwargs):
             # st = utils.get_title(s)
             st = titles[fc][i]
             if kwargs['score_fast']:
-                hf = kwargs['score_fast'](s['fastset'], s['idict'], theoretical_set[fc], kwargs['min_matched'])
+                hf = kwargs['score_fast'](None, s['idict'], theoretical_set[fc], kwargs['min_matched'])
                 if hf[0]:
                     if -hf[1] <= best_res.get(st, 0):
                         if kwargs['fast first stage']:

@@ -569,8 +569,8 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
         tmp2[mt] = i_val
         tmp2[mt-1] = i_val
         tmp2[mt+1] = i_val
-    tmp = np.concatenate((tmp, tmp-1, tmp+1))
-    spectrum['fastset'] = set(tmp.tolist())
+    # tmp = np.concatenate((tmp, tmp-1, tmp+1))
+    # spectrum['fastset'] = set(tmp.tolist())
     #spectrum['Isum'] = spectrum['intensity array'].sum()
     spectrum['RT'] = get_RT(spectrum)
     spectrum['idict'] = tmp2
