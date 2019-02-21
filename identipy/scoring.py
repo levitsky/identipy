@@ -198,19 +198,33 @@ def hyperscore(spectrum, theoretical, acc, acc_ppm=False, position=False):
     return {'score': score, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched}
 
 def RNHS_fast(spectrum_fastset, spectrum_idict, theoretical_set, min_matched):
-    matched_b = spectrum_fastset.intersection(theoretical_set['b'])
-    matched_y = spectrum_fastset.intersection(theoretical_set['y'])
-    matched_approx_b = len(matched_b)
-    matched_approx_y = len(matched_y)
+    # matched_b = spectrum_fastset.intersection(theoretical_set['b'])
+    # matched_y = spectrum_fastset.intersection(theoretical_set['y'])
+    # matched_approx_b = len(matched_b)
+    # matched_approx_y = len(matched_y)
     #matched_approx_b = len(spectrum_fastset.intersection(theoretical_set['b']))
     #matched_approx_y = len(spectrum_fastset.intersection(theoretical_set['y']))
+    # matched_approx = matched_approx_b + matched_approx_y
+    # if matched_approx >= min_matched:
+    isum = 0
+    matched_approx_b, matched_approx_y = 0, 0
+    for ion in theoretical_set['b']:
+        if ion in spectrum_idict:
+            matched_approx_b += 1
+            isum += spectrum_idict[ion]
+
+    for ion in theoretical_set['y']:
+        if ion in spectrum_idict:
+            matched_approx_y += 1
+            isum += spectrum_idict[ion]
+
+        # # isum = 0
+        # for fr in matched_b:
+        #     isum += spectrum_idict[fr]
+        # for fr in matched_y:
+        #     isum += spectrum_idict[fr]
     matched_approx = matched_approx_b + matched_approx_y
     if matched_approx >= min_matched:
-        isum = 0
-        for fr in matched_b:
-            isum += spectrum_idict[fr]
-        for fr in matched_y:
-            isum += spectrum_idict[fr]
         return matched_approx, factorial(matched_approx_b) * factorial(matched_approx_y) * isum
     else:
         return 0, 0
