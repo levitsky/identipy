@@ -7,7 +7,7 @@ from collections import defaultdict, Counter
 import numpy as np
 from multiprocessing import Queue, Process, cpu_count
 from string import punctuation
-from copy import copy
+from copy import copy, deepcopy
 try:
     from ConfigParser import RawConfigParser
 except ImportError:
@@ -281,11 +281,11 @@ def custom_split_label(mod):
 def iterate_spectra(fname):
     ftype = fname.rsplit('.', 1)[-1].lower()
     if ftype == 'mgf':
-        with mgf.read(fname, read_charges=False) as f:
+        with mgf.read(fname, read_charges=False, use_index=False) as f:
             for x in f:
                 yield x
     elif ftype == 'mzml':
-        with mzml.read(fname) as f:
+        with mzml.read(fname, use_index=False) as f:
             for x in f:
                 if x['ms level'] > 1:
                     yield x
@@ -308,7 +308,10 @@ def is_decoy_function(settings):
     logger.error('No decoy label specified. One of "decoy prefix" or "decoy infix" is needed.')
 
 
-def peptide_gen(settings):
+def peptide_gen(settings, clear_seen_peptides=False):
+    if clear_seen_peptides:
+        seen_target.clear()
+        seen_decoy.clear()
     isdecoy = is_decoy_function(settings)
     enzyme = get_enzyme(settings.get('search', 'enzyme'))
     semitryptic = settings.getint('search', 'semitryptic')
@@ -569,8 +572,8 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
         tmp2[mt] = i_val
         tmp2[mt-1] = i_val
         tmp2[mt+1] = i_val
-    # tmp = np.concatenate((tmp, tmp-1, tmp+1))
-    # spectrum['fastset'] = set(tmp.tolist())
+    tmp = np.concatenate((tmp, tmp-1, tmp+1))
+    spectrum['fastset'] = set(tmp.tolist())
     #spectrum['Isum'] = spectrum['intensity array'].sum()
     spectrum['RT'] = get_RT(spectrum)
     spectrum['idict'] = tmp2
@@ -878,7 +881,14 @@ def get_aa_mass(settings):
 #     m = np.array(map(lambda x: cmass.fast_mass(str(x)), result['candidates']['seq']))
 #     return np.round(m/mz).astype(np.int8)
 
-def multimap(n, func, it, **kw):
+def multimap(n, func, it, best_res_in=False, best_res_raw_in=False, **kw):
+    if best_res_in:
+        best_res = deepcopy(best_res_in)
+        best_res_raw = deepcopy(best_res_raw_in)
+    else:
+        best_res = {}
+        best_res_raw = {}
+
     if n == 0:
         try:
             n = cpu_count()
@@ -886,32 +896,51 @@ def multimap(n, func, it, **kw):
             n = 1
     if n == 1:
         for s in it:
-            res = func(s, **kw)
-            if res:
-                yield res
+            result = func(s, best_res, **kw)
+            if result:
+                for x in result:
+                    peptide, m, snp_label, res = x
+
+                    for score, spec_t, c, info in res:
+                        if -score <= best_res.get(spec_t, 0):
+                            best_res_raw[spec_t] = [peptide, m, snp_label, score, spec_t, c, info]
+                            best_res[spec_t] = -score   
+        return best_res_raw, best_res
+        
     else:
-        def worker(qin, qout, shift, step):
+        def worker(qin, qout, shift, step, best_res, best_res_raw):
             maxval = len(qin)
             start = 0
             while start + shift < maxval:
                 item = qin[start+shift]
-                result = func(item, **kw)
+                result = func(item, best_res, **kw)
                 if result:
-                    qout.put(result)
+                    for x in result:
+                        peptide, m, snp_label, res = x
+
+                        for score, spec_t, c, info in res:
+                            if -score <= best_res.get(spec_t, 0):
+                                best_res_raw[spec_t] = [peptide, m, snp_label, score, spec_t, c, info]
+                                best_res[spec_t] = -score   
+
+
+                # if result:
+                #     qout.put(result)
                 start += step
+            qout.put(best_res_raw)
             qout.put(None)
         qsize = kw.pop('qsize')
         qout = Queue(qsize)
         count = 0
 
         while True:
-            qin = list(islice(it, 500000))
+            qin = list(islice(it, 5000000))
             if not len(qin):
                 break
 #           print 'Loaded 500000 items. Ending cycle.'
             procs = []
-            for _ in range(n):
-                p = Process(target=worker, args=(qin, qout, _, n))
+            for proc_num in range(n):
+                p = Process(target=worker, args=(qin, qout, proc_num, n, best_res, best_res_raw))
                 p.start()
                 procs.append(p)
 
@@ -919,10 +948,16 @@ def multimap(n, func, it, **kw):
 
             for _ in range(n):
                 for item in iter(qout.get, None):
-                    yield item
+                    for k, v in item.items():
+                        if -v[3] <= best_res.get(k, 0):
+                            best_res_raw[k] = v
+                            best_res[k] = -v[3]
+                    # yield item
 
             for p in procs:
                 p.join()
+
+        return best_res_raw, best_res
 
 
 def allow_all(*args):

@@ -1,4 +1,5 @@
 from .utils import neutral_masses, theor_spectrum, get_aa_mass
+from collections import Counter, defaultdict
 from scipy.spatial import cKDTree
 import numpy as np
 from math import factorial
@@ -197,6 +198,82 @@ def hyperscore(spectrum, theoretical, acc, acc_ppm=False, position=False):
 
     return {'score': score, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched}
 
+def RNHS_ultrafast(spectrum_idict, theoretical_set, min_matched, nm, best_res, allowed_idx):
+
+
+    nm_key = int(nm / 100)
+
+    cur_idict = spectrum_idict.get(nm_key, None)
+    if not cur_idict:
+        return None
+
+    total_matched = 0
+
+    cnt_list_b = []
+    cnt_list_y = []
+
+    for ion in theoretical_set['b']:
+        if ion in cur_idict:
+            cnt_list_b.extend(cur_idict[ion])
+            total_matched += 1
+
+    for ion in theoretical_set['y']:
+        if ion in cur_idict:
+            cnt_list_y.extend(cur_idict[ion])
+            total_matched += 1
+    if total_matched < min_matched:
+        return None
+
+    cnt_b = {}#defaultdict(int)
+    for spv in cnt_list_b:
+        if spv in allowed_idx:
+            cnt_b[spv] = cnt_b.get(spv, 0) + 1
+    cnt_y = {}#defaultdict(int)
+    for spv in cnt_list_y:
+        if spv in allowed_idx:
+            cnt_y[spv] = cnt_y.get(spv, 0) + 1
+
+    out = set()
+    for k in cnt_b:
+        num_b_ions = cnt_b.get(k, 0)
+        num_y_ions = cnt_y.get(k, 0)
+        if num_b_ions + num_y_ions >= min_matched:
+            best_res_val = best_res.get(k, 0)
+            if not best_res_val or -factorial(num_b_ions) * factorial(num_y_ions) <= best_res_val:
+                out.add(k)
+    for k in cnt_y:
+        if k not in cnt_b:
+            num_y_ions = cnt_y.get(k, 0)
+            if num_y_ions >= min_matched:
+                best_res_val = best_res.get(k, 0)
+                if not best_res_val or factorial(num_y_ions) <= best_res_val:
+                    out.add(k)
+    return out
+
+
+    # isum = 0
+    # matched_approx_b, matched_approx_y = 0, 0
+    # for ion in theoretical_set['b']:
+    #     if ion in spectrum_idict:
+    #         matched_approx_b += 1
+    #         isum += spectrum_idict[ion]
+
+    # for ion in theoretical_set['y']:
+    #     if ion in spectrum_idict:
+    #         matched_approx_y += 1
+    #         isum += spectrum_idict[ion]
+
+    #     # # isum = 0
+    #     # for fr in matched_b:
+    #     #     isum += spectrum_idict[fr]
+    #     # for fr in matched_y:
+    #     #     isum += spectrum_idict[fr]
+    # matched_approx = matched_approx_b + matched_approx_y
+    # if matched_approx >= min_matched:
+    #     return matched_approx, factorial(matched_approx_b) * factorial(matched_approx_y) * isum
+    # else:
+    #     return 0, 0
+
 def RNHS_fast(spectrum_fastset, spectrum_idict, theoretical_set, min_matched):
     # matched_b = spectrum_fastset.intersection(theoretical_set['b'])
     # matched_y = spectrum_fastset.intersection(theoretical_set['y'])
@@ -206,6 +283,7 @@ def RNHS_fast(spectrum_fastset, spectrum_idict, theoretical_set, min_matched):
     #matched_approx_y = len(spectrum_fastset.intersection(theoretical_set['y']))
     # matched_approx = matched_approx_b + matched_approx_y
     # if matched_approx >= min_matched:
+
     isum = 0
     matched_approx_b, matched_approx_y = 0, 0
     for ion in theoretical_set['b']:

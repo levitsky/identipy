@@ -32,34 +32,77 @@ ion_shift_dict = {
     'z': 17.026549101010005,
 }
 
+
+
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.wraparound(True)
+
+
+
+
+
+def RNHS_ultrafast(dict spectrum_idict, dict theoretical_set, int min_matched, float nm, dict best_res, set allowed_idx, int max_v, float prec_acc_Da):
+
+    cdef int total_matched, ion, nm_key, xx
+    cdef list cnt_list_b, cnt_list_y, cnt_b, cnt_y
+    cdef dict cur_idict
+    cdef set out
+    cdef float best_res_val
+ 
+    nm_key = int(nm / prec_acc_Da)
+
+    cur_idict = spectrum_idict.get(nm_key, None)
+    if not cur_idict:
+        return None
+
+    total_matched = 0
+
+    cnt_b = [0] * (max_v + 1)
+    cnt_y = [0] * (max_v + 1)
+
+    for ion in theoretical_set['b']:
+        if ion in cur_idict:
+            for xx in cur_idict[ion]:
+                cnt_b[xx] += 1
+            total_matched += 1
+
+    for ion in theoretical_set['y']:
+        if ion in cur_idict:
+            for xx in cur_idict[ion]:
+                cnt_y[xx] += 1
+            total_matched += 1
+
+    if total_matched < min_matched:
+        return None
+
+    out = set()
+    for k in allowed_idx:
+        num_b_ions = cnt_b[k]
+        num_y_ions = cnt_y[k]
+        if num_b_ions + num_y_ions >= min_matched:
+            best_res_val = best_res.get(k, 0)
+            if not best_res_val or -factorial(num_b_ions) * factorial(num_y_ions) <= best_res_val:
+                out.add(k)
+    return out
+
 @cython.cdivision(True)
 @cython.boundscheck(False)
 @cython.wraparound(True)
 def RNHS_fast(set spectrum_fastset, dict spectrum_idict , dict theoretical_set, int min_matched):
     cdef int matched_approx_b, matched_approx_y, matched_approx
-    cdef float isum
-    cdef list matched_b, matched_y
-
-    isum = 0
-    matched_approx_b, matched_approx_y = 0, 0
-    for ion in theoretical_set['b']:
-        if ion in spectrum_idict:
-            matched_approx_b += 1
-            matched_b.append(ion)
-
-    for ion in theoretical_set['y']:
-        if ion in spectrum_idict:
-            matched_approx_y += 1
-            matched_y.append(ion)
-
+    cdef set matched_b, matched_y
+    matched_b = spectrum_fastset.intersection(theoretical_set['b'])
+    matched_y = spectrum_fastset.intersection(theoretical_set['y'])
+    matched_approx_b = len(matched_b)
+    matched_approx_y = len(matched_y)
     matched_approx = matched_approx_b + matched_approx_y
     if matched_approx >= min_matched:
-        for ion in matched_b:
-            isum += spectrum_idict[ion]
-        for ion in matched_y:
-            isum += spectrum_idict[ion]
-
-
+        isum = 0
+        for fr in matched_b:
+            isum += spectrum_idict[fr]
+        for fr in matched_y:
+            isum += spectrum_idict[fr]
         return matched_approx, factorial(matched_approx_b) * factorial(matched_approx_y) * isum
     else:
         return 0, 0
