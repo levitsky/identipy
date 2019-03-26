@@ -100,6 +100,7 @@ def run():
       on the given number of 13C isotope peaks for a peptide.', type=int)
     parser.add_argument('-shifts',  help='shifts. example: 0,16.000,23.000,12')
     parser.add_argument('-snp',     help='1 means make SNP changes for ALL peptides', type=int)
+    parser.add_argument('-rapid',   help='1 means leave only 2000 random spectra for processing', action='store_true')
     parser.add_argument('-mm',      help='number of minimum matched ions', type=int)
     parser.add_argument('-ad',      help='add decoy', action='store_true')
     parser.add_argument('-prefix',  help='decoy prefix')
@@ -192,6 +193,8 @@ def run():
     _update(settings, 'output', 'minimum matched', args['mm'])
     if args['ad']:
         _update(settings, 'input', 'add decoy', 'yes')
+    if args['rapid']:
+        _update(settings, 'search', 'rapid_check', 1)
     _update(settings, 'input',  'decoy prefix', args['prefix'])
     _update(settings, 'input',  'decoy infix', args['infix'])
     _update(settings, 'input',  'decoy method', args['method'])

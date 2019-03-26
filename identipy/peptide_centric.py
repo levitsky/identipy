@@ -2,6 +2,7 @@ import numpy as np
 from string import punctuation
 from collections import defaultdict
 import operator as op
+import random
 from bisect import bisect
 from pyteomics import parser, mass, fasta, auxiliary as aux, mgf, mzml
 from . import scoring, utils
@@ -58,6 +59,7 @@ def prepare_peptide_processor(fname, settings):
     params['dacc'] = settings.getfloat('input', 'deisotoping mass tolerance')
     params['deisotope'] = settings.getboolean('input', 'deisotope')
     params['tags'] = utils.get_tags(settings.get('output', 'tags'))
+    rapid_check = settings.getint('search', 'rapid_check')
     
     ptol_unit = settings.get('search', 'precursor accuracy unit')
     lptol = settings.getfloat('search', 'precursor accuracy left')
@@ -68,7 +70,13 @@ def prepare_peptide_processor(fname, settings):
 
     if not spectra:
         logger.info('Reading spectra ...')
-        for spec in utils.iterate_spectra(fname):
+        if not rapid_check:
+            tmp_spec = utils.iterate_spectra(fname)
+        else:
+            tmp_spec = [spec for spec in utils.iterate_spectra(fname)]
+            if len(tmp_spec) >= 2000:
+                tmp_spec = random.sample(tmp_spec, 2000)
+        for spec in tmp_spec:
             ps = utils.preprocess_spectrum(spec, params)
             if ps is not None:
                 ttl = utils.get_title(ps)
