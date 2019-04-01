@@ -136,7 +136,8 @@ def prepare_peptide_processor(fname, settings):
         # logger.info(list(fulls_global.items())[:1])
 
     else:
-        logger.info('Reusing %s spectra from previous run.', sum(map(len, spectra.itervalues())))
+        num_spectra = sum(map(len, spectra.itervalues()))
+        logger.info('Reusing %s spectra from previous run.', num_spectra)
 
     utils.set_mod_dict(settings)
 
