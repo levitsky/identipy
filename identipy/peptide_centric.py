@@ -65,8 +65,11 @@ def prepare_peptide_processor(fname, settings):
     lptol = settings.getfloat('search', 'precursor accuracy left')
     rptol = settings.getfloat('search', 'precursor accuracy right')
     prec_acc_Da = max(abs(lptol), abs(rptol))
-    if not ptol_unit == 'Da' or prec_acc_Da < 1.0:
-        prec_acc_Da = False
+    # if not ptol_unit == 'Da' or prec_acc_Da < 0.1:
+    #     prec_acc_Da = False
+    prec_acc_Da = prec_acc_Da
+    if not ptol_unit == 'Da':
+        prec_acc_Da = prec_acc_Da * 1e-6 * 5000
 
     if not spectra:
         logger.info('Reading spectra ...')
@@ -97,36 +100,35 @@ def prepare_peptide_processor(fname, settings):
             titles[c] = np.array(titles[c])[i]
             charges[c] = np.array(charges[c])[i]
 
-            if ptol_unit == 'Da':
-                nmasses_conv = nmasses[c] / prec_acc_Da
-                nmasses_conv = nmasses_conv.astype(int)
+            nmasses_conv = nmasses[c] / prec_acc_Da
+            nmasses_conv = nmasses_conv.astype(int)
 
-                tmp_dict = {}
-                for idx, nm in enumerate(nmasses_conv):
-                    if nm not in tmp_dict:
-                        tmp_dict[nm] = {}#defaultdict(list)
-                    if nm+1 not in tmp_dict:
-                        tmp_dict[nm+1] = {}#defaultdict(list)
-                    if nm-1 not in tmp_dict:
-                        tmp_dict[nm-1] = {}#defaultdict(list)
-                    for spval in spectra[c][idx]['idict']:
-                        # tmp_dict[nm][spval].append(idx)
-                        # tmp_dict[nm+1][spval].append(idx)
-                        # tmp_dict[nm-1][spval].append(idx)
-                        if spval not in tmp_dict[nm]:
-                            tmp_dict[nm][spval] = [idx, ]
-                        else:
-                            tmp_dict[nm][spval].append(idx)
-                        if spval not in tmp_dict[nm+1]:
-                            tmp_dict[nm+1][spval] = [idx, ]
-                        else:
-                            tmp_dict[nm+1][spval].append(idx)
-                        if spval not in tmp_dict[nm-1]:
-                            tmp_dict[nm-1][spval] = [idx, ]
-                        else:
-                            tmp_dict[nm-1][spval].append(idx)
+            tmp_dict = {}
+            for idx, nm in enumerate(nmasses_conv):
+                if nm not in tmp_dict:
+                    tmp_dict[nm] = {}#defaultdict(list)
+                if nm+1 not in tmp_dict:
+                    tmp_dict[nm+1] = {}#defaultdict(list)
+                if nm-1 not in tmp_dict:
+                    tmp_dict[nm-1] = {}#defaultdict(list)
+                for spval in spectra[c][idx]['idict']:
+                    # tmp_dict[nm][spval].append(idx)
+                    # tmp_dict[nm+1][spval].append(idx)
+                    # tmp_dict[nm-1][spval].append(idx)
+                    if spval not in tmp_dict[nm]:
+                        tmp_dict[nm][spval] = [idx, ]
+                    else:
+                        tmp_dict[nm][spval].append(idx)
+                    if spval not in tmp_dict[nm+1]:
+                        tmp_dict[nm+1][spval] = [idx, ]
+                    else:
+                        tmp_dict[nm+1][spval].append(idx)
+                    if spval not in tmp_dict[nm-1]:
+                        tmp_dict[nm-1][spval] = [idx, ]
+                    else:
+                        tmp_dict[nm-1][spval].append(idx)
 
-                fulls_global[c] = tmp_dict
+            fulls_global[c] = tmp_dict
 
 
             # for specs, ttls in zip(spectra[c], titles[c]):

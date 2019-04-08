@@ -37,16 +37,10 @@ ion_shift_dict = {
 @cython.cdivision(True)
 @cython.boundscheck(False)
 @cython.wraparound(True)
-
-
-
-
-
 def RNHS_ultrafast(dict spectrum_idict, dict theoretical_set, int min_matched, float nm, dict best_res, set allowed_idx, int max_v, float prec_acc_Da):
 
-    cdef int total_matched, ion, nm_key, xx
-    cdef list cnt_list_b, cnt_list_y, cnt_b, cnt_y
-    cdef dict cur_idict
+    cdef int total_matched, nm_key, num_b_ions, num_y_ions
+    cdef dict cur_idict, cnt_b, cnt_y
     cdef set out
     cdef float best_res_val
  
@@ -58,19 +52,25 @@ def RNHS_ultrafast(dict spectrum_idict, dict theoretical_set, int min_matched, f
 
     total_matched = 0
 
-    cnt_b = [0] * (max_v + 1)
-    cnt_y = [0] * (max_v + 1)
+    cnt_b = dict()
+    cnt_y = dict()
 
     for ion in theoretical_set['b']:
         if ion in cur_idict:
             for xx in cur_idict[ion]:
-                cnt_b[xx] += 1
+                if xx not in cnt_b:
+                    cnt_b[xx] = 1
+                else:
+                    cnt_b[xx] += 1
             total_matched += 1
 
     for ion in theoretical_set['y']:
         if ion in cur_idict:
             for xx in cur_idict[ion]:
-                cnt_y[xx] += 1
+                if xx not in cnt_y:
+                    cnt_y[xx] = 1
+                else:
+                    cnt_y[xx] += 1
             total_matched += 1
 
     if total_matched < min_matched:
@@ -78,8 +78,12 @@ def RNHS_ultrafast(dict spectrum_idict, dict theoretical_set, int min_matched, f
 
     out = set()
     for k in allowed_idx:
-        num_b_ions = cnt_b[k]
-        num_y_ions = cnt_y[k]
+        num_b_ions = 0
+        num_y_ions = 0
+        if k in cnt_b:
+            num_b_ions = cnt_b[k]
+        if k in cnt_y:
+            num_y_ions = cnt_y[k]
         if num_b_ions + num_y_ions >= min_matched:
             best_res_val = best_res.get(k, 0)
             if not best_res_val or -factorial(num_b_ions) * factorial(num_y_ions) <= best_res_val:
