@@ -6,7 +6,7 @@ from itertools import combinations, islice
 from collections import defaultdict, Counter
 import numpy as np
 from multiprocessing import Queue, Process, cpu_count
-from string import punctuation
+import string
 from copy import copy
 try:
     from ConfigParser import RawConfigParser
@@ -261,9 +261,10 @@ def calculate_RT(peptide, RC_dict, raise_no_mod=True):
 
     return RT
 
+_modchars = set(string.ascii_lowercase + string.digits)
 def custom_split_label(mod):
     j = 0
-    while mod[j].islower():
+    while mod[j] in _modchars:
         j += 1
     if j == 0:
         return mod[1:], '-', ']'
@@ -418,7 +419,7 @@ def custom_snp(peptide, startposition):
 def normalize_mods(sequence, settings):
     leg = settings.get('misc', 'legend')
     if leg:
-        for char in punctuation:
+        for char in string.punctuation:
             if char in leg:
                 if leg[char][2] == ']' and leg[char][1] == '-':
                     sequence = sequence.replace(char, '-' + leg[char][0])
@@ -597,7 +598,7 @@ def set_mod_dict(settings):
         if mods:
             mods = [custom_split_label(l) for l in re.split(r',\s*', mods)]
             mods.sort(key=lambda x: len(x[0]), reverse=True)
-            for mod, char in zip(mods, punctuation):
+            for mod, char in zip(mods, string.punctuation):
                 legend[''.join(mod)] = char
                 legend[char] = mod
             assert all(len(m) == 3 for m in mods), 'unmodified residue given'
@@ -863,7 +864,7 @@ def get_aa_mass(settings):
     vmods = settings.get('modifications', 'variable')
     if vmods:
         leg = settings.get('misc', 'legend')
-        for p in punctuation:
+        for p in string.punctuation:
             if p in leg:
                 mod, aa, term = leg[p]
                 if term == ']' and aa == '-':
