@@ -89,8 +89,7 @@ def get_child_for_mods(mods_str, settings, fixed=True):
         for mod in re.split(r'[,;]\s*', mods_str):
             term = False
             if '-' not in mod:
-                if mod[-1] in '[]':
-                    mod = mod[:-1]
+                mod = mod.replace('[', '').replace(']', '')
                 mod_label, mod_aa = parser._split_label(mod)
                 mod_mass = mass.std_aa_mass.get(mod_aa, 0)
                 mod_massdiff = settings.getfloat('modifications', mod_label)
