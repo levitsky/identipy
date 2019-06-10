@@ -31,6 +31,7 @@ best_res = {}
 nmasses = {}
 t2s = {}
 charges = {}
+fulls_global = {}
 def prepare_peptide_processor(fname, settings):
     global spectra
     global nmasses
@@ -41,7 +42,6 @@ def prepare_peptide_processor(fname, settings):
     global fulls_global
     best_res = {}
     maxcharges = {}
-    fulls_global = dict()#defaultdict(list)
     fcharge = settings.getint('scoring', 'maximum fragment charge')
     ch_range = range(settings.getint('search', 'minimum charge'),
                 1 + settings.getint('search', 'maximum charge'))
@@ -93,43 +93,6 @@ def prepare_peptide_processor(fname, settings):
                     ps.setdefault('nm', {})[c] = m
         num_spectra = sum(map(len, spectra.itervalues()))
         logger.info('%s spectra pass quality criteria.', num_spectra)
-        for c in list(spectra):
-            i = np.argsort(nmasses[c])
-            nmasses[c] = np.array(nmasses[c])[i]
-            spectra[c] = np.array(spectra[c])[i]
-            titles[c] = np.array(titles[c])[i]
-            charges[c] = np.array(charges[c])[i]
-
-            nmasses_conv = nmasses[c] / prec_acc_Da
-            nmasses_conv = nmasses_conv.astype(int)
-
-            tmp_dict = {}
-            for idx, nm in enumerate(nmasses_conv):
-                if nm not in tmp_dict:
-                    tmp_dict[nm] = {}#defaultdict(list)
-                if nm+1 not in tmp_dict:
-                    tmp_dict[nm+1] = {}#defaultdict(list)
-                if nm-1 not in tmp_dict:
-                    tmp_dict[nm-1] = {}#defaultdict(list)
-                for spval in spectra[c][idx]['idict']:
-                    # tmp_dict[nm][spval].append(idx)
-                    # tmp_dict[nm+1][spval].append(idx)
-                    # tmp_dict[nm-1][spval].append(idx)
-                    if spval not in tmp_dict[nm]:
-                        tmp_dict[nm][spval] = [idx, ]
-                    else:
-                        tmp_dict[nm][spval].append(idx)
-                    if spval not in tmp_dict[nm+1]:
-                        tmp_dict[nm+1][spval] = [idx, ]
-                    else:
-                        tmp_dict[nm+1][spval].append(idx)
-                    if spval not in tmp_dict[nm-1]:
-                        tmp_dict[nm-1][spval] = [idx, ]
-                    else:
-                        tmp_dict[nm-1][spval].append(idx)
-
-            fulls_global[c] = tmp_dict
-
 
             # for specs, ttls in zip(spectra[c], titles[c]):
             #     for tmpval in specs['idict']:
@@ -140,6 +103,44 @@ def prepare_peptide_processor(fname, settings):
     else:
         num_spectra = sum(map(len, spectra.itervalues()))
         logger.info('Reusing %s spectra from previous run.', num_spectra)
+
+    fulls_global = {}
+    for c in list(spectra):
+        i = np.argsort(nmasses[c])
+        nmasses[c] = np.array(nmasses[c])[i]
+        spectra[c] = np.array(spectra[c])[i]
+        titles[c] = np.array(titles[c])[i]
+        charges[c] = np.array(charges[c])[i]
+
+        nmasses_conv = nmasses[c] / prec_acc_Da
+        nmasses_conv = nmasses_conv.astype(int)
+
+        tmp_dict = {}
+        for idx, nm in enumerate(nmasses_conv):
+            if nm not in tmp_dict:
+                tmp_dict[nm] = {}#defaultdict(list)
+            if nm+1 not in tmp_dict:
+                tmp_dict[nm+1] = {}#defaultdict(list)
+            if nm-1 not in tmp_dict:
+                tmp_dict[nm-1] = {}#defaultdict(list)
+            for spval in spectra[c][idx]['idict']:
+                # tmp_dict[nm][spval].append(idx)
+                # tmp_dict[nm+1][spval].append(idx)
+                # tmp_dict[nm-1][spval].append(idx)
+                if spval not in tmp_dict[nm]:
+                    tmp_dict[nm][spval] = [idx, ]
+                else:
+                    tmp_dict[nm][spval].append(idx)
+                if spval not in tmp_dict[nm+1]:
+                    tmp_dict[nm+1][spval] = [idx, ]
+                else:
+                    tmp_dict[nm+1][spval].append(idx)
+                if spval not in tmp_dict[nm-1]:
+                    tmp_dict[nm-1][spval] = [idx, ]
+                else:
+                    tmp_dict[nm-1][spval].append(idx)
+
+        fulls_global[c] = tmp_dict
 
     utils.set_mod_dict(settings)
 
