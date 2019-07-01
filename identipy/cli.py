@@ -108,7 +108,7 @@ def run():
     parser.add_argument('-method',  help='reverse or shuffle')
     parser.add_argument('-deis',    help='use MS/MS deisotoping. yes or no')
     parser.add_argument('-deistol', help='deisotope mass accuracy', type=float)
-    parser.add_argument('-score',   help='used score. Can be RNHS, hyperscore or morpheusscore')
+    parser.add_argument('-score',   help='used score. Can be RNHS2, RNHS, hyperscore or morpheusscore')
     parser.add_argument('-minp',    help='minumum peaks in MS/MS spectra', type=int)
     parser.add_argument('-maxp',    help='maximum peaks in MS/MS spectra', type=int)
     parser.add_argument('-dyn',     help='dynamic range', type=float)

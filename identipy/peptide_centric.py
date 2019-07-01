@@ -293,7 +293,7 @@ def peptide_processor(peptide, best_res, **kwargs):
                             if -hf[1] <= best_res.get(st, 0):
                                 if kwargs['fast first stage']:
                                     sc = hf[1]
-                                    score = {'match': [], 'sumI': 1, 'dist': [], 'total_matched': 999}
+                                    score = {'match': [], 'sumI': 1, 'dist': [], 'total_matched': 999, 'score_std': 0}
                                 else:
                                     if not reshaped:
                                         theor[fc] = reshape_theor_spectrum(theor[fc])
@@ -452,7 +452,7 @@ def process_peptides(fname, settings):
     maxlen = settings.getint('search', 'peptide maximum length')
     dtype = np.dtype([('score', np.float64),
         ('seq', np.str_, maxlen), ('note', np.str_, 1),
-        ('charge', np.int8), ('info', np.object_), ('sumI', np.float64), ('fragmentMT', np.float64), ('snp_label', np.str_, 15)])
+        ('charge', np.int8), ('info', np.object_), ('sumI', np.float64), ('fragmentMT', np.float64), ('snp_label', np.str_, 15), ('nextscore_std', np.float64)])
     for spec_name, val in spec_results.iteritems():
         s = val['spectrum']
         c = []
@@ -469,7 +469,7 @@ def process_peptides(fname, settings):
             seq = seq.replace(x, repl)
         pnm = info['pep_nm']
         c.append((-score, mseq, 't' if seq in utils.seen_target else 'd',
-            info['charge'], info, info.pop('sumI'), np.median(info.pop('dist')), val['snp_label']))
+            info['charge'], info, info.pop('sumI'), np.median(info.pop('dist')), val['snp_label'], info.pop('score_std')))
         c[-1][4]['mzdiff'] = {'Da': s['nm'][info['charge']] - pnm}
         c[-1][4]['mzdiff']['ppm'] = 1e6 * c[-1][4]['mzdiff']['Da'] / pnm
         evalues.append(-1./score if -score else 1e6)
