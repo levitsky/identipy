@@ -53,8 +53,8 @@ def optimization(fname, settings):
         settings.set('search', 'precursor accuracy right', 100)
     settings.set('search', 'precursor accuracy unit', 'ppm')
     results = process_file(fname, settings, initial_run=False)
-    filtered = get_subset(results, settings, fdr=0.01)
-    logger.info('%s PSMs with 1%% FDR.', len(filtered))
+    filtered = get_subset(results, settings, fdr=0.001)
+    logger.info('%s PSMs with 0.1%% FDR.', len(filtered))
     if len(filtered) < 50:
         if len(filtered) < 10:
             logger.warning('OPTIMIZATION ABORTED')
@@ -168,7 +168,8 @@ def fragment_mass_optimization(results, settings):
         fragmassdif.extend(get_fragment_mass_tol(res['spectrum'], str(res['candidates'][0][1]), settings)['fmt'])
     fragmassdif = np.array(fragmassdif)
 
-    best_frag_mt = scoreatpercentile(fragmassdif, 68) * 4    
+    best_frag_mt = scoreatpercentile(fragmassdif, 68) * 8    
+    # best_frag_mt = scoreatpercentile(fragmassdif, 99)    
 
     logger.info('NEW FRAGMENT MASS TOLERANCE ppm = %s', best_frag_mt)
     settings.set('search', 'product accuracy ppm', best_frag_mt)

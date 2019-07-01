@@ -4,6 +4,8 @@ from scipy.spatial import cKDTree
 import numpy as np
 from math import factorial
 from copy import copy
+import logging
+logger = logging.getLogger(__name__)
 
 
 def simple_score(spectrum, peptide, settings):
@@ -49,6 +51,7 @@ def get_fragment_mass_tol(spectrum, peptide, settings):
         mask = (dist != np.inf)
         int_array_total = np.append(int_array_total, int_array[ind[mask]])
         dist_total = np.append(dist_total, dist[mask] / spectrum['m/z array'][ind[mask]] * 1e6)
+        # dist_total = np.append(dist_total, dist[mask])
 
     new_params = {}
     if dist_total.size:
@@ -105,25 +108,25 @@ def morpheusscore(spectrum, theoretical, acc, acc_ppm=False, position=False):
         match[ion] = mask2
         match2[ion] = mask1
     if not total_matched:
-        return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+        return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
     if position:
         yions = match2[('y', 1)]
         bions = match2[('b', 1)]
         plen = len(yions) + 1
         if position == 1:
             if not bions[0]:
-                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
         elif position == plen:
             if not yions[0]:
-                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
         else:
             if not (yions[plen - position] and yions[plen - position - 1]) or (bions[position - 1] and bions[position - 2]):
-                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
 
     score += total_matched
     sumI = np.log10(sumI)
 
-    return {'score': score, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched}
+    return {'score': score, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched, 'score_std': 0}
 
 def hyperscore_fast(spectrum_fastset, spectrum_idict, theoretical_set, min_matched):
     matched_b = spectrum_fastset.intersection(theoretical_set['b'])
@@ -177,20 +180,20 @@ def hyperscore(spectrum, theoretical, acc, acc_ppm=False, position=False):
         match[ion] = mask2
         match2[ion] = mask1
     if not total_matched:
-        return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+        return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
     if position:
         yions = match2[('y', 1)]
         bions = match2[('b', 1)]
         plen = len(yions) + 1
         if position == 1:
             if not bions[0]:
-                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
         elif position == plen:
             if not yions[0]:
-                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
         else:
             if not (yions[plen - position] and yions[plen - position - 1]) or (bions[position - 1] and bions[position - 2]):
-                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
 
     for m in mult:
         score *= m
@@ -341,26 +344,119 @@ def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False):
         match[ion] = mask2
         match2[ion] = mask2
     if not total_matched:
-        return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+        return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
     if position:
         yions = match2[('y', 1)]
         bions = match2[('b', 1)]
         plen = len(yions)
         if position > plen + 1:
 #           print 'Something wrong with aachange position'
-            return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+            return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
         if position == 1:
             if not bions[0]:
-                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
         elif position == plen + 1:
             if not yions[0]:
-                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
         else:
             if not (yions[plen - position + 1] and yions[plen - position]):
-                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
 
     for m in mult:
         score *= m
     sumI = np.log10(sumI)
 
-    return {'score': score, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched}
+    return {'score': score, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched, 'score_std': 0}
+
+def RNHS2_ultrafast(spectrum_idict, theoretical_set, min_matched, nm, best_res, allowed_idx):
+    return RNHS_ultrafast(spectrum_idict, theoretical_set, min_matched, nm, best_res, allowed_idx)
+
+def RNHS2_fast(spectrum_fastset, spectrum_idict, theoretical_set, min_matched):
+    return RNHS_fast(spectrum_fastset, spectrum_idict, theoretical_set, min_matched)
+
+def RNHS2(spectrum, theoretical, acc, acc_ppm=False, position=False):
+    if 'norm' not in spectrum:
+        spectrum['norm'] = spectrum['Isum']#spectrum['intensity array'].sum()#spectrum['intensity array'].max() / 100.
+    mz_array = spectrum['m/z array']
+
+    if '__KDTree' not in spectrum:
+        spectrum['__KDTree'] = cKDTree(mz_array.reshape((mz_array.size, 1)))
+    query_dict = {}
+    for ion, fragments in theoretical.iteritems():
+        query_dict[ion] = spectrum['__KDTree'].query(fragments, distance_upper_bound=acc)
+
+    score_tmp = []
+    if not acc_ppm:
+        acc_ppm = 0
+    for i in range(10, 0, -1):
+    # for accc, accc_ppm in zip([acc/3, acc/2, acc], [acc_ppm/3, acc_ppm/2, acc_ppm]):
+        accc = acc / i
+        accc_ppm = acc_ppm / i
+        score = 0
+        mult = []
+        match = {}
+        match2 = {}
+        total_matched = 0
+        sumI = 0
+
+        dist_all = []
+        for ion, fragments in theoretical.iteritems():
+            dist, ind = query_dict[ion]#spectrum['__KDTree'].query(fragments, distance_upper_bound=accc)
+            # dist, ind = spectrum['__KDTree'].query(fragments, distance_upper_bound=accc)
+            mask1 = (dist != np.inf)
+            if acc_ppm:
+                ind = ind.clip(max=mz_array.size-1)
+                nacc = np.where(dist / mz_array[ind] * 1e6 > accc_ppm)[0]
+                mask2 = mask1.copy()
+                mask2[nacc] = False
+            else:
+                # if len(np.where(np.abs(dist[mask1]) > accc)[0]) > 0:
+                #     logger.info('\n')
+                #     logger.info(dist)
+                #     logger.info(dist[mask1])
+                #     logger.info(np.where(np.abs(dist[mask1]) > accc)[0])
+                #     logger.info('\n')
+                nacc = np.where(dist > accc)[0]
+                mask2 = mask1.copy()
+                mask2[nacc] = False
+                # mask2 = mask1
+            nmatched = mask2.sum()
+            if nmatched:
+                total_matched += nmatched
+                mult.append(factorial(nmatched))
+                sumi = spectrum['intensity array'][ind[mask2]].sum()
+                sumI += sumi
+                score += sumi / spectrum['norm']
+                dist_all.extend(dist[mask2])
+            match[ion] = mask2
+            match2[ion] = mask2
+        if not total_matched:
+            # return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
+            pass
+        else:
+            for m in mult:
+                score *= m
+            sumI = np.log10(sumI)
+        score_tmp.append(score)
+    if not total_matched:
+        return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
+    if position:
+        yions = match2[('y', 1)]
+        bions = match2[('b', 1)]
+        plen = len(yions)
+        if position > plen + 1:
+#           print 'Something wrong with aachange position'
+            return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
+        if position == 1:
+            if not bions[0]:
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
+        elif position == plen + 1:
+            if not yions[0]:
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
+        else:
+            if not (yions[plen - position + 1] and yions[plen - position]):
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
+
+    score_std = np.std(score_tmp)# / np.mean(score_tmp)
+    score_tmp = np.mean(score_tmp)
+    return {'score': score_tmp, 'score_std': score_std, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched}

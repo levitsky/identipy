@@ -569,9 +569,9 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
 #    tmp2 = tmp.astype(int)
     for idx, mt in enumerate(tmp):
         i_val = spectrum['intensity array'][idx] / spectrum['Isum']
-        tmp2[mt] = i_val
-        tmp2[mt-1] = i_val
-        tmp2[mt+1] = i_val
+        tmp2[mt] = max(tmp2.get(mt, 0), i_val)
+        tmp2[mt-1] = max(tmp2.get(mt-1, 0), i_val)
+        tmp2[mt+1] = max(tmp2.get(mt+1, 0), i_val)
     tmp = np.concatenate((tmp, tmp-1, tmp+1))
     spectrum['fastset'] = set(tmp.tolist())
     #spectrum['Isum'] = spectrum['intensity array'].sum()
@@ -1324,6 +1324,11 @@ def write_pepxml(inputfile, settings, results):
                         tmp4.set('value', str(candidate[6]))
                         tmp3.append(copy(tmp4))
 
+                        tmp4 = etree.Element('search_score')
+                        tmp4.set('name', 'nextscore_std')
+                        tmp4.set('value', str(candidate[8]))
+                        tmp3.append(copy(tmp4))
+
                         if 'params' in spectrum:
                             if 'isowidthdiff' in spectrum['params']:
                                 tmp4 = etree.Element('search_score')
@@ -1513,6 +1518,9 @@ def write_output(inputfile, settings, results):
     return writer(inputfile, settings, results)
 
 def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
+
+    basename_mzml = os.path.splitext(path.basename(path_to_mzml))[0]
+
     df1 = pd.read_table(path_to_features)
 
     mzs = []
@@ -1561,8 +1569,9 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
                     added_MSMS.add(ttl)
                 mz_arr, I_arr = ms2_map[ttl]['m/z array'], ms2_map[ttl]['intensity array']
                 pepmass = float(ms2_map[ttl]['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
+                t_i_orig = ms2_map[ttl]['index']
                 outmgf.write('BEGIN IONS\n')
-                outmgf.write('TITLE=20161214_HF_DBJ_SA_Exp3B_Hela_1ug_7min_15000_01.%d.%d.%d\n' % (t_i, t_i, ch))
+                outmgf.write('TITLE=%s.%d.%d.%d\n' % (basename_mzml, t_i_orig, t_i, ch))
                 outmgf.write('RTINSECONDS=%f\n' % (RT * 60, ))
                 outmgf.write('PEPMASS=%f %f\n' % (mz, Intensity))
                 outmgf.write('CHARGE=%d+\n' % (ch, ))
@@ -1581,12 +1590,13 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
             mz_arr, I_arr = a['m/z array'], a['intensity array']
             mz = float(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
             RT = float(a['scanList']['scan'][0]['scan start time'])
+            t_i_orig = a['index']
             try:
                 ch = int(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['charge state'])
             except:
                 ch = ''
             outmgf.write('BEGIN IONS\n')
-            outmgf.write('TITLE=20161214_HF_DBJ_SA_Exp3B_Hela_1ug_7min_15000_01.%d.%d.%s\n' % (t_i, t_i, str(ch)))
+            outmgf.write('TITLE=%s.%d.%d.%s\n' % (basename_mzml, t_i_orig, t_i, str(ch)))
             outmgf.write('RTINSECONDS=%f\n' % (RT * 60, ))
             outmgf.write('PEPMASS=%f %f\n' % (mz, 0))
             if ch:
