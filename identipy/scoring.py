@@ -201,10 +201,10 @@ def hyperscore(spectrum, theoretical, acc, acc_ppm=False, position=False):
 
     return {'score': score, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched}
 
-def RNHS_ultrafast(spectrum_idict, theoretical_set, min_matched, nm, best_res, allowed_idx):
 
+def RNHS_ultrafast(spectrum_idict, theoretical_set, min_matched, nm, best_res, allowed_idx, max_v, prec_acc_Da):
 
-    nm_key = int(nm / 100)
+    nm_key = int(nm / prec_acc_Da)
 
     cur_idict = spectrum_idict.get(nm_key, None)
     if not cur_idict:
@@ -212,47 +212,43 @@ def RNHS_ultrafast(spectrum_idict, theoretical_set, min_matched, nm, best_res, a
 
     total_matched = 0
 
-    cnt_list_b = []
-    cnt_list_y = []
+    cnt_b = dict()
+    cnt_y = dict()
 
     for ion in theoretical_set['b']:
         if ion in cur_idict:
-            cnt_list_b.extend(cur_idict[ion])
+            for xx in cur_idict[ion]:
+                if xx not in cnt_b:
+                    cnt_b[xx] = 1
+                else:
+                    cnt_b[xx] += 1
             total_matched += 1
 
     for ion in theoretical_set['y']:
         if ion in cur_idict:
-            cnt_list_y.extend(cur_idict[ion])
+            for xx in cur_idict[ion]:
+                if xx not in cnt_y:
+                    cnt_y[xx] = 1
+                else:
+                    cnt_y[xx] += 1
             total_matched += 1
+
     if total_matched < min_matched:
         return None
 
-    cnt_b = {}#defaultdict(int)
-    for spv in cnt_list_b:
-        if spv in allowed_idx:
-            cnt_b[spv] = cnt_b.get(spv, 0) + 1
-    cnt_y = {}#defaultdict(int)
-    for spv in cnt_list_y:
-        if spv in allowed_idx:
-            cnt_y[spv] = cnt_y.get(spv, 0) + 1
-
     out = set()
-    for k in cnt_b:
-        num_b_ions = cnt_b.get(k, 0)
-        num_y_ions = cnt_y.get(k, 0)
+    for k in allowed_idx:
+        num_b_ions = 0
+        num_y_ions = 0
+        if k in cnt_b:
+            num_b_ions = cnt_b[k]
+        if k in cnt_y:
+            num_y_ions = cnt_y[k]
         if num_b_ions + num_y_ions >= min_matched:
             best_res_val = best_res.get(k, 0)
             if not best_res_val or -factorial(num_b_ions) * factorial(num_y_ions) <= best_res_val:
                 out.add(k)
-    for k in cnt_y:
-        if k not in cnt_b:
-            num_y_ions = cnt_y.get(k, 0)
-            if num_y_ions >= min_matched:
-                best_res_val = best_res.get(k, 0)
-                if not best_res_val or factorial(num_y_ions) <= best_res_val:
-                    out.add(k)
     return out
-
 
     # isum = 0
     # matched_approx_b, matched_approx_y = 0, 0
@@ -375,15 +371,14 @@ def RNHS2_fast(spectrum_fastset, spectrum_idict, theoretical_set, min_matched):
     return RNHS_fast(spectrum_fastset, spectrum_idict, theoretical_set, min_matched)
 
 def RNHS2(spectrum, theoretical, acc, acc_ppm=False, position=False):
-    if 'norm' not in spectrum:
-        spectrum['norm'] = spectrum['Isum']#spectrum['intensity array'].sum()#spectrum['intensity array'].max() / 100.
-    mz_array = spectrum['m/z array']
+    mz_array = copy(spectrum['m/z array'])
+    KDT = copy(spectrum['__KDTree'])
+    s_ia = copy(spectrum['intensity array'])
+    s_is = copy(spectrum['Isum'])
 
-    if '__KDTree' not in spectrum:
-        spectrum['__KDTree'] = cKDTree(mz_array.reshape((mz_array.size, 1)))
     query_dict = {}
     for ion, fragments in theoretical.iteritems():
-        query_dict[ion] = spectrum['__KDTree'].query(fragments, distance_upper_bound=acc)
+        query_dict[ion] = KDT.query(fragments, distance_upper_bound=acc)
 
     score_tmp = []
     if not acc_ppm:
@@ -424,9 +419,9 @@ def RNHS2(spectrum, theoretical, acc, acc_ppm=False, position=False):
             if nmatched:
                 total_matched += nmatched
                 mult.append(factorial(nmatched))
-                sumi = spectrum['intensity array'][ind[mask2]].sum()
+                sumi = s_ia[ind[mask2]].sum()
                 sumI += sumi
-                score += sumi / spectrum['norm']
+                score += sumi / s_is
                 dist_all.extend(dist[mask2])
             match[ion] = mask2
             match2[ion] = mask2

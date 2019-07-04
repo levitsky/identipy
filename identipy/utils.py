@@ -34,6 +34,7 @@ try:
     from . import cparser
 except:
     from . import customparser as cparser
+from scipy.spatial import cKDTree
 
 default_tags = {
 'tmt10plex': {
@@ -578,6 +579,8 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
     spectrum['RT'] = get_RT(spectrum)
     spectrum['idict'] = tmp2
 
+    spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape((spectrum['m/z array'].size, 1)))
+
     return spectrum
 
 def relative(unit):
@@ -882,12 +885,15 @@ def get_aa_mass(settings):
 #     return np.round(m/mz).astype(np.int8)
 
 def multimap(n, func, it, best_res_in=False, best_res_raw_in=False, **kw):
+    global best_res
+
     if best_res_in:
         best_res = deepcopy(best_res_in)
         best_res_raw = deepcopy(best_res_raw_in)
     else:
         best_res = {}
         best_res_raw = {}
+    best_res_pep = {}
 
     if n == 0:
         try:
@@ -908,30 +914,48 @@ def multimap(n, func, it, best_res_in=False, best_res_raw_in=False, **kw):
         return best_res_raw, best_res
         
     else:
-        def worker(qin, qout, shift, step, best_res, best_res_raw):
+
+        def worker2(qout, shift, step):
+            qout.put(None)
+
+        def worker(qout, shift, step):
             maxval = len(qin)
             start = 0
+
+            # best_res = {}
+            new_best_res = {}
+            new_best_res_raw = {}
+            best_pep_res = {}
+
             while start + shift < maxval:
                 item = qin[start+shift]
                 result = func(item, best_res, **kw)
+                
                 if result:
                     for x in result:
                         peptide, m, snp_label, res = x
 
                         for score, spec_t, c, info in res:
-                            if -score <= best_res.get(spec_t, 0):
-                                best_res_raw[spec_t] = [peptide, m, snp_label, score, spec_t, c, info]
-                                best_res[spec_t] = -score   
+                            if -score <= new_best_res.get(spec_t, best_res.get(spec_t, 0)):
+                                # best_res_raw[spec_t] = [peptide, m, snp_label, score, spec_t, c, info]
+                                # best_res[spec_t] = -score
+                                new_best_res[spec_t] = -score
+                                best_res[spec_t] = -score
+                                # new_best_res_raw[spec_t] = [peptide, m, snp_label, score, spec_t, c, info]
+                                best_pep_res[spec_t] = (peptide, score)
 
 
                 # if result:
                 #     qout.put(result)
                 start += step
-            qout.put(best_res_raw)
+            # qout.put(new_best_res_raw)
+            qout.put(best_pep_res)
             qout.put(None)
         qsize = kw.pop('qsize')
         qout = Queue(qsize)
         count = 0
+
+        global qin
 
         while True:
             qin = list(islice(it, 5000000))
@@ -940,22 +964,46 @@ def multimap(n, func, it, best_res_in=False, best_res_raw_in=False, **kw):
 #           print 'Loaded 500000 items. Ending cycle.'
             procs = []
             for proc_num in range(n):
-                p = Process(target=worker, args=(qin, qout, proc_num, n, best_res, best_res_raw))
+                p = Process(target=worker, args=(qout, proc_num, n))
                 p.start()
                 procs.append(p)
 
             count = len(qin)
 
+            # for _ in range(n):
+            #     for item in iter(qout.get, None):
+            #         for k, v in item.items():
+            #             if -v[3] <= best_res.get(k, 0):
+            #                 best_res_raw[k] = v
+            #                 best_res[k] = -v[3]
+            #         # yield item
+
             for _ in range(n):
                 for item in iter(qout.get, None):
+                    # pass
                     for k, v in item.items():
-                        if -v[3] <= best_res.get(k, 0):
-                            best_res_raw[k] = v
-                            best_res[k] = -v[3]
+                        if -v[1] <= best_res.get(k, 0):
+                            # best_res_raw[k] = v
+                            best_res[k] = -v[1]
+                            best_res_pep[k] = v[0]
                     # yield item
 
             for p in procs:
                 p.join()
+
+        best_res_raw = {}
+
+        logger.info(len(best_res_pep))
+        for k, item in best_res_pep.iteritems():
+            result = func(item, best_res, **kw)
+            if result:
+                for x in result:
+                    peptide, m, snp_label, res = x
+                    for score, spec_t, c, info in res:
+                        if -score == best_res.get(k, 0):
+                            best_res_raw[spec_t] = [peptide, m, snp_label, score, spec_t, c, info]
+                            best_res[spec_t] = -score
+
 
         return best_res_raw, best_res
 

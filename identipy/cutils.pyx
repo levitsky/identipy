@@ -37,16 +37,13 @@ ion_shift_dict = {
 @cython.cdivision(True)
 @cython.boundscheck(False)
 @cython.wraparound(True)
-def RNHS_ultrafast(dict spectrum_idict, dict theoretical_set, int min_matched, float nm, dict best_res, set allowed_idx, int max_v, float prec_acc_Da):
+def RNHS_ultrafast(dict cur_idict, dict theoretical_set, int min_matched, dict best_res, set allowed_idx, int max_v):
 
     cdef int total_matched, nm_key, num_b_ions, num_y_ions
-    cdef dict cur_idict, cnt_b, cnt_y
+    cdef dict cnt_b, cnt_y
     cdef set out
     cdef float best_res_val
  
-    nm_key = int(nm / prec_acc_Da)
-
-    cur_idict = spectrum_idict.get(nm_key, None)
     if not cur_idict:
         return None
 

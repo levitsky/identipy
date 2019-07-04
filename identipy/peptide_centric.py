@@ -18,6 +18,7 @@ except ImportError:
 # try:
 # import pyximport; pyximport.install()
 from .cutils import theor_spectrum
+# from utils import theor_spectrum
 # except:
 #     logger.info('Cython modules were not loaded...')
 #     from .utils import theor_spectrum
@@ -274,7 +275,9 @@ def peptide_processor(peptide, best_res, **kwargs):
         reshaped = False
         if kwargs['prec_acc_Da']:
             fulls_global_charge = fulls_global[fc]
-            idx_new = RNHS_ultrafast(fulls_global_charge, theoretical_set[fc], kwargs['min_matched'], m, best_res, ind, kwargs['max_v'], kwargs['prec_acc_Da'])
+            nm_key = int(m / kwargs['prec_acc_Da'])
+            cur_idict = fulls_global_charge.get(nm_key, dict())
+            idx_new = RNHS_ultrafast(cur_idict, theoretical_set[fc], kwargs['min_matched'], best_res, ind, kwargs['max_v'])
         else:
             idx_new = idx
         if idx_new:
