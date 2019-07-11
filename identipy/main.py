@@ -16,7 +16,7 @@ def process_file(fname, settings, initial_run=True):
                     mass_change = settings.getfloat('modifications', mod_label)
                     prev_cterm_mass = settings.getfloat('modifications', 'protein cterm cleavage')
                     settings.set('modifications', 'protein cterm cleavage', prev_cterm_mass + mass_change)
-                elif initial_run and  mod.endswith('-'):
+                elif initial_run and mod.endswith('-'):
                     mod_label = mod[:-1]
                     mass_change = settings.getfloat('modifications', mod_label)
                     prev_nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage')
@@ -32,7 +32,11 @@ def process_file(fname, settings, initial_run=True):
     mode = settings.get('input', 'decoy method')
     db = settings.get('input', 'database')
     if add_decoy and utils.is_db_target_only(settings):
-        ft = tempfile.NamedTemporaryFile(mode='w', delete=False)
+        gdbname = settings.get('output', 'generated database')
+        if gdbname:
+            ft = open(gdbname, 'w')
+        else:
+            ft = tempfile.NamedTemporaryFile(mode='w', delete=False)
         fasta.write_decoy_db(db, ft, mode=mode, prefix=prefix)
         ft.flush()
         settings.set('input', 'database', ft.name)
@@ -45,7 +49,7 @@ def process_file(fname, settings, initial_run=True):
         utils.seen_target.clear()
         utils.seen_decoy.clear()
         return peptide_centric.process_peptides(fname, settings)
-        
+
 
 def double_run(fname, settings, stage1):
     logger.info('[double run] stage 1 starting ...')
