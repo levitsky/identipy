@@ -73,6 +73,7 @@ default_tags = {
 }
 
 def get_tags(tags):
+    logger.debug('Tags: %s', tags)
     if tags:
         if tags in default_tags:
             return default_tags[tags]
@@ -326,8 +327,8 @@ def peptide_gen(settings, clear_seen_peptides=False):
 
 def prot_gen(settings):
     db = settings.get('input', 'database')
-    add_decoy = settings.getboolean('input', 'add decoy')
-    prefix = settings.get('input', 'decoy prefix')
+    # add_decoy = settings.getboolean('input', 'add decoy')
+    # prefix = settings.get('input', 'decoy prefix')
 
     with fasta.read(db) as f:
         for p in f:
@@ -717,7 +718,7 @@ def get_info(spectrum, result, settings, aa_mass=None):
     RT = spectrum['RT']#get_RT(spectrum)
 
     params = _charge_params(settings)
-    
+
     masses, states = zip(*neutral_masses(spectrum, params))
     # idx = find_nearest(masses, cmass.fast_mass(str(result['candidates'][0][1]), aa_mass=aa_mass))
 
@@ -750,7 +751,7 @@ def calc_ions_from_neutral_mass(peptide, nm, ion_type, charge, aa_mass, cterm_ma
         nmi = nm - aa_mass[peptide[-1]] - ion_shift_dict[ion_type] - (cterm_mass - 17.002735)
     else:
         nmi = nm - aa_mass[peptide[0]] - ion_shift_dict[ion_type] - (nterm_mass - 1.007825)
-    return (nmi + 1.0072764667700085 * charge) / charge 
+    return (nmi + 1.0072764667700085 * charge) / charge
 
 def check_n_term(ion_type):
     return (ion_type[0] == 'b' or ion_type[0] == 'a' or ion_type[0] == 'c')
@@ -910,9 +911,9 @@ def multimap(n, func, it, best_res_in=False, best_res_raw_in=False, **kw):
                     for score, spec_t, c, info in res:
                         if -score <= best_res.get(spec_t, 0):
                             best_res_raw[spec_t] = [peptide, m, snp_label, score, spec_t, c, info]
-                            best_res[spec_t] = -score   
+                            best_res[spec_t] = -score
         return best_res_raw, best_res
-        
+
     else:
 
         def worker2(qout, shift, step):
@@ -930,7 +931,7 @@ def multimap(n, func, it, best_res_in=False, best_res_raw_in=False, **kw):
             while start + shift < maxval:
                 item = qin[start+shift]
                 result = func(item, best_res, **kw)
-                
+
                 if result:
                     for x in result:
                         peptide, m, snp_label, res = x
@@ -1590,7 +1591,7 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
             RTs.append(RT)
             titles.append(title)
             ms2_map[title] = a
-            
+
     mzs = np.array(mzs)
     RTs = np.array(RTs)
     titles = np.array(titles)
@@ -1630,8 +1631,8 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
                     outmgf.write('%f %f\n' % (mz_val, I_val))
                 outmgf.write('END IONS\n\n')
                 t_i += 1
-        
-        
+
+
     for k in ms2_map:
         if k not in added_MSMS:
             a = ms2_map[k]
@@ -1655,8 +1656,8 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
             for mz_val, I_val in zip(mz_arr, I_arr):
                 outmgf.write('%f %f\n' % (mz_val, I_val))
             outmgf.write('END IONS\n\n')
-            t_i += 1        
-        
+            t_i += 1
+
     outmgf.close()
 
     return outmgf_name
@@ -1677,7 +1678,7 @@ def findMSMS(raw, isolation_window_left, isolation_window_right, mzs, RTs, title
         return out
     else:
         return None
-    
+
 def findMSMS_accurate(raw, mzs, RTs, titles):
     out = set()
     acc = 10

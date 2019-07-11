@@ -4,7 +4,7 @@
 setup.py file for identipy
 '''
 import os
-from setuptools import setup, find_packages, Extension
+from setuptools import setup, Extension
 
 version = open('VERSION').readline().strip()
 
