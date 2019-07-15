@@ -1,7 +1,5 @@
 import os
 from . import utils, peptide_centric
-from pyteomics import fasta
-import tempfile
 import logging
 import re
 logger = logging.getLogger(__name__)
@@ -22,26 +20,7 @@ def process_file(fname, settings, initial_run=True):
                     prev_nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage')
                     settings.set('modifications', 'protein nterm cleavage', prev_nterm_mass + mass_change)
 
-    add_decoy = settings.getboolean('input', 'add decoy')
-    prefix = settings.get('input', 'decoy prefix')
-    infix = settings.get('input', 'decoy infix')
-    if infix and add_decoy:
-        if not prefix:
-            prefix = infix
-        logger.warning('infix is specified with "add decoy" = True. Generated decoys will have PREFIX %s', prefix)
-    mode = settings.get('input', 'decoy method')
-    db = settings.get('input', 'database')
-    if add_decoy and utils.is_db_target_only(settings):
-        gdbname = settings.get('output', 'generated database')
-        if gdbname:
-            ft = open(gdbname, 'w')
-        else:
-            ft = tempfile.NamedTemporaryFile(mode='w', delete=False)
-        fasta.write_decoy_db(db, ft, mode=mode, prefix=prefix)
-        ft.flush()
-        settings.set('input', 'database', ft.name)
-        settings.set('input', 'add decoy', 'no')
-        logger.debug('Temporary database: %s (%s)', ft.name, os.path.isfile(ft.name))
+    utils.generate_database(settings)
     stage1 = settings.get('misc', 'first stage')
     if stage1:
         return double_run(fname, settings, utils.import_(stage1))
