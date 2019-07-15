@@ -1694,3 +1694,26 @@ def findMSMS_accurate(raw, mzs, RTs, titles):
             # return True
     # return False
     return out
+
+def generate_database(settings, outname=None):
+    add_decoy = settings.getboolean('input', 'add decoy')
+    prefix = settings.get('input', 'decoy prefix')
+    infix = settings.get('input', 'decoy infix')
+    if infix and add_decoy:
+        if not prefix:
+            prefix = infix
+        logger.warning('infix is specified with "add decoy" = True. Generated decoys will have PREFIX %s', prefix)
+    mode = settings.get('input', 'decoy method')
+    db = settings.get('input', 'database')
+    if add_decoy and is_db_target_only(settings):
+        gdbname = outname or settings.get('output', 'generated database')
+        if gdbname:
+            ft = open(gdbname, 'w')
+        else:
+            ft = tempfile.NamedTemporaryFile(mode='w', delete=False)
+        fasta.write_decoy_db(db, ft, mode=mode, prefix=prefix)
+        ft.flush()
+        settings.set('input', 'database', ft.name)
+        settings.set('input', 'add decoy', 'no')
+        logger.debug('Generated database: %s (isfile = %s)', ft.name, os.path.isfile(ft.name))
+        return ft.name
