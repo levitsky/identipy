@@ -30,26 +30,30 @@ def simple_score(spectrum, peptide, settings):
 def get_fragment_mass_tol(spectrum, peptide, settings):
     """A function for obtaining optimal fragment mass tolerance, dynamic range"""
     acc = settings.getfloat('search', 'product accuracy')
-    spectrum = copy(spectrum)
-    idx = np.nonzero(spectrum['m/z array'] >= 150)
-    spectrum['intensity array'] = spectrum['intensity array'][idx]
-    spectrum['m/z array'] = spectrum['m/z array'][idx]
+#   spectrum = copy(spectrum)
+#   idx = np.nonzero(spectrum['m/z array'] >= 150)
+#   spectrum['intensity array'] = spectrum['intensity array'][idx]
+#   spectrum['m/z array'] = spectrum['m/z array'][idx]
     int_array = spectrum['intensity array']
     int_array = int_array / int_array.max() * 100
     charge = 1#max(1, max(c for _, c in neutral_masses(spectrum, settings)) - 1)
     theor, _ = theor_spectrum(peptide, maxcharge=charge, aa_mass=get_aa_mass(settings), reshape=True, acc_frag=acc,
         nterm_mass=settings.getfloat('modifications', 'protein nterm cleavage'), cterm_mass=settings.getfloat('modifications', 'protein cterm cleavage'))
     if '__KDTree' not in spectrum:
-        spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape(
-            (spectrum['m/z array'].size, 1)))
+        spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape((spectrum['m/z array'].size, 1)))
 
     dist_total, int_array_total = np.array([]), np.array([])
     for fragments in theor.values():
         n = fragments.size
-        dist, ind = spectrum['__KDTree'].query(fragments.reshape((n, 1)),
-            distance_upper_bound=acc)
+        dist, ind = spectrum['__KDTree'].query(fragments.reshape((n, 1)), distance_upper_bound=acc)
         mask = (dist != np.inf)
+#       logger.debug('m/z array: %s', spectrum['m/z array'])
+#       logger.debug('fragments: %s', fragments)
+#       logger.debug('dist: %s\nind: %s\n', dist, ind)
+        
+        logger.debug('%s %s %s', spectrum['intensity array'].size, ind.size, ind[mask])
         int_array_total = np.append(int_array_total, int_array[ind[mask]])
+
         dist_total = np.append(dist_total, dist[mask] / spectrum['m/z array'][ind[mask]] * 1e6)
         # dist_total = np.append(dist_total, dist[mask])
 
