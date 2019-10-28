@@ -1705,7 +1705,8 @@ def generate_database(settings, outname=None):
         logger.warning('infix is specified with "add decoy" = True. Generated decoys will have PREFIX %s', prefix)
     mode = settings.get('input', 'decoy method')
     db = settings.get('input', 'database')
-    if add_decoy and is_db_target_only(settings):
+    target_only = is_db_target_only(settings)
+    if add_decoy and target_only:
         gdbname = outname or settings.get('output', 'generated database')
         if gdbname:
             ft = open(gdbname, 'w')
@@ -1717,3 +1718,6 @@ def generate_database(settings, outname=None):
         settings.set('input', 'add decoy', 'no')
         logger.debug('Generated database: %s (isfile = %s)', ft.name, os.path.isfile(ft.name))
         return ft.name
+    else:
+        logger.debug('Skipping database generation. add_decoy = %s, target_only = %s', add_decoy, target_only)
+
