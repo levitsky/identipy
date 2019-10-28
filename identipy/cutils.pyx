@@ -153,7 +153,7 @@ cdef tuple ctheor_spectrum(str peptide, double acc_frag, double nterm_mass, doub
     cdef float maxmass, part_mass, nm
     cdef dict peaks, theoretical_set
     cdef dict aa_mass, ion_comp, mass_data
-    cdef set theoretical_set_item
+    cdef list theoretical_set_item
     cdef list ions_scaled, marr
     cdef object marr_storage
 
@@ -189,8 +189,8 @@ cdef tuple ctheor_spectrum(str peptide, double acc_frag, double nterm_mass, doub
 
             ions_scaled = [<int>(x / acc_frag) for x in marr]
             if ion_type in theoretical_set:
-                theoretical_set_item = <set>PyDict_GetItem(theoretical_set, ion_type)
-                theoretical_set_item.update(ions_scaled)
+                theoretical_set_item = <list>PyDict_GetItem(theoretical_set, ion_type)
+                theoretical_set_item.extend(ions_scaled)
             else:
                 theoretical_set[ion_type] = ions_scaled
 
