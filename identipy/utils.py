@@ -995,7 +995,7 @@ def multimap(n, func, it, best_res_in=False, best_res_raw_in=False, **kw):
 
         logger.info(len(best_res_pep))
         for k, item in best_res_pep.iteritems():
-            result = func(item, best_res, **kw)
+            result = func(item, {}, **kw)
             if result:
                 for x in result:
                     peptide, m, snp_label, res = x
