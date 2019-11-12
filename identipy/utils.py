@@ -1325,7 +1325,7 @@ def write_pepxml(inputfile, settings, results):
                         try:
                             aalist = parser.parse(mod_sequence, labels=labels)
                         except Exception as e:
-                            logger.error('Problematic sequence: %s\n%s', mod_sequence, e)
+                            logger.debug('Problematic sequence: %s\n%s', mod_sequence, e)
                             aalist = [a[::-1] for a in parser.parse(mod_sequence[::-1], labels=labels)][::-1]
                         tmp4 = etree.Element('modification_info')
                         ntermmod = 0
