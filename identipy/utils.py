@@ -945,7 +945,7 @@ def multimap(n, func, it, best_res_in=False, best_res_raw_in=False, **kw):
                                 new_best_res[spec_t] = -score
                                 best_res[spec_t] = -score
                                 # new_best_res_raw[spec_t] = [peptide, m, snp_label, score, spec_t, c, info]
-                                best_pep_res[spec_t] = (peptide, score)
+                                best_pep_res[spec_t] = (item, score)
 
 
                 # if result:
