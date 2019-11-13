@@ -286,7 +286,7 @@ def peptide_processor(peptide, best_res, **kwargs):
             cur_idict = fulls_global_charge.get(nm_key, dict())
             idx_new = RNHS_ultrafast(cur_idict, theoretical_set[fc], kwargs['min_matched'], best_res, ind, kwargs['max_v'])
         else:
-            idx_new = idx
+            idx_new = ind
         if idx_new:
         # logger.info(len(idx_new))
             for i in idx_new:
