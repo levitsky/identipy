@@ -203,7 +203,7 @@ def hyperscore(spectrum, theoretical, acc, acc_ppm=False, position=False):
         score *= m
     sumI = np.log10(sumI)
 
-    return {'score': score, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched}
+    return {'score': score, 'score_std': 0, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched}
 
 
 def RNHS_ultrafast(spectrum_idict, theoretical_set, min_matched, nm, best_res, allowed_idx, max_v, prec_acc_Da):
