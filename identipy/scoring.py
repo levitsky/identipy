@@ -170,17 +170,20 @@ def hyperscore(spectrum, theoretical, acc, acc_ppm=False, position=False):
         dist, ind = spectrum['__KDTree'].query(fragments, distance_upper_bound=acc)
         mask1 = (dist != np.inf)
         if acc_ppm:
-            mask2 = (dist[mask1] / spectrum['m/z array'][ind[mask1]] * 1e6 <= acc_ppm)
+            ind = ind.clip(max=mz_array.size-1)
+            nacc = np.where(dist / mz_array[ind] * 1e6 > acc_ppm)[0]
+            mask2 = mask1.copy()
+            mask2[nacc] = False
         else:
             mask2 = np.ones_like(dist[mask1], dtype=bool)
         nmatched = mask2.sum()
         if nmatched:
             total_matched += nmatched
             mult.append(factorial(nmatched))
-            sumi = spectrum['intensity array'][ind[mask1][mask2]].sum()
+            sumi = spectrum['intensity array'][ind[mask2]].sum()
             sumI += sumi
             score += sumi / spectrum['norm']
-            dist_all.extend(dist[mask1][mask2])
+            dist_all.extend(dist[mask2])
         match[ion] = mask2
         match2[ion] = mask1
     if not total_matched:
@@ -328,7 +331,8 @@ def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False):
         dist, ind = spectrum['__KDTree'].query(fragments, distance_upper_bound=acc)
         mask1 = (dist != np.inf)
         if acc_ppm:
-            nacc = np.where(dist[mask1] / mz_array[ind[mask1]] * 1e6 > acc_ppm)[0]
+            ind = ind.clip(max=mz_array.size-1)
+            nacc = np.where(dist / mz_array[ind] * 1e6 > acc_ppm)[0]
             mask2 = mask1.copy()
             mask2[nacc] = False
         else:
@@ -397,7 +401,6 @@ def RNHS2(spectrum, theoretical, acc, acc_ppm=False, position=False):
         match2 = {}
         total_matched = 0
         sumI = 0
-
         dist_all = []
         for ion, fragments in theoretical.iteritems():
             dist, ind = query_dict[ion]#spectrum['__KDTree'].query(fragments, distance_upper_bound=accc)
