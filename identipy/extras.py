@@ -7,7 +7,7 @@ from .scoring import get_fragment_mass_tol
 import logging
 logger = logging.getLogger(__name__)
 import numpy as np
-from .utils import get_info, get_aa_mass, get_enzyme, calculate_RT
+from .utils import get_info, get_aa_mass, get_enzyme, calculate_RT, get_title
 try:
     from pyteomics import cmass
 except ImportError:
@@ -28,6 +28,26 @@ def FDbinSize(X):
     h = 2. * IQR / len(X) ** (1. / 3.)
     return h
 
+def get_peptides_subset(results):
+    tmp_dict = dict()
+
+    massdif = np.array([res['candidates'][0][4]['mzdiff']['ppm'] for res in results])
+
+    for result in results:
+        r_spectrum = get_title(result['spectrum'])
+        r_sequence = str(result['candidates'][0][1])
+        r_mass_diff_abs = abs(result['candidates'][0][4]['mzdiff']['ppm'])
+        if r_sequence not in tmp_dict or r_mass_diff_abs < tmp_dict[r_sequence][1]:
+            tmp_dict[r_sequence] = (r_spectrum, r_mass_diff_abs)
+            # print(r_spectrum)
+
+    new_results = []
+    for result in results:
+        r_spectrum = get_title(result['spectrum'])
+        r_sequence = str(result['candidates'][0][1])
+        if r_spectrum == tmp_dict[r_sequence][0]:
+            new_results.append(result)
+    return new_results
 
 def get_subset(results, settings, fdr=0.01):
     """Filter results to given FDR using top 1 candidates"""
@@ -54,6 +74,7 @@ def optimization(fname, settings):
     settings.set('search', 'precursor accuracy unit', 'ppm')
     results = process_file(fname, settings, initial_run=False)
     filtered = get_subset(results, settings, fdr=0.001)
+    filtered = get_peptides_subset(filtered)
     logger.info('%s PSMs with 0.1%% FDR.', len(filtered))
     if len(filtered) < 50:
         if len(filtered) < 10:
@@ -124,9 +145,9 @@ def precursor_mass_optimization(results, settings):
         mass_shift, mass_sigma, covvalue = calibrate_mass(0.1, mass_left, mass_right, massdif)
         if np.isinf(covvalue):
             mass_shift, mass_sigma, covvalue = calibrate_mass(0.01, mass_left, mass_right, massdif)
-        logger.info('%s, %s -> %s +- 8 * %s; %s', mass_left, mass_right, mass_shift, mass_sigma, covvalue)
-        best_par_mt_l = mass_shift - 8 * mass_sigma
-        best_par_mt_r = mass_shift + 8 * mass_sigma
+        logger.info('%s, %s -> %s +- 4 * %s; %s', mass_left, mass_right, mass_shift, mass_sigma, covvalue)
+        best_par_mt_l = mass_shift - 4 * mass_sigma
+        best_par_mt_r = mass_shift + 4 * mass_sigma
         logger.info('SMART MASS TOLERANCE = %s:%s', best_par_mt_l, best_par_mt_r)
     except RuntimeError:
         error = True
