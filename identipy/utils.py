@@ -1398,6 +1398,18 @@ def write_pepxml(inputfile, settings, results):
                                 tmp4.set('name', 'MS1Intensity')
                                 tmp4.set('value', str(spectrum['params'].get('ms1intensity', 0)))
                                 tmp3.append(copy(tmp4))
+                            
+                            if 'sulfur' in spectrum['params']:
+                                tmp4 = etree.Element('search_score')
+                                tmp4.set('name', 'sulfur')
+                                tmp4.set('value', str(spectrum['params'].get('sulfur', -1)))
+                                tmp3.append(copy(tmp4))
+
+                            if 'ionmobility' in spectrum['params']:
+                                tmp4 = etree.Element('search_score')
+                                tmp4.set('name', 'ionmobility')
+                                tmp4.set('value', str(spectrum['params'].get('ionmobility', 0)))
+                                tmp3.append(copy(tmp4))
 
                         if tags:
                             for tag_label in tags.keys():
@@ -1573,6 +1585,7 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
     basename_mzml = os.path.splitext(path.basename(path_to_mzml))[0]
 
     df1 = pd.read_table(path_to_features)
+    df1 = df1.rename(columns=lambda x: x.strip())
 
     mzs = []
     RTs = []
@@ -1604,6 +1617,10 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
 
     df1['MSMS'] = df1.apply(findMSMS, axis=1, args = (isolation_window_left, isolation_window_right, mzs, RTs, titles,))
     df1['MSMS_accurate'] = df1.apply(findMSMS_accurate, axis=1, args = (mzs, RTs, titles,))
+    if 'ion_mobility' not in df1.columns:
+        df1['ion_mobility'] = 0
+    if 'sulfur' not in df1.columns:
+        df1['sulfur'] = 0
 
     outmgf_name = os.path.splitext(path_to_mzml)[0] + '_identipy' + os.extsep + 'mgf'
     outmgf = open(outmgf_name, 'w')
@@ -1612,8 +1629,8 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
 
     added_MSMS = set()
 
-    for z in df1[['mz', 'rtApex', 'charge', 'intensityApex', 'MSMS', 'MSMS_accurate', 'rtStart', 'rtEnd']].values:
-        mz, RT, ch, Intensity, ttls, ttl_ac, rt_ll, rt_rr = z[0], z[1], z[2], z[3], z[4], z[5], z[6], z[7]
+    for z in df1[['mz', 'rtApex', 'charge', 'intensityApex', 'MSMS', 'MSMS_accurate', 'rtStart', 'rtEnd', 'ion_mobility', 'sulfur']].values:
+        mz, RT, ch, Intensity, ttls, ttl_ac, rt_ll, rt_rr, ion_mob, sulfur = z[0], z[1], z[2], z[3], z[4], z[5], z[6], z[7], z[8], z[9]
         if ttls:
             for ttl in ttls:
                 if ttl in ttl_ac:
@@ -1629,6 +1646,8 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
                 outmgf.write('ISOWIDTHDIFF=%f\n' % (mz - pepmass, ))
                 outmgf.write('RTwidth=%f\n' % (rt_rr - rt_ll, ))
                 outmgf.write('MS1Intensity=%f\n' % (Intensity, ))
+                outmgf.write('IonMobility=%f\n' % (ion_mob, ))
+                outmgf.write('Sulfur=%f\n' % (sulfur, ))
                 for mz_val, I_val in zip(mz_arr, I_arr):
                     outmgf.write('%f %f\n' % (mz_val, I_val))
                 outmgf.write('END IONS\n\n')
@@ -1655,6 +1674,8 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
             outmgf.write('ISOWIDTHDIFF=%f\n' % (0.0, ))
             outmgf.write('RTwidth=%f\n' % (0.0, ))
             outmgf.write('MS1Intensity=%f\n' % (0.0, ))
+            outmgf.write('IonMobility=%f\n' % (0.0, ))
+            outmgf.write('Sulfur=%f\n' % (-1.0, ))
             for mz_val, I_val in zip(mz_arr, I_arr):
                 outmgf.write('%f %f\n' % (mz_val, I_val))
             outmgf.write('END IONS\n\n')
