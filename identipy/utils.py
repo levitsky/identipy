@@ -524,6 +524,8 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
     mz = mz[idx]
     spectrum['intensity array'] = spectrum['intensity array'].astype(np.float32)
 
+
+
     if minpeaks and spectrum['intensity array'].size < minpeaks:
         return None
 
@@ -556,6 +558,7 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
         j = np.argsort(mz[i])
         spectrum['intensity array'] = spectrum['intensity array'][i][j]
         mz = mz[i][j]
+
 
     spectrum['m/z array'] = mz
     if kwargs['deisotope']:
@@ -1586,52 +1589,66 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
 
     df1 = pd.read_table(path_to_features)
     df1 = df1.rename(columns=lambda x: x.strip())
+    df1 = df1[df1['nIsotopes'] >= 2]
+    logger.info(df1.shape)
 
     mzs = []
     RTs = []
+    ionmobs = []
     chs = []
     titles = []
     ms2_map = {}
     isolation_window_left = False
     isolation_window_right = False
     for a in mzml.read(path_to_mzml):
-        if a['ms level'] == 2:
+        if a['ms level'] == 2 and len(a['m/z array']) > 0:
+            # if :
             if not isolation_window_left:
                 isolation_window_left = float(a['precursorList']['precursor'][0]['isolationWindow']['isolation window lower offset'])
                 isolation_window_right = float(a['precursorList']['precursor'][0]['isolationWindow']['isolation window upper offset'])
             pepmass = float(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
             RT = float(a['scanList']['scan'][0]['scan start time'])
+            # logger.info(a['mean inverse reduced ion mobility array'])
+            try:
+                ion_mob = float(a['mean inverse reduced ion mobility array'][0])
+            except:
+                # logger.info('missing ion mob')
+                ion_mob = 0.0
             title = a['id']
             mzs.append(pepmass)
             RTs.append(RT)
+            ionmobs.append(ion_mob)
             titles.append(title)
             ms2_map[title] = a
 
     mzs = np.array(mzs)
     RTs = np.array(RTs)
+    ionmobs = np.array(ionmobs)
     titles = np.array(titles)
     idx = np.argsort(mzs)
     mzs = mzs[idx]
     RTs = RTs[idx]
     titles = titles[idx]
 
-    df1['MSMS'] = df1.apply(findMSMS, axis=1, args = (isolation_window_left, isolation_window_right, mzs, RTs, titles,))
-    df1['MSMS_accurate'] = df1.apply(findMSMS_accurate, axis=1, args = (mzs, RTs, titles,))
     if 'ion_mobility' not in df1.columns:
         df1['ion_mobility'] = 0
     if 'sulfur' not in df1.columns:
         df1['sulfur'] = 0
+    df1['MSMS'] = df1.apply(findMSMS, axis=1, args = (isolation_window_left, isolation_window_right, mzs, RTs, titles, ionmobs))
+    df1['MSMS_accurate'] = df1.apply(findMSMS_accurate, axis=1, args = (mzs, RTs, titles, ionmobs))
 
     outmgf_name = os.path.splitext(path_to_mzml)[0] + '_identipy' + os.extsep + 'mgf'
     outmgf = open(outmgf_name, 'w')
 
     t_i = 1
+    f_i = 0
 
     added_MSMS = set()
 
     for z in df1[['mz', 'rtApex', 'charge', 'intensityApex', 'MSMS', 'MSMS_accurate', 'rtStart', 'rtEnd', 'ion_mobility', 'sulfur']].values:
         mz, RT, ch, Intensity, ttls, ttl_ac, rt_ll, rt_rr, ion_mob, sulfur = z[0], z[1], z[2], z[3], z[4], z[5], z[6], z[7], z[8], z[9]
         if ttls:
+            f_i += 1
             for ttl in ttls:
                 if ttl in ttl_ac:
                     added_MSMS.add(ttl)
@@ -1656,6 +1673,7 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
 
     for k in ms2_map:
         if k not in added_MSMS:
+            f_i += 1
             a = ms2_map[k]
             mz_arr, I_arr = a['m/z array'], a['intensity array']
             mz = float(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
@@ -1685,35 +1703,39 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
 
     return outmgf_name
 
-def findMSMS(raw, isolation_window_left, isolation_window_right, mzs, RTs, titles):
+def findMSMS(raw, isolation_window_left, isolation_window_right, mzs, RTs, titles, ionmobs):
     out = []
     isotope_fix = raw['nIsotopes'] / raw['charge']
     mz = raw['mz']
     RT_l = raw['rtStart']
     RT_r = raw['rtEnd']
+    ion_mob_p = raw['ion_mobility']
     # There is no error below: -right and +left!
     id_l = mzs.searchsorted(mz - isolation_window_right)
     id_r = mzs.searchsorted(mz + isolation_window_left + isotope_fix, side='right')
     for idx, RT in enumerate(RTs[id_l:id_r]):
         if RT_l <= RT <= RT_r:
-            out.append(titles[id_l+idx])
+            if abs(ionmobs[id_l+idx] - ion_mob_p) <= 0.1:
+                out.append(titles[id_l+idx])
     if len(out):
         return out
     else:
         return None
 
-def findMSMS_accurate(raw, mzs, RTs, titles):
+def findMSMS_accurate(raw, mzs, RTs, titles, ionmobs):
     out = set()
     acc = 10
     mz = raw['mz']
     RT_l = raw['rtStart']
     RT_r = raw['rtEnd']
+    ion_mob_p = raw['ion_mobility']
     acc_rel = mz * acc * 1e-6
     id_l = mzs.searchsorted(mz - acc_rel)
     id_r = mzs.searchsorted(mz + acc_rel, side='right')
     for idx, RT in enumerate(RTs[id_l:id_r]):
         if RT_l <= RT <= RT_r:
-            out.add(titles[id_l+idx])
+            if abs(ionmobs[id_l+idx] - ion_mob_p) <= 0.1:
+                out.add(titles[id_l+idx])
             # return True
     # return False
     return out

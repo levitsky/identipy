@@ -73,9 +73,9 @@ def optimization(fname, settings):
         settings.set('search', 'precursor accuracy right', 100)
     settings.set('search', 'precursor accuracy unit', 'ppm')
     results = process_file(fname, settings, initial_run=False)
-    filtered = get_subset(results, settings, fdr=0.001)
+    filtered = get_subset(results, settings, fdr=0.01)
     filtered = get_peptides_subset(filtered)
-    logger.info('%s PSMs with 0.1%% FDR.', len(filtered))
+    logger.info('%s PSMs with 1%% FDR.', len(filtered))
     if len(filtered) < 50:
         if len(filtered) < 10:
             logger.warning('OPTIMIZATION ABORTED')
@@ -156,6 +156,7 @@ def precursor_mass_optimization(results, settings):
     if not error and np.isinf(covvalue):
         error = True
         logger.warning('Double error when fitting precursor errors: %s', massdif)
+    print(percentileofscore(massdif, best_par_mt_r) - percentileofscore(massdif, best_par_mt_l), '!!!')
     if error or (percentileofscore(massdif, best_par_mt_r) - percentileofscore(massdif, best_par_mt_l) < 95):
         best_par_mt_l = scoreatpercentile(massdif, 0.1)
         best_par_mt_r = scoreatpercentile(massdif, 99.9)
@@ -185,9 +186,20 @@ def missed_cleavages_optimization(results, settings):
 def fragment_mass_optimization(results, settings):
     settings = settings.copy()
     fragmassdif = []
+    # fragmassdif_Da = []
     for res in results:
         fragmassdif.extend(get_fragment_mass_tol(res['spectrum'], str(res['candidates'][0][1]), settings)['fmt'])
+        # fragmassdif_Da.extend(get_fragment_mass_tol(res['spectrum'], str(res['candidates'][0][1]), settings)['fmt_neutral'])
     fragmassdif = np.array(fragmassdif)
+    # fragmassdif_Da = np.array(fragmassdif_Da)
+
+    # try:
+    #     import cPickle as pickle
+    # except ImportError:
+    #     import pickle
+    # filenamep = '/home/mark/2020_poster_Denmark/frag.pickle'
+    # with open(filenamep, 'wb') as output:
+    #     pickle.dump(fragmassdif_Da, output)
 
     best_frag_mt = scoreatpercentile(fragmassdif, 68) * 8    
     # best_frag_mt = scoreatpercentile(fragmassdif, 99)    
