@@ -43,6 +43,7 @@ def get_fragment_mass_tol(spectrum, peptide, settings):
         spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape((spectrum['m/z array'].size, 1)))
 
     dist_total, int_array_total = np.array([]), np.array([])
+    dist_total_tmp = np.array([])
     for fragments in theor.values():
         n = fragments.size
         dist, ind = spectrum['__KDTree'].query(fragments.reshape((n, 1)), distance_upper_bound=acc)
@@ -55,13 +56,16 @@ def get_fragment_mass_tol(spectrum, peptide, settings):
         int_array_total = np.append(int_array_total, int_array[ind[mask]])
 
         dist_total = np.append(dist_total, dist[mask] / spectrum['m/z array'][ind[mask]] * 1e6)
+        dist_total_tmp  = np.append(dist_total_tmp, dist[mask])
         # dist_total = np.append(dist_total, dist[mask])
 
     new_params = {}
     if dist_total.size:
         new_params['fmt'] = dist_total#2 * np.median(dist_total)
+        new_params['fmt_neutral'] = dist_total_tmp
     else:
         new_params['fmt'] = []
+        new_params['fmt_neutral'] = []
     return new_params
 
 def morpheusscore_fast(spectrum_fastset, spectrum_idict, theoretical_set, min_matched):
