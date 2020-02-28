@@ -30,25 +30,41 @@ def prepare_peptide_processor(fname, settings):
 
     global spectra
     global nmasses
+    global nmasses_set
     global titles
     global t2s
     global charges
+    global effcharges
     # global best_res
     global fulls_global
-    spectra = {}
-    titles = {}
-    best_res = {}
-    nmasses = {}
-    t2s = {}
-    charges = {}
+    # spectra = {}
+    # titles = {}
+    # best_res = {}
+    # nmasses = {}
+    # t2s = {}
+    # charges = {}
+    spectra = []
+    titles = []
+    nmasses = []
+    charges = []
+    effcharges = []
     fulls_global = {}
 
+    nmasses_set = set()
 
+    try:
+        fast_first_stage = settings.getint('misc', 'fast first stage')
+    except:
+        fast_first_stage = 0
+
+    t2s = {}
     best_res = {}
     maxcharges = {}
     fcharge = settings.getint('scoring', 'maximum fragment charge')
     ch_range = range(settings.getint('search', 'minimum charge'),
                 1 + settings.getint('search', 'maximum charge'))
+    # if fast_first_stage:
+    #     fcharge = 1
     for c in ch_range:
         maxcharges[c] = max(1, min(fcharge, c-1) if fcharge else c-1)
 
@@ -65,6 +81,7 @@ def prepare_peptide_processor(fname, settings):
     params['tags'] = utils.get_tags(settings.get('output', 'tags'))
     rapid_check = settings.getint('search', 'rapid_check')
     
+
     ptol_unit = settings.get('search', 'precursor accuracy unit')
     lptol = settings.getfloat('search', 'precursor accuracy left')
     rptol = settings.getfloat('search', 'precursor accuracy right')
@@ -73,7 +90,6 @@ def prepare_peptide_processor(fname, settings):
         prec_acc_Da = False
     else:
         prec_acc_Da = prec_acc_Da
-    # if not ptol_unit == 'Da':
     #     prec_acc_Da = prec_acc_Da * 1e-6 * 5000
 
     if not spectra:
@@ -91,12 +107,18 @@ def prepare_peptide_processor(fname, settings):
                 t2s[ttl] = ps
                 for m, c in utils.neutral_masses(ps, params):
                     effc = maxcharges[c]
-                    nmasses.setdefault(effc, []).append(m)
-                    spectra.setdefault(effc, []).append(ps)
-                    titles.setdefault(effc, []).append(ttl)
-                    charges.setdefault(effc, []).append(c)
+                    # nmasses.setdefault(effc, []).append(m)
+                    # spectra.setdefault(effc, []).append(ps)
+                    # titles.setdefault(effc, []).append(ttl)
+                    # charges.setdefault(effc, []).append(c)
+                    nmasses.append(m)
+                    spectra.append(ps)
+                    titles.append(ttl)
+                    charges.append(c)
+                    effcharges.append(effc)
                     ps.setdefault('nm', {})[c] = m
-        num_spectra = sum(map(len, spectra.itervalues()))
+        num_spectra = len(spectra)
+        # num_spectra = sum(map(len, spectra.itervalues()))
         logger.info('%s spectra pass quality criteria.', num_spectra)
 
             # for specs, ttls in zip(spectra[c], titles[c]):
@@ -106,49 +128,97 @@ def prepare_peptide_processor(fname, settings):
         # logger.info(list(fulls_global.items())[:1])
 
     else:
-        num_spectra = sum(map(len, spectra.itervalues()))
+        num_spectra = len(spectra)
+        # num_spectra = sum(map(len, spectra.itervalues()))
         logger.info('Reusing %s spectra from previous run.', num_spectra)
 
     fulls_global = {}
-    for c in list(spectra):
-        i = np.argsort(nmasses[c])
-        nmasses[c] = np.array(nmasses[c])[i]
-        spectra[c] = np.array(spectra[c])[i]
-        titles[c] = np.array(titles[c])[i]
-        charges[c] = np.array(charges[c])[i]
+    i = np.argsort(nmasses)
+    nmasses = np.array(nmasses)[i]
+    spectra = np.array(spectra)[i]
+    titles = np.array(titles)[i]
+    charges = np.array(charges)[i]
+    effcharges = np.array(effcharges)[i]
 
-        if prec_acc_Da:
-            nmasses_conv = nmasses[c] / prec_acc_Da
-            nmasses_conv = nmasses_conv.astype(int)
+    if not ptol_unit == 'Da':
+        max_prec_acc_Da = max(nmasses) * 1e-6 * max(abs(lptol), abs(rptol))
+    else:
+        max_prec_acc_Da = max(abs(lptol), abs(rptol))
+    tmp = (nmasses / max_prec_acc_Da).astype(int)
+    nmasses_set.update(tmp)
+    nmasses_set.update(tmp+1)
+    nmasses_set.update(tmp-1)
 
-            tmp_dict = {}
-            for idx, nm in enumerate(nmasses_conv):
-                if nm not in tmp_dict:
-                    tmp_dict[nm] = {}#defaultdict(list)
-                if nm+1 not in tmp_dict:
-                    tmp_dict[nm+1] = {}#defaultdict(list)
-                if nm-1 not in tmp_dict:
-                    tmp_dict[nm-1] = {}#defaultdict(list)
-                for spval in spectra[c][idx]['idict']:
-                    # tmp_dict[nm][spval].append(idx)
-                    # tmp_dict[nm+1][spval].append(idx)
-                    # tmp_dict[nm-1][spval].append(idx)
-                    if spval not in tmp_dict[nm]:
-                        tmp_dict[nm][spval] = [idx, ]
-                    else:
-                        tmp_dict[nm][spval].append(idx)
-                    if spval not in tmp_dict[nm+1]:
-                        tmp_dict[nm+1][spval] = [idx, ]
-                    else:
-                        tmp_dict[nm+1][spval].append(idx)
-                    if spval not in tmp_dict[nm-1]:
-                        tmp_dict[nm-1][spval] = [idx, ]
-                    else:
-                        tmp_dict[nm-1][spval].append(idx)
+    if prec_acc_Da:
+        nmasses_conv = nmasses / prec_acc_Da
+        nmasses_conv = nmasses_conv.astype(int)
 
-            del nmasses_conv
+        tmp_dict = {}
+        for idx, nm in enumerate(nmasses_conv):
+            if nm not in tmp_dict:
+                tmp_dict[nm] = {}
+            if nm+1 not in tmp_dict:
+                tmp_dict[nm+1] = {}
+            if nm-1 not in tmp_dict:
+                tmp_dict[nm-1] = {}
+            for spval in spectra[idx]['idict']:
+                if spval not in tmp_dict[nm]:
+                    tmp_dict[nm][spval] = [idx, ]
+                else:
+                    tmp_dict[nm][spval].append(idx)
+                if spval not in tmp_dict[nm+1]:
+                    tmp_dict[nm+1][spval] = [idx, ]
+                else:
+                    tmp_dict[nm+1][spval].append(idx)
+                if spval not in tmp_dict[nm-1]:
+                    tmp_dict[nm-1][spval] = [idx, ]
+                else:
+                    tmp_dict[nm-1][spval].append(idx)
 
-            fulls_global[c] = tmp_dict
+        del nmasses_conv
+
+        fulls_global = tmp_dict
+
+    # fulls_global = {}
+    # for c in list(spectra):
+    #     i = np.argsort(nmasses[c])
+    #     nmasses[c] = np.array(nmasses[c])[i]
+    #     spectra[c] = np.array(spectra[c])[i]
+    #     titles[c] = np.array(titles[c])[i]
+    #     charges[c] = np.array(charges[c])[i]
+
+    #     if prec_acc_Da:
+    #         nmasses_conv = nmasses[c] / prec_acc_Da
+    #         nmasses_conv = nmasses_conv.astype(int)
+
+    #         tmp_dict = {}
+    #         for idx, nm in enumerate(nmasses_conv):
+    #             if nm not in tmp_dict:
+    #                 tmp_dict[nm] = {}#defaultdict(list)
+    #             if nm+1 not in tmp_dict:
+    #                 tmp_dict[nm+1] = {}#defaultdict(list)
+    #             if nm-1 not in tmp_dict:
+    #                 tmp_dict[nm-1] = {}#defaultdict(list)
+    #             for spval in spectra[c][idx]['idict']:
+    #                 # tmp_dict[nm][spval].append(idx)
+    #                 # tmp_dict[nm+1][spval].append(idx)
+    #                 # tmp_dict[nm-1][spval].append(idx)
+    #                 if spval not in tmp_dict[nm]:
+    #                     tmp_dict[nm][spval] = [idx, ]
+    #                 else:
+    #                     tmp_dict[nm][spval].append(idx)
+    #                 if spval not in tmp_dict[nm+1]:
+    #                     tmp_dict[nm+1][spval] = [idx, ]
+    #                 else:
+    #                     tmp_dict[nm+1][spval].append(idx)
+    #                 if spval not in tmp_dict[nm-1]:
+    #                     tmp_dict[nm-1][spval] = [idx, ]
+    #                 else:
+    #                     tmp_dict[nm-1][spval].append(idx)
+
+    #         del nmasses_conv
+
+    #         fulls_global[c] = tmp_dict
 
     utils.set_mod_dict(settings)
 
@@ -165,10 +235,13 @@ def prepare_peptide_processor(fname, settings):
         if score_fast_name == 'identipy.scoring.RNHS_fast':
             try:
                 from cutils import RNHS_fast as score_fast
+                from cutils import RNHS_fast_basic as score_fast_basic
             except: 
                 score_fast = utils.import_(settings.get('scoring', 'score') + '_fast')
+                score_fast = utils.import_(settings.get('scoring', 'score') + '_fast_basic')
         else:
             score_fast = utils.import_(settings.get('scoring', 'score') + '_fast')
+            score_fast = utils.import_(settings.get('scoring', 'score') + '_fast_basic')
     except Exception as e:
         score_fast = False
         logging.debug('No fast score imported: %s', e)
@@ -180,10 +253,6 @@ def prepare_peptide_processor(fname, settings):
         acc_frag_ppm = settings.getfloat('search', 'product accuracy ppm')
     else:
         acc_frag_ppm = False
-    try:
-        fast_first_stage = settings.getint('misc', 'fast first stage')
-    except:
-        fast_first_stage = 0
     unit = settings.get('search', 'precursor accuracy unit')
     rel = utils.relative(unit)
 
@@ -199,8 +268,8 @@ def prepare_peptide_processor(fname, settings):
     return {'rel': rel, 'aa_mass': aa_mass, 'acc_l': acc_l, 'acc_r': acc_r, 'acc_frag': acc_frag, 'acc_frag_ppm': acc_frag_ppm,
             'unit': unit, 'nmods': nmods, 'maxmods': maxmods, 'fast first stage': fast_first_stage,
             'sapime': utils.get_shifts_and_pime(settings),
-            'cond': cond, 'score': score, 'score_fast': score_fast,
-            'settings': settings, 'max_v': num_spectra, 'prec_acc_Da': prec_acc_Da}
+            'cond': cond, 'score': score, 'score_fast': score_fast, 'score_fast_basic': score_fast_basic,
+            'settings': settings, 'max_v': num_spectra, 'prec_acc_Da': prec_acc_Da, 'max_prec_acc_Da': max_prec_acc_Da}
 
 def peptide_processor_iter_isoforms(peptide, best_res, **kwargs):
     nmods, maxmods = op.itemgetter('nmods', 'maxmods')(kwargs)
@@ -239,10 +308,20 @@ def peptide_processor(peptide, best_res, **kwargs):
     cterm_mass = kwargs.get('cterm_mass')
     m = utils.custom_mass(seqm, aa_mass=kwargs['aa_mass'], nterm_mass = nterm_mass, cterm_mass = cterm_mass)
     # m = cmass.fast_mass(seqm, aa_mass=kwargs['aa_mass']) + (nterm_mass - 1.007825) + (cterm_mass - 17.002735)
+
+    max_prec_acc_Da = kwargs.get('max_prec_acc_Da')
+
     rel = kwargs['rel']
     acc_l = kwargs['acc_l']
     acc_r = kwargs['acc_r']
     settings = kwargs['settings']
+
+    use_allowed_ions = kwargs.get('use_allowed_ions')
+    allowed_ions = kwargs.get('allowed_ions')
+    bions_map = kwargs.get('rank_map')
+    yions_map = kwargs.get('rank_map_unf')
+
+    # logger.info(bions_map)
     shifts_and_pime = kwargs['sapime']
     theor = {}
     theoretical_set = {}
@@ -251,99 +330,99 @@ def peptide_processor(peptide, best_res, **kwargs):
     if rel:
         dm_l = acc_l * m / 1.0e6
         dm_r = acc_r * m / 1.0e6
-    for c in spectra:
+    elif not rel:
+        dm_l = acc_l
+        dm_r = acc_r
+    # for c in spectra:
 
-        if not rel:
-            dm_l = acc_l * c
-            dm_r = acc_r * c
-        idx = set()
-        for shift in shifts_and_pime:
-            start = nmasses[c].searchsorted(m + shift - dm_l)
-            end   = nmasses[c].searchsorted(m + shift + dm_r)
+    idx = set()
+    for shift in shifts_and_pime:
+        if int((m + shift)/max_prec_acc_Da) in nmasses_set:
+            start = nmasses.searchsorted(m + shift - dm_l)
+            end = nmasses.searchsorted(m + shift + dm_r)
             if end - start:
                 idx.update(range(start, end))
-        if kwargs['cond']:
-            idx2 = set()
-            for i in idx:
-                cond_val, stored_value = kwargs['cond'](spectra[c][i], seqm, settings, stored_value)
-                if cond_val:
-                    idx2.add(i)
-            idx = idx2
+    if kwargs['cond']:
+        idx2 = set()
+        for i in idx:
+            cond_val, stored_value = kwargs['cond'](spectra[i], seqm, settings, stored_value)
+            if cond_val:
+                idx2.add(i)
+        idx = idx2
 
-        if idx:
-            cand_idx[c] = idx
+    if idx:
+        cand_idx = idx
+        reshaped = {}
+        for c in set(effcharges[i] for i in idx):
+            # theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=False,
+            #                                                 acc_frag=kwargs['acc_frag'], nterm_mass = nterm_mass,
+            #                                                 cterm_mass = cterm_mass, nm=m, simple=kwargs['fast first stage'])
             theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=False,
-                                                          acc_frag=kwargs['acc_frag'], nterm_mass = nterm_mass,
-                                                          cterm_mass = cterm_mass, nm=m)
-            reshaped = False
+                                                            acc_frag=kwargs['acc_frag'], nterm_mass = nterm_mass,
+                                                            cterm_mass = cterm_mass, nm=m, allowed_ions=allowed_ions, use_allowed_ions=use_allowed_ions)
+            reshaped[c] = False
+        # reshaped = False
 
     results = []
-    for fc, ind in cand_idx.iteritems():
-        reshaped = False
-        if kwargs['prec_acc_Da']:
-            fulls_global_charge = fulls_global[fc]
-            nm_key = int(m / kwargs['prec_acc_Da'])
-            cur_idict = fulls_global_charge.get(nm_key, dict())
-            idx_new = RNHS_ultrafast(cur_idict, theoretical_set[fc], kwargs['min_matched'], best_res, ind, kwargs['max_v'])
-        else:
-            idx_new = ind
-        if idx_new:
+    # for ind in cand_idx:
+    ind = cand_idx
+    # reshaped = False
+    if kwargs['prec_acc_Da']:
+        print('HERERERE')
+        fulls_global_charge = fulls_global
+        nm_key = int(m / kwargs['prec_acc_Da'])
+        cur_idict = fulls_global_charge.get(nm_key, dict())
+        fc_max = max(theor.keys())
+        idx_new = RNHS_ultrafast(cur_idict, theoretical_set[fc_max], kwargs['min_matched'], best_res, ind, kwargs['max_v'])
+    else:
+        idx_new = ind
+    if idx_new:
         # logger.info(len(idx_new))
-            for i in idx_new:
-                # st = utils.get_title(s)
-                # if idx_new.count(st) >= kwargs['min_matched']:#st in idx_new:
-                # if i in idx_new:
-                s = spectra[fc][i]
-                st = titles[fc][i]
-                if kwargs['score_fast']:
-                    if 1:#-idx_new[st] <= best_res.get(st, 0):
-                        # logger.info((-idx_new[st], best_res.get(st, 0)))
-                        hf = kwargs['score_fast'](s['fastset'], s['idict'], theoretical_set[fc], kwargs['min_matched'])
-                        if hf[0]:
-                            if -hf[1] <= best_res.get(st, 0):
-                                if kwargs['fast first stage']:
-                                    sc = hf[1]
-                                    score = {'match': [], 'sumI': 1, 'dist': [], 'total_matched': 999, 'score_std': 0}
-                                else:
-                                    if not reshaped:
-                                        theor[fc] = reshape_theor_spectrum(theor[fc])
-                                        reshaped = True
-                                    score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos)#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
-                                    sc = score.pop('score')
-                                if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
-                                    # results.append((sc, st, score, m, charges[fc][i], snp_label))
-                                    # results.append((sc, st, score, charges[fc][i]))
-                                    # results.append((sc, fc, i))
-                                    results.append((sc, st, charges[fc][i], score))
-                    # else:
-                    #     logger.info('FAIL')
-                else:
-                    # st = utils.get_title(s)
-                    if not reshaped:
-                        theor[fc] = reshape_theor_spectrum(theor[fc])
-                        reshaped = True
-                    score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos)#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
-                    sc = score.pop('score')
-                    if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
-                        # results.append((sc, st, score, m, charges[fc][i], snp_label))
-                        # results.append((sc, st, score, charges[fc][i]))
-                        # results.append((sc, fc, i))
-                        results.append((sc, st, charges[fc][i], score))
+        for i in idx_new:
+            # st = utils.get_title(s)
+            # if idx_new.count(st) >= kwargs['min_matched']:#st in idx_new:
+            # if i in idx_new:
+            fc = effcharges[i]
+            s = spectra[i]
+            st = titles[i]
+            chim = ('params' in s and 'isowidthdiff' in s['params'] and abs(float(s['params']['isowidthdiff'])) >= 0.1)
+            spcharge = charges[i]
+            # neutral_mass, charge_state, RT = get_info(res['spectrum'], res, settings, aa_mass)
+            if kwargs['score_fast']:
+                if 1:#-idx_new[st] <= best_res.get(st, 0):
+                    # logger.info((-idx_new[st], best_res.get(st, 0)))
+                    if not bions_map:
+                        # print('HERE1')
+                        hf = kwargs['score_fast_basic'](s['fastset'], s['idict'], theoretical_set[fc], kwargs['min_matched'])
+                    else:
+                        # print('HERE2')
+                        hf = kwargs['score_fast_basic'](s['fastset'], s['idict'], theoretical_set[fc], kwargs['min_matched'])
+                        # hf = kwargs['score_fast'](s['fastset'], s['idict'], theoretical_set[fc], kwargs['min_matched'], yions_map[chim][spcharge])
+                    if hf[0]:
+                        if -hf[1] <= best_res.get(st, 0):
+                            if kwargs['fast first stage']:
+                                sc = hf[1]
+                                score = {'match': [], 'sumI': 1, 'dist': [], 'total_matched': 999, 'score_std': 0}
+                            else:
+                                if not reshaped[fc]:
+                                    theor[fc] = reshape_theor_spectrum(theor[fc])
+                                    reshaped[fc] = True
+                                score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos, bions_map=bions_map[chim][spcharge], yions_map=yions_map[chim][spcharge])#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
+                                sc = score.pop('score')
+                            if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
+                                results.append((sc, st, charges[i], score))
+            else:
+                if not reshaped[fc]:
+                    theor[fc] = reshape_theor_spectrum(theor[fc])
+                    reshaped[fc] = True
+                score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos, bions_map=bions_map[chim][spcharge], yions_map=yions_map[chim][spcharge])#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
+                sc = score.pop('score')
+                if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
+                    results.append((sc, st, charges[i], score))
 
-
-    # results.sort(reverse=True, key=op.itemgetter(0))
-    # results = np.array(results, dtype=[('score', np.float32), ('title', np.str_, 30), ('spectrum', np.object_), ('info', np.object_)])
     if results:
         return seqm, m, snp_label, results
-    # return seqm, []
 
-def recalc_best_candidates(seqm, m, fc, i, kwargs):
-    theor, _ = theor_spectrum(seqm, maxcharge=fc, aa_mass=kwargs['aa_mass'], reshape=True,
-                                                            acc_frag=kwargs['acc_frag'], nterm_mass = kwargs['nterm_mass'],
-                                                            cterm_mass = kwargs['cterm_mass'], nm=m)
-    s = spectra[fc][i]
-    score = kwargs['score'](s, theor, kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=False)#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
-    return score
 
 def process_peptides(fname, settings):
     spec_results = defaultdict(dict)
@@ -355,69 +434,30 @@ def process_peptides(fname, settings):
     kwargs['nterm_mass'] = settings.getfloat('modifications', 'protein nterm cleavage')
     kwargs['cterm_mass'] = settings.getfloat('modifications', 'protein cterm cleavage')
     kwargs['qsize'] = settings.getint('performance', 'out queue size')
+
+    try:
+        kwargs['rank_map'] = settings.get('search', 'rank_map')
+        kwargs['rank_map_unf'] = settings.get('search', 'rank_map_unf')
+        kwargs['allowed_ions'] = settings.get('search', 'allowed_ions')
+        kwargs['use_allowed_ions'] = 1
+    except:
+        kwargs['rank_map'] = False
+        kwargs['rank_map_unf'] = False
+        kwargs['allowed_ions'] = set()
+        kwargs['use_allowed_ions'] = 0
+
     logger.info('Running the search ...')
     n = settings.getint('performance', 'processes')
     leg = {}
     if settings.has_option('misc', 'legend'):
         leg = settings.get('misc', 'legend')
 
-
-
-
-    # rel = kwargs['rel']
-    # acc_l = kwargs['acc_l']
-    # acc_r = kwargs['acc_r']
-    # if not rel and abs(acc_r + acc_l) >= 10:
-    #     logger.info('Run closed search')
-    #     kwargs['acc_l'] = 20
-    #     kwargs['acc_r'] = 20
-    #     kwargs['rel'] = True
-
-
-    #     best_res_raw, best_res = utils.multimap(n, func, peps, **kwargs)
-    #     # for y in utils.multimap(n, func, peps, **kwargs):
-    #     #     for x in y:
-    #     #         # if x[3] is not None:
-    #     #         peptide, m, snp_label, result = x
-
-    #     #         for score, fc, i, info in result:
-    #     #             spec_t = titles[fc][i]
-    #     #             if -score <= best_res.get(spec_t, 0):
-    #     #                 best_res_raw[spec_t] = [peptide, m, snp_label, score, fc, i, info]
-    #     #                 best_res[spec_t] = -score
-
-    #     peps = utils.peptide_gen(settings, clear_seen_peptides=True)
-    #     kwargs['acc_l'] = acc_l
-    #     kwargs['acc_r'] = acc_r
-    #     kwargs['rel'] = rel
-    #     logger.info('Closed search is finished')
-
-
-
-
-    # for y in utils.multimap(n, func, peps, **kwargs):
-    #     for x in y:
-    #         # if x[3] is not None:
-    #         peptide, m, snp_label, result = x
-
-    #         for score, fc, i, info in result:
-    #             spec_t = titles[fc][i]
-    #             if -score <= best_res.get(spec_t, 0):
-    #                 best_res_raw[spec_t] = [peptide, m, snp_label, score, fc, i, info]
-    #                 best_res[spec_t] = -score    
+    try:
+        kwargs['best_peptides'] = settings.get('scoring', 'best peptides')
+    except:
+        kwargs['best_peptides'] = False
 
     best_res_raw, best_res = utils.multimap(n, func, peps, **kwargs)
-    # best_res_raw, best_res = utils.multimap(n, func, peps, best_res, best_res_raw, **kwargs)
-    # for y in utils.multimap(n, func, peps, best_res, best_res_raw, **kwargs):
-    #     for x in y:
-    #         # if x[3] is not None:
-    #         peptide, m, snp_label, result = x
-
-    #         for score, fc, i, info in result:
-    #             spec_t = titles[fc][i]
-    #             if -score <= best_res.get(spec_t, 0):
-    #                 best_res_raw[spec_t] = [peptide, m, snp_label, score, fc, i, info]
-    #                 best_res[spec_t] = -score    
 
     for spec_t, v in best_res_raw.items():
         peptide, m, snp_label, score, st, c, info = v
@@ -429,36 +469,6 @@ def process_peptides(fname, settings):
         spec_results[spec_t]['info'] = info
         spec_results[spec_t]['snp_label'] = snp_label
 
-
-            # for score, fc, i in result:
-            #     spec_t = titles[fc][i]
-            #     spec_results[spec_t]['spectrum'] = t2s[spec_t]
-            #     top_scores = spec_results[spec_t].setdefault('top_scores', 0)
-            #     if -score <= top_scores:
-            #         c = charges[fc][i]
-            #         best_res[spec_t] = -score
-            #         info = recalc_best_candidates(peptide, m, fc, i, kwargs)
-            #         info['pep_nm'] = m
-            #         info['charge'] = c
-            #         spec_results[spec_t]['top_scores'] = -score
-            #         spec_results[spec_t]['sequences'] = peptide
-            #         spec_results[spec_t]['info'] = info
-            #         spec_results[spec_t]['snp_label'] = snp_label
-
-#               spec_results[spec_t].setdefault('scores', []).append(score) FIXME write histogram
-#
-#                     top_seqs   = spec_results[spec_t].setdefault('sequences', '')
-#                     top_info   = spec_results[spec_t].setdefault('info', [])
-#
-#                     i = bisect(top_scores, -score)
-#                     if nc is None or i < nc:
-#                         top_scores.insert(i, -score)
-#                         top_seqs.insert(i, peptide)
-#                         top_info.insert(i, info)
-#                         if nc is not None and len(top_scores) > nc:
-#                             top_scores.pop()
-#                             top_seqs.pop()
-#                             top_info.pop()
     maxlen = settings.getint('search', 'peptide maximum length')
     dtype = np.dtype([('score', np.float64),
         ('seq', np.str_, maxlen), ('note', np.str_, 1),
@@ -468,10 +478,9 @@ def process_peptides(fname, settings):
         c = []
         evalues = []
         score = val['top_scores']
-        # for idx, score in enumerate(val['top_scores']):
-        mseq = val['sequences']#[idx]
+        mseq = val['sequences']
         seq = mseq
-        info = val['info']#[idx]
+        info = val['info']
         for x in set(mseq).intersection(punctuation):
             repl = leg[x][1]
             if repl == '-':

@@ -35,6 +35,7 @@ try:
 except:
     from . import customparser as cparser
 from scipy.spatial import cKDTree
+from scipy.stats import rankdata
 
 default_tags = {
 'tmt10plex': {
@@ -468,6 +469,17 @@ def custom_isoforms(peptide, variable_mods, maxmods=2, nterm=False, cterm=False,
                     for z in custom_isoforms(v, variable_mods[:-1], maxmods=maxmods - m, nterm=tmpnterm, cterm=tmpcterm, snp=snp):
                         yield z
 
+def remove_precursor(mz_prec, spectrum, acc):
+    mz = spectrum['m/z array']
+    intens = spectrum['intensity array']
+    idx = np.full(mz.size, True)
+    i_l = mz.searchsorted(mz_prec - acc)#mz.size-2
+    i_r = mz.searchsorted(mz_prec + acc, side='right')
+    for i in range(i_l, i_r, 1):
+        idx[i] = False
+    spectrum['m/z array'] = mz[idx]
+    spectrum['intensity array'] = intens[idx]
+
 def deisotope(spectrum, acc, charge):
 #   acc = 0.3
     mz = spectrum['m/z array']
@@ -512,11 +524,22 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
     acc = kwargs['acc']#settings.getfloat('search', 'product accuracy')
     dacc = kwargs['dacc']#settings.getfloat('search', 'product accuracy')
     tags = kwargs['tags']
+    try:
+        fast_first_stage = settings.getint('misc', 'fast first stage')
+    except:
+        fast_first_stage = 0
 
     _, states = get_expmass(spectrum, kwargs)#, settings)
     if not states:
         return None
 
+
+    if kwargs['deisotope']:
+        deisotope(spectrum, dacc, states[-1])
+
+    mz_prec, _ = get_expmass(spectrum, kwargs)
+    remove_precursor(mz_prec, spectrum, acc)
+    
     mz = spectrum['m/z array']
 
     idx = np.nonzero(mz >= kwargs['min_mz'])#settings.getfloat('search', 'product minimum m/z'))
@@ -559,15 +582,16 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
         spectrum['intensity array'] = spectrum['intensity array'][i][j]
         mz = mz[i][j]
 
-
     spectrum['m/z array'] = mz
-    if kwargs['deisotope']:
-        deisotope(spectrum, dacc, states[-1])
 
     if minpeaks and spectrum['intensity array'].size < minpeaks:
         return None
 
     spectrum['Isum'] = spectrum['intensity array'].sum()
+    # spectrum['intensity array rank'] = rankdata(-spectrum['intensity array'], method='ordinal')
+    spectrum['intensity array rank'] = ((rankdata(-spectrum['intensity array'], method='ordinal')-1)/5)+1
+    # if not fast_first_stage:
+    #     spectrum['intensity array'] = rankdata(-spectrum['intensity array'], method='ordinal')
 
     tmp2 = dict()
     tmp = spectrum['m/z array'] / acc
@@ -575,7 +599,10 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
     tmp = tmp.astype(int)
 #    tmp2 = tmp.astype(int)
     for idx, mt in enumerate(tmp):
-        i_val = spectrum['intensity array'][idx] / spectrum['Isum']
+        if fast_first_stage:
+            i_val = spectrum['intensity array'][idx] / spectrum['Isum']
+        else:
+            i_val = spectrum['intensity array rank'][idx]
         tmp2[mt] = max(tmp2.get(mt, 0), i_val)
         tmp2[mt-1] = max(tmp2.get(mt-1, 0), i_val)
         tmp2[mt+1] = max(tmp2.get(mt+1, 0), i_val)
@@ -885,12 +912,7 @@ def get_aa_mass(settings):
                     aa_mass[mod+aa] = aa_mass[mod] + aa_mass[aa]
     return aa_mass
 
-# def cand_charge(result):
-#     mz = result['spectrum']['params']['pepmass'][0]
-#     m = np.array(map(lambda x: cmass.fast_mass(str(x)), result['candidates']['seq']))
-#     return np.round(m/mz).astype(np.int8)
-
-def multimap(n, func, it, best_res_in=False, best_res_raw_in=False, **kw):
+def multimap(n, func, it, best_res_in=False, best_res_raw_in=False, best_peptides=False, **kw):
     global best_res
 
     if best_res_in:
@@ -907,7 +929,11 @@ def multimap(n, func, it, best_res_in=False, best_res_raw_in=False, **kw):
         except NotImplementedError:
             n = 1
     if n == 1:
+        cnt1 = 0
         for s in it:
+            cnt1 += 1
+            if cnt1 % 10000 == 0:
+                print(cnt1)
             result = func(s, best_res, **kw)
             if result:
                 for x in result:
@@ -928,7 +954,6 @@ def multimap(n, func, it, best_res_in=False, best_res_raw_in=False, **kw):
             maxval = len(qin)
             start = 0
 
-            # best_res = {}
             new_best_res = {}
             new_best_res_raw = {}
             best_pep_res = {}
@@ -943,19 +968,11 @@ def multimap(n, func, it, best_res_in=False, best_res_raw_in=False, **kw):
 
                         for score, spec_t, c, info in res:
                             if -score <= new_best_res.get(spec_t, best_res.get(spec_t, 0)):
-                                # best_res_raw[spec_t] = [peptide, m, snp_label, score, spec_t, c, info]
-                                # best_res[spec_t] = -score
                                 new_best_res[spec_t] = -score
                                 best_res[spec_t] = -score
-                                # new_best_res_raw[spec_t] = [peptide, m, snp_label, score, spec_t, c, info]
-                                best_pep_res[spec_t] = (item, score)
-
-
-                # if result:
-                #     qout.put(result)
+                                new_best_res_raw[spec_t] = [peptide, m, snp_label, score, spec_t, c, info]
                 start += step
-            # qout.put(new_best_res_raw)
-            qout.put(best_pep_res)
+            qout.put(new_best_res_raw)
             qout.put(None)
         qsize = kw.pop('qsize')
         qout = Queue(qsize)
@@ -963,11 +980,8 @@ def multimap(n, func, it, best_res_in=False, best_res_raw_in=False, **kw):
 
         global qin
 
-        while True:
-            qin = list(islice(it, 5000000))
-            if not len(qin):
-                break
-#           print 'Loaded 500000 items. Ending cycle.'
+        if best_peptides:
+            qin = best_peptides
             procs = []
             for proc_num in range(n):
                 p = Process(target=worker, args=(qout, proc_num, n))
@@ -976,41 +990,42 @@ def multimap(n, func, it, best_res_in=False, best_res_raw_in=False, **kw):
 
             count = len(qin)
 
-            # for _ in range(n):
-            #     for item in iter(qout.get, None):
-            #         for k, v in item.items():
-            #             if -v[3] <= best_res.get(k, 0):
-            #                 best_res_raw[k] = v
-            #                 best_res[k] = -v[3]
-            #         # yield item
-
             for _ in range(n):
                 for item in iter(qout.get, None):
-                    # pass
                     for k, v in item.items():
-                        if -v[1] <= best_res.get(k, 0):
-                            # best_res_raw[k] = v
-                            best_res[k] = -v[1]
+                        if -v[3] <= best_res.get(k, 0):
+                            best_res_raw[k] = v
+                            best_res[k] = -v[3]
                             best_res_pep[k] = v[0]
-                    # yield item
 
             for p in procs:
                 p.join()
 
-        best_res_raw = {}
+            
+        while True:
+            qin = list(islice(it, 5000000))
+            if not len(qin):
+                break
+            procs = []
+            for proc_num in range(n):
+                p = Process(target=worker, args=(qout, proc_num, n))
+                p.start()
+                procs.append(p)
+
+            count = len(qin)
+
+            for _ in range(n):
+                for item in iter(qout.get, None):
+                    for k, v in item.items():
+                        if -v[3] <= best_res.get(k, 0):
+                            best_res_raw[k] = v
+                            best_res[k] = -v[3]
+                            best_res_pep[k] = v[0]
+
+            for p in procs:
+                p.join()
 
         logger.info(len(best_res_pep))
-        for k, item in best_res_pep.iteritems():
-            result = func(item, {}, **kw)
-            if result:
-                for x in result:
-                    peptide, m, snp_label, res = x
-                    for score, spec_t, c, info in res:
-                        if -score == best_res.get(k, 0):
-                            best_res_raw[spec_t] = [peptide, m, snp_label, score, spec_t, c, info]
-                            best_res[spec_t] = -score
-
-
         return best_res_raw, best_res
 
 
@@ -1058,7 +1073,13 @@ def is_db_target_only(settings):
 
 
 def get_shifts_and_pime(settings):
+    # try:
+    #     fast_first_stage = settings.getint('misc', 'fast first stage')
+    # except:
+    #     fast_first_stage = 0
     pime = settings.getint('search', 'precursor isotope mass error')
+    # if fast_first_stage:
+    #     pime = 0
     shifts =[float(x) for x in settings.get('search', 'shifts').split(',')]
     dM = mass.nist_mass['C'][13][0] - mass.nist_mass['C'][12][0]
     shifts_and_pime = shifts[:]
@@ -1352,21 +1373,39 @@ def write_pepxml(inputfile, settings, results):
                                     tmp4.append(copy(tmp5))
                         tmp3.append(copy(tmp4))
 
-                        tmp4 = etree.Element('search_score')
-                        tmp4.set('name', 'hyperscore')
-                        tmp4.set('value', str(candidate[0]))
-                        tmp3.append(copy(tmp4))
-
-                        for k, v in match.items():
+                        if 'RNHS' in candidate[4]:
                             tmp4 = etree.Element('search_score')
-                            tmp4.set('name', 'matched_{}{}_ions'.format(*k))
-                            tmp4.set('value', str(v.sum()))
+                            tmp4.set('name', 'hyperscore')
+                            tmp4.set('value', str(candidate[4]['RNHS']))
                             tmp3.append(copy(tmp4))
 
-                        tmp4 = etree.Element('search_score')
-                        tmp4.set('name', 'expect')
-                        tmp4.set('value', str(result['e-values'][i]))
-                        tmp3.append(copy(tmp4))
+                            tmp4 = etree.Element('search_score')
+                            tmp4.set('name', 'expect')
+                            tmp4.set('value', str(1./candidate[4]['RNHS']))
+                            tmp3.append(copy(tmp4))
+
+                        else:
+                            tmp4 = etree.Element('search_score')
+                            tmp4.set('name', 'hyperscore')
+                            tmp4.set('value', str(candidate[0]))
+                            tmp3.append(copy(tmp4))
+
+                            tmp4 = etree.Element('search_score')
+                            tmp4.set('name', 'expect')
+                            tmp4.set('value', str(result['e-values'][i]))
+                            tmp3.append(copy(tmp4))
+
+                        if 'IPGF' in candidate[4]:
+                            tmp4 = etree.Element('search_score')
+                            tmp4.set('name', 'IPGF')
+                            tmp4.set('value', str(candidate[4]['IPGF']))
+                            tmp3.append(copy(tmp4))
+
+                        if 'IPGF2' in candidate[4]:
+                            tmp4 = etree.Element('search_score')
+                            tmp4.set('name', 'IPGF2')
+                            tmp4.set('value', str(candidate[4]['IPGF2']))
+                            tmp3.append(copy(tmp4))
 
                         tmp4 = etree.Element('search_score')
                         tmp4.set('name', 'sumI')
@@ -1420,6 +1459,13 @@ def write_pepxml(inputfile, settings, results):
                                 tmp4.set('name', tag_label)
                                 tmp4.set('value', str(spectrum.get(tag_label, 0)))
                                 tmp3.append(copy(tmp4))
+
+
+                        for k, v in match.items():
+                            tmp4 = etree.Element('search_score')
+                            tmp4.set('name', 'matched_{}{}_ions'.format(*k))
+                            tmp4.set('value', str(v.sum()))
+                            tmp3.append(copy(tmp4))
 
                         tmp2.append(copy(tmp3))
                 if flag:
@@ -1656,7 +1702,7 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
                 pepmass = float(ms2_map[ttl]['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
                 t_i_orig = ms2_map[ttl]['index']
                 outmgf.write('BEGIN IONS\n')
-                outmgf.write('TITLE=%s.%d.%d.%d\n' % (basename_mzml, t_i_orig, t_i, ch))
+                outmgf.write('TITLE=%s.%d.%d.%d.%d\n' % (basename_mzml, t_i_orig, t_i, t_i, ch))
                 outmgf.write('RTINSECONDS=%f\n' % (RT * 60, ))
                 outmgf.write('PEPMASS=%f %f\n' % (mz, Intensity))
                 outmgf.write('CHARGE=%d+\n' % (ch, ))
@@ -1684,7 +1730,7 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
             except:
                 ch = ''
             outmgf.write('BEGIN IONS\n')
-            outmgf.write('TITLE=%s.%d.%d.%s\n' % (basename_mzml, t_i_orig, t_i, str(ch)))
+            outmgf.write('TITLE=%s.%d.%d.%d.%s\n' % (basename_mzml, t_i_orig, t_i, t_i, str(ch)))
             outmgf.write('RTINSECONDS=%f\n' % (RT * 60, ))
             outmgf.write('PEPMASS=%f %f\n' % (mz, 0))
             if ch:
