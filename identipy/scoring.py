@@ -1,9 +1,11 @@
-from .utils import neutral_masses, theor_spectrum, get_aa_mass
+from .utils import neutral_masses, get_aa_mass, custom_mass
+from .cutils import theor_spectrum
 from collections import Counter, defaultdict
 from scipy.spatial import cKDTree
 import numpy as np
 from math import factorial
 from copy import copy
+from scipy.stats import rankdata
 import logging
 logger = logging.getLogger(__name__)
 
@@ -13,8 +15,11 @@ def simple_score(spectrum, peptide, settings):
     int_array = spectrum['intensity array']
     int_array = int_array / int_array.max() * 100
     charge = max(c for _, c in neutral_masses(spectrum, settings))
+    cterm_mass = settings.getfloat('modifications', 'protein cterm cleavage')
+    nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage')
+    m = custom_mass(seqm, aa_mass=get_aa_mass(settings), nterm_mass = nterm_mass, cterm_mass = cterm_mass)
     theor = theor_spectrum(peptide, maxcharge=charge, aa_mass=get_aa_mass(settings),
-        nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage'), cterm_mass=settings.getfloat('modifications', 'protein cterm cleavage'))
+        nterm_mass = nterm_mass, cterm_mass=cterm_mass, nm=m)
     fragments = np.concatenate(theor.values())
     if '__KDTree' not in spectrum:
         spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape(
@@ -27,7 +32,7 @@ def simple_score(spectrum, peptide, settings):
     return spectrum['intensity array'][ind[mask]].sum()
 
 
-def get_fragment_mass_tol(spectrum, peptide, settings):
+def get_fragment_mass_tol(spectrum, peptide, settings, charge_state):
     """A function for obtaining optimal fragment mass tolerance, dynamic range"""
     acc = settings.getfloat('search', 'product accuracy')
 #   spectrum = copy(spectrum)
@@ -36,15 +41,25 @@ def get_fragment_mass_tol(spectrum, peptide, settings):
 #   spectrum['m/z array'] = spectrum['m/z array'][idx]
     int_array = spectrum['intensity array']
     int_array = int_array / int_array.max() * 100
-    charge = 1#max(1, max(c for _, c in neutral_masses(spectrum, settings)) - 1)
-    theor, _ = theor_spectrum(peptide, maxcharge=charge, aa_mass=get_aa_mass(settings), reshape=True, acc_frag=acc,
-        nterm_mass=settings.getfloat('modifications', 'protein nterm cleavage'), cterm_mass=settings.getfloat('modifications', 'protein cterm cleavage'))
+    # charge = 1#max(1, max(c for _, c in neutral_masses(spectrum, settings)) - 1)
+
+
+    fcharge = settings.getint('scoring', 'maximum fragment charge')
+    maxfrag_charge = max(1, min(fcharge, charge_state-1) if fcharge else charge_state-1)
+
+    cterm_mass = settings.getfloat('modifications', 'protein cterm cleavage')
+    nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage')
+    m = custom_mass(peptide, aa_mass=get_aa_mass(settings), nterm_mass = nterm_mass, cterm_mass = cterm_mass)
+    theor, _ = theor_spectrum(peptide, maxcharge=maxfrag_charge, reshape=True, aa_mass=get_aa_mass(settings), acc_frag=acc,
+        nterm_mass = nterm_mass, cterm_mass=cterm_mass, nm=m)
     if '__KDTree' not in spectrum:
         spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape((spectrum['m/z array'].size, 1)))
 
     dist_total, int_array_total = np.array([]), np.array([])
     dist_total_tmp = np.array([])
-    for fragments in theor.values():
+    match2 = {}
+    matchI = {}
+    for ion, fragments in theor.iteritems():
         n = fragments.size
         dist, ind = spectrum['__KDTree'].query(fragments.reshape((n, 1)), distance_upper_bound=acc)
         mask = (dist != np.inf)
@@ -53,19 +68,116 @@ def get_fragment_mass_tol(spectrum, peptide, settings):
 #       logger.debug('dist: %s\nind: %s\n', dist, ind)
         
         logger.debug('%s %s %s', spectrum['intensity array'].size, ind.size, ind[mask])
-        int_array_total = np.append(int_array_total, int_array[ind[mask]])
+        int_array_total = np.append(int_array_total, spectrum['intensity array'][ind[mask]])
 
         dist_total = np.append(dist_total, dist[mask] / spectrum['m/z array'][ind[mask]] * 1e6)
         dist_total_tmp  = np.append(dist_total_tmp, dist[mask])
+        match2[ion] = mask
+        matchI[ion] = spectrum['intensity array rank'][ind[mask]]
+        # matchI[ion] = spectrum['intensity array'][ind[mask]]
         # dist_total = np.append(dist_total, dist[mask])
 
+    yions = match2[('y', 1)]
+    bions = match2[('b', 1)]
     new_params = {}
     if dist_total.size:
         new_params['fmt'] = dist_total#2 * np.median(dist_total)
         new_params['fmt_neutral'] = dist_total_tmp
+        new_params['bions'] = bions
+        new_params['yions'] = yions
+        new_params['bionsI'] = matchI[('b', 1)]
+        new_params['yionsI'] = matchI[('y', 1)]
+        new_params['allions'] = match2
+        new_params['allionsI'] = matchI
+        new_params['iall'] = int_array_total
     else:
         new_params['fmt'] = []
         new_params['fmt_neutral'] = []
+        new_params['bions'] = []
+        new_params['yions'] = []
+        new_params['bionsI'] = []
+        new_params['yionsI'] = []
+        new_params['allions'] = []
+        new_params['allionsI'] = []
+        new_params['iall'] = []
+    return new_params
+
+def get_fragment_mass_tol_ppm(spectrum, peptide, settings, charge_state, acc_ppm):
+    """A function for obtaining optimal fragment mass tolerance, dynamic range"""
+    # acc = settings.getfloat('search', 'product accuracy')
+    acc = acc_ppm * 1500 * 1e-6
+#   spectrum = copy(spectrum)
+#   idx = np.nonzero(spectrum['m/z array'] >= 150)
+#   spectrum['intensity array'] = spectrum['intensity array'][idx]
+#   spectrum['m/z array'] = spectrum['m/z array'][idx]
+    int_array = spectrum['intensity array']
+    int_array = int_array / int_array.max() * 100
+    # charge = 1#max(1, max(c for _, c in neutral_masses(spectrum, settings)) - 1)
+
+
+    fcharge = settings.getint('scoring', 'maximum fragment charge')
+    maxfrag_charge = max(1, min(fcharge, charge_state-1) if fcharge else charge_state-1)
+
+    cterm_mass = settings.getfloat('modifications', 'protein cterm cleavage')
+    nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage')
+    m = custom_mass(peptide, aa_mass=get_aa_mass(settings), nterm_mass = nterm_mass, cterm_mass = cterm_mass)
+    theor, _ = theor_spectrum(peptide, maxcharge=maxfrag_charge, reshape=True, aa_mass=get_aa_mass(settings), acc_frag=acc,
+        nterm_mass = nterm_mass, cterm_mass=cterm_mass, nm=m)
+    if '__KDTree' not in spectrum:
+        spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape((spectrum['m/z array'].size, 1)))
+
+    dist_total, int_array_total = np.array([]), np.array([])
+    dist_total_tmp = np.array([])
+    match2 = {}
+    matchI = {}
+    for ion, fragments in theor.iteritems():
+        n = fragments.size
+        dist, ind = spectrum['__KDTree'].query(fragments.reshape((n, 1)), distance_upper_bound=acc)
+        mask = (dist != np.inf)
+
+
+        ind = ind.clip(max=spectrum['m/z array'].size-1)
+        nacc = np.where(dist / spectrum['m/z array'][ind] * 1e6 > acc_ppm)[0]
+        mask[nacc] = False
+
+
+#       logger.debug('m/z array: %s', spectrum['m/z array'])
+#       logger.debug('fragments: %s', fragments)
+#       logger.debug('dist: %s\nind: %s\n', dist, ind)
+        
+        logger.debug('%s %s %s', spectrum['intensity array'].size, ind.size, ind[mask])
+        int_array_total = np.append(int_array_total, spectrum['intensity array'][ind[mask]])
+
+        dist_total = np.append(dist_total, dist[mask] / spectrum['m/z array'][ind[mask]] * 1e6)
+        dist_total_tmp  = np.append(dist_total_tmp, dist[mask])
+        match2[ion] = mask
+        matchI[ion] = spectrum['intensity array rank'][ind[mask]]
+        # matchI[ion] = spectrum['intensity array'][ind[mask]]
+        # dist_total = np.append(dist_total, dist[mask])
+
+    yions = match2[('y', 1)]
+    bions = match2[('b', 1)]
+    new_params = {}
+    if dist_total.size:
+        new_params['fmt'] = dist_total#2 * np.median(dist_total)
+        new_params['fmt_neutral'] = dist_total_tmp
+        new_params['bions'] = bions
+        new_params['yions'] = yions
+        new_params['bionsI'] = matchI[('b', 1)]
+        new_params['yionsI'] = matchI[('y', 1)]
+        new_params['allions'] = match2
+        new_params['allionsI'] = matchI
+        new_params['iall'] = int_array_total
+    else:
+        new_params['fmt'] = []
+        new_params['fmt_neutral'] = []
+        new_params['bions'] = []
+        new_params['yions'] = []
+        new_params['bionsI'] = []
+        new_params['yionsI'] = []
+        new_params['allions'] = []
+        new_params['allionsI'] = []
+        new_params['iall'] = []
     return new_params
 
 def morpheusscore_fast(spectrum_fastset, spectrum_idict, theoretical_set, min_matched):
@@ -293,19 +405,20 @@ def RNHS_fast(spectrum_fastset, spectrum_idict, theoretical_set, min_matched):
     #matched_approx_y = len(spectrum_fastset.intersection(theoretical_set['y']))
     # matched_approx = matched_approx_b + matched_approx_y
     # if matched_approx >= min_matched:
-
+    score = 0
     isum = 0
     matched_approx_b, matched_approx_y = 0, 0
     for ion in theoretical_set['b']:
         if ion in spectrum_idict:
             matched_approx_b += 1
             isum += spectrum_idict[ion]
-
+    score = isum * factorial(matched_approx_b)
+    isum = 0
     for ion in theoretical_set['y']:
         if ion in spectrum_idict:
             matched_approx_y += 1
             isum += spectrum_idict[ion]
-
+    score += isum * factorial(matched_approx_y)
         # # isum = 0
         # for fr in matched_b:
         #     isum += spectrum_idict[fr]
@@ -313,18 +426,20 @@ def RNHS_fast(spectrum_fastset, spectrum_idict, theoretical_set, min_matched):
         #     isum += spectrum_idict[fr]
     matched_approx = matched_approx_b + matched_approx_y
     if matched_approx >= min_matched:
-        return matched_approx, factorial(matched_approx_b) * factorial(matched_approx_y) * isum
+        return matched_approx, score
     else:
         return 0, 0
 
-def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False):
+def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False, bions_map=False, yions_map=False):
     if 'norm' not in spectrum:
-        spectrum['norm'] = spectrum['Isum']#spectrum['intensity array'].sum()#spectrum['intensity array'].max() / 100.
+        spectrum['norm'] = spectrum['Isum']
     mz_array = spectrum['m/z array']
     score = 0
     mult = []
     match = {}
     match2 = {}
+    matchI = {}
+    matchI2 = {}
     total_matched = 0
     sumI = 0
     if '__KDTree' not in spectrum:
@@ -347,34 +462,94 @@ def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False):
             mult.append(factorial(nmatched))
             sumi = spectrum['intensity array'][ind[mask2]].sum()
             sumI += sumi
-            score += sumi / spectrum['norm']
+            score += sumi# / spectrum['norm']
             dist_all.extend(dist[mask2])
         match[ion] = mask2
         match2[ion] = mask2
+        matchI[ion] = spectrum['intensity array rank'][ind[mask2]]
+        matchI2[ion] = spectrum['intensity array'][ind[mask2]]
+
+    score = score / spectrum['norm']
+
     if not total_matched:
-        return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
+        return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0, 'IPGF': 0, 'IPGF2': 0, 'RNHS': 0}
     if position:
         yions = match2[('y', 1)]
         bions = match2[('b', 1)]
         plen = len(yions)
         if position > plen + 1:
 #           print 'Something wrong with aachange position'
-            return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
+            return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0, 'IPGF': 0, 'IPGF2': 0, 'RNHS': 0}
         if position == 1:
             if not bions[0]:
-                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0, 'IPGF': 0, 'IPGF2': 0, 'RNHS': 0}
         elif position == plen + 1:
             if not yions[0]:
-                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0, 'IPGF': 0, 'IPGF2': 0, 'RNHS': 0}
         else:
             if not (yions[plen - position + 1] and yions[plen - position]):
-                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0, 'IPGF': 0, 'IPGF2': 0, 'RNHS': 0}
+
+                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0, 'IPGF': 0, 'IPGF2': 0, 'RNHS': 0}
+    rscore2 = 0
+    rscore = 0
+    if bions_map:
+        for ion in match2:
+            idx2 = 0
+            for idx, bion in enumerate(match2[ion]):
+                if bion:
+                    dval = bions_map[matchI[ion][idx2]]
+                    if ion in dval:
+                        rscore += dval[ion]
+                    else:
+                        rscore += bions_map['m']
+                    idx2 += 1
+
+        for ion in match2:
+            idx2 = 0
+            for idx, bion in enumerate(match2[ion]):
+                if bion:
+                    i_r = matchI[ion][idx2]
+                    if i_r in yions_map:
+                        dval = yions_map[i_r]
+                        if ion in dval:
+                            rscore2 += dval[ion]
+                        else:
+                            rscore2 += yions_map['m']
+                    idx2 += 1
 
     for m in mult:
         score *= m
+
     sumI = np.log10(sumI)
 
-    return {'score': score, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched, 'score_std': 0}
+    outscore = score if bions_map else score
+
+    return {'score': outscore, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched, 'score_std': 0,
+    'IPGF': rscore, 'IPGF2': rscore2, 'RNHS': score}
+
+def rank_cor(theoretical_list, experimental_list):
+    n = len(theoretical_list)
+    if n <= 1:
+        return 0
+    top = 6 * sum((float(z1 - z2))**2 for z1, z2 in zip(theoretical_list, experimental_list))
+    bottom = n * (n**2 - 1)
+    return 1 - top/bottom
+
+import math
+def cos_correlation(theoretical_list, experimental_list):
+    top = 0
+    if len(theoretical_list) <= 1:
+        return 0
+    bottom = math.sqrt(sum([numb * numb for numb in theoretical_list])) * \
+        math.sqrt(sum([numb * numb for numb in experimental_list]))
+    if not bottom:
+        return 0
+
+    for i1, i2 in zip(theoretical_list, experimental_list):
+        top += i1 * i2
+
+    return top / bottom
 
 def RNHS2_ultrafast(spectrum_idict, theoretical_set, min_matched, nm, best_res, allowed_idx):
     return RNHS_ultrafast(spectrum_idict, theoretical_set, min_matched, nm, best_res, allowed_idx)
@@ -382,7 +557,7 @@ def RNHS2_ultrafast(spectrum_idict, theoretical_set, min_matched, nm, best_res, 
 def RNHS2_fast(spectrum_fastset, spectrum_idict, theoretical_set, min_matched):
     return RNHS_fast(spectrum_fastset, spectrum_idict, theoretical_set, min_matched)
 
-def RNHS2(spectrum, theoretical, acc, acc_ppm=False, position=False):
+def RNHS2(spectrum, theoretical, acc, acc_ppm=False, position=False, bions_map=False, yions_map=False):
     mz_array = copy(spectrum['m/z array'])
     KDT = copy(spectrum['__KDTree'])
     s_ia = copy(spectrum['intensity array'])
@@ -395,7 +570,7 @@ def RNHS2(spectrum, theoretical, acc, acc_ppm=False, position=False):
     score_tmp = []
     if not acc_ppm:
         acc_ppm = 0
-    for i in range(10, 0, -1):
+    for i in range(21, 1, -2):
     # for accc, accc_ppm in zip([acc/3, acc/2, acc], [acc_ppm/3, acc_ppm/2, acc_ppm]):
         accc = acc / i
         accc_ppm = acc_ppm / i
@@ -432,10 +607,11 @@ def RNHS2(spectrum, theoretical, acc, acc_ppm=False, position=False):
                 mult.append(factorial(nmatched))
                 sumi = s_ia[ind[mask2]].sum()
                 sumI += sumi
-                score += sumi / s_is
+                score += sumi# / s_is
                 dist_all.extend(dist[mask2])
             match[ion] = mask2
             match2[ion] = mask2
+        score = score / s_is
         if not total_matched:
             # return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0}
             pass
@@ -464,5 +640,8 @@ def RNHS2(spectrum, theoretical, acc, acc_ppm=False, position=False):
                 return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0}
 
     score_std = np.std(score_tmp)# / np.mean(score_tmp)
+    bions_score_neg = score_tmp[0]
+    print(score_tmp[0], np.mean(score_tmp))
     score_tmp = np.mean(score_tmp)
-    return {'score': score_tmp, 'score_std': score_std, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched}
+    return {'score': score_tmp, 'score_std': score_std, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched,
+    'yions_score': 0, 'bions_score': 0, 'yions_score_neg': 0, 'bions_score_neg': bions_score_neg}

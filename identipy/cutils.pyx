@@ -90,16 +90,17 @@ def RNHS_ultrafast(dict cur_idict, dict theoretical_set, int min_matched, dict b
 @cython.cdivision(True)
 @cython.boundscheck(False)
 @cython.wraparound(True)
-def RNHS_fast(set spectrum_fastset, dict spectrum_idict , dict theoretical_set, int min_matched):
+def RNHS_fast_old(set spectrum_fastset, dict spectrum_idict , dict theoretical_set, int min_matched):
     cdef int matched_approx_b, matched_approx_y, matched_approx
     cdef set matched_b, matched_y
+    cdef float isum
+    isum = 0
     matched_b = spectrum_fastset.intersection(theoretical_set['b'])
     matched_y = spectrum_fastset.intersection(theoretical_set['y'])
     matched_approx_b = len(matched_b)
     matched_approx_y = len(matched_y)
     matched_approx = matched_approx_b + matched_approx_y
     if matched_approx >= min_matched:
-        isum = 0
         for fr in matched_b:
             isum += spectrum_idict[fr]
         for fr in matched_y:
@@ -108,6 +109,60 @@ def RNHS_fast(set spectrum_fastset, dict spectrum_idict , dict theoretical_set, 
     else:
         return 0, 0
 
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.wraparound(True)
+def RNHS_fast(set spectrum_fastset, dict spectrum_idict , dict theoretical_set, int min_matched, dict rank_map):
+    cdef int matched_approx_b, matched_approx_y, matched_approx
+    cdef set matched_b, matched_y
+    cdef float isum
+    cdef list all_matched
+    isum = 0
+
+    all_matched = []
+    for ion in theoretical_set:
+        matched_tmp = spectrum_fastset.intersection(theoretical_set[ion])
+        all_matched.append((ion, matched_tmp))
+    matched_approx = sum(len(z) for z in all_matched)
+    if matched_approx >= min_matched:
+        for ion, matched_tmp in all_matched:
+            for fr in matched_tmp:
+                i_rank = spectrum_idict[fr]
+                if i_rank in rank_map:
+                    tmp_d = rank_map[i_rank]
+                    if ion in tmp_d:
+                        isum += tmp_d[ion]
+                    else:
+                        isum += rank_map['m']
+        return matched_approx, isum
+    else:
+        return 0, 0
+
+
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.wraparound(True)
+def RNHS_fast_basic(set spectrum_fastset, dict spectrum_idict , dict theoretical_set, int min_matched):
+    cdef int matched_approx_b, matched_approx_y, matched_approx
+    cdef set matched_b, matched_y
+    cdef float isum
+    cdef list all_matched
+    isum = 0
+
+    all_matched = []
+    for ion in theoretical_set:
+        matched_tmp = spectrum_fastset.intersection(theoretical_set[ion])
+        all_matched.append(matched_tmp)
+    matched_approx = sum(len(z) for z in all_matched)
+    if matched_approx >= min_matched:
+        for matched_tmp in all_matched:
+            for fr in matched_tmp:
+                isum += spectrum_idict[fr]
+        for matched_tmp in all_matched:
+            isum *= factorial(len(matched_tmp))
+        return matched_approx, isum
+    else:
+        return 0, 0
 
 @cython.cdivision(True)
 @cython.boundscheck(False)
@@ -146,7 +201,7 @@ cdef list get_c_ions(str peptide, float maxmass, int pl, int charge, dict k_aa_m
 @cython.boundscheck(False)
 @cython.wraparound(True)
 cdef tuple ctheor_spectrum(str peptide, double acc_frag, double nterm_mass, double cterm_mass, tuple types,
-                           int maxcharge, bint reshape, dict kwargs):
+                           int maxcharge, bint reshape, int simple, set allowed_ions, int use_allowed_ions, dict kwargs):
     cdef int pl, charge, i, n, i_type, n_types
     cdef bint nterminal
     cdef str ion_type, maxpart, part
@@ -187,24 +242,124 @@ cdef tuple ctheor_spectrum(str peptide, double acc_frag, double nterm_mass, doub
                                 aa_mass=kwargs['aa_mass'], cterm_mass=cterm_mass, nterm_mass=nterm_mass)
                 marr = get_c_ions(peptide, maxmass, pl, charge, kwargs['aa_mass'])
 
-            ions_scaled = [<int>(x / acc_frag) for x in marr]
-            if ion_type in theoretical_set:
-                theoretical_set_item = <list>PyDict_GetItem(theoretical_set, ion_type)
-                theoretical_set_item.extend(ions_scaled)
-            else:
-                theoretical_set[ion_type] = ions_scaled
+            iname = (ion_type, charge)
+            if not use_allowed_ions or iname in allowed_ions:
+                ions_scaled = [<int>(x / acc_frag) for x in marr]
+                if iname in theoretical_set:
+                    theoretical_set_item = <list>PyDict_GetItem(theoretical_set, iname)
+                    theoretical_set_item.extend(ions_scaled)
+                else:
+                    theoretical_set[iname] = ions_scaled
+            if not simple:
+                iname = (ion_type+str('-17'), charge)
+                if not use_allowed_ions or iname in allowed_ions:
+                    ions_scaled = [<int>((x-17.02654910101) / acc_frag) for x in marr]
+                    if iname in theoretical_set:
+                        theoretical_set_item = <list>PyDict_GetItem(theoretical_set, iname)
+                        theoretical_set_item.extend(ions_scaled)
+                    else:
+                        theoretical_set[iname] = ions_scaled
+
+                iname = (ion_type+str('-18'), charge)
+                if not use_allowed_ions or iname in allowed_ions:
+                    ions_scaled = [<int>((x-18.0105646837) / acc_frag) for x in marr]
+                    if iname in theoretical_set:
+                        theoretical_set_item = <list>PyDict_GetItem(theoretical_set, iname)
+                        theoretical_set_item.extend(ions_scaled)
+                    else:
+                        theoretical_set[iname] = ions_scaled
+                if nterminal:
+                    iname = (ion_type+str('-28'), charge)
+                    if not use_allowed_ions or iname in allowed_ions:
+                        ions_scaled = [<int>((x-27.994914619560063) / acc_frag) for x in marr]
+                        if iname in theoretical_set:
+                            theoretical_set_item = <list>PyDict_GetItem(theoretical_set, iname)
+                            theoretical_set_item.extend(ions_scaled)
+                        else:
+                            theoretical_set[iname] = ions_scaled
+                else:
+                    iname = (ion_type+str('+26'), charge)
+                    if not use_allowed_ions or iname in allowed_ions:
+                        ions_scaled = [<int>((x+25.979264555419945) / acc_frag) for x in marr]
+                        if iname in theoretical_set:
+                            theoretical_set_item = <list>PyDict_GetItem(theoretical_set, iname)
+                            theoretical_set_item.extend(ions_scaled)
+                        else:
+                            theoretical_set[iname] = ions_scaled
+                
 
             if reshape:
                 marr_storage = np.array(marr)
+                marr_storage.sort()
                 n = marr_storage.size
                 marr_storage = marr_storage.reshape((n, 1))
-                peaks[ion_type, charge] = marr_storage
+
+                iname = (ion_type, charge)
+                if not use_allowed_ions or iname in allowed_ions:
+                    peaks[iname] = marr_storage
+                if not simple:
+                    iname = (ion_type+str('-17'), charge)
+                    if not use_allowed_ions or iname in allowed_ions:
+                        peaks[iname] = marr_storage - 17.02654910101
+                    iname = (ion_type+str('-18'), charge)
+                    if not use_allowed_ions or iname in allowed_ions:
+                        peaks[iname] = marr_storage - 18.0105646837
+                    if nterminal:
+                        iname = (ion_type+str('-28-17'), charge)
+                        if not use_allowed_ions or iname in allowed_ions:
+                            peaks[iname] = marr_storage - 27.994914619560063 - 17.02654910101
+                        iname = (ion_type+str('-28-18'), charge)
+                        if not use_allowed_ions or iname in allowed_ions:
+                            peaks[iname] = marr_storage - 27.994914619560063 - 18.0105646837
+                        iname = (ion_type+str('-28'), charge)
+                        if not use_allowed_ions or iname in allowed_ions:
+                            peaks[iname] = marr_storage - 27.994914619560063
+                    else:
+                        iname = (ion_type+str('+26-17'), charge)
+                        if not use_allowed_ions or iname in allowed_ions:
+                            peaks[iname] = marr_storage + 25.979264555419945 - 17.02654910101
+                        iname = (ion_type+str('+26-18'), charge)
+                        if not use_allowed_ions or iname in allowed_ions:
+                            peaks[iname] = marr_storage + 25.979264555419945 - 18.0105646837
+                        iname = (ion_type+str('+26'), charge)
+                        if not use_allowed_ions or iname in allowed_ions:
+                            peaks[iname] = marr_storage + 25.979264555419945
             else:
-                peaks[ion_type, charge] = marr
+                iname = (ion_type, charge)
+                if not use_allowed_ions or iname in allowed_ions:
+                    peaks[iname] = sorted(marr)
+                if not simple:
+                    iname = (ion_type+str('-17'), charge)
+                    if not use_allowed_ions or iname in allowed_ions:
+                        peaks[iname] = sorted([z - 17.02654910101 for z in marr])
+                    iname = (ion_type+str('-18'), charge)
+                    if not use_allowed_ions or iname in allowed_ions:
+                        peaks[iname] = sorted([z - 18.0105646837 for z in marr])
+                    if nterminal:
+                        iname = (ion_type+str('-28'), charge)
+                        if not use_allowed_ions or iname in allowed_ions:
+                            peaks[iname] = sorted([z - 27.994914619560063 for z in marr])
+                        iname = (ion_type+str('-28-17'), charge)
+                        if not use_allowed_ions or iname in allowed_ions:
+                            peaks[iname] = sorted([z - 27.994914619560063 - 17.02654910101 for z in marr])
+                        iname = (ion_type+str('-28-18'), charge)
+                        if not use_allowed_ions or iname in allowed_ions:
+                            peaks[iname] = sorted([z - 27.994914619560063 - 18.0105646837 for z in marr])
+                    else:
+                        iname = (ion_type+str('+26'), charge)
+                        if not use_allowed_ions or iname in allowed_ions:
+                            peaks[iname] = sorted([z + 25.979264555419945 for z in marr])
+                        iname = (ion_type+str('+26-17'), charge)
+                        if not use_allowed_ions or iname in allowed_ions:
+                            peaks[iname] = sorted([z + 25.979264555419945 - 17.02654910101 for z in marr])
+                        iname = (ion_type+str('+26-18'), charge)
+                        if not use_allowed_ions or iname in allowed_ions:
+                            peaks[iname] = sorted([z + 25.979264555419945 - 18.0105646837 for z in marr])
     return peaks, theoretical_set
 
 
-def theor_spectrum(peptide, acc_frag, nterm_mass, cterm_mass, types=('b', 'y'), maxcharge=None, reshape=False, **kwargs):
+def theor_spectrum(peptide, acc_frag, nterm_mass, cterm_mass, types=('b', 'y'), maxcharge=None, reshape=False, simple=0, allowed_ions=set(), use_allowed_ions=False, **kwargs):
     if not maxcharge:
         maxcharge = 1 + int(ec.charge(peptide, pH=2))
-    return ctheor_spectrum(peptide, acc_frag, nterm_mass, cterm_mass, tuple(types), maxcharge, reshape, kwargs)
+    return ctheor_spectrum(peptide, acc_frag, nterm_mass, cterm_mass, tuple(types), maxcharge, reshape, simple, allowed_ions, use_allowed_ions, kwargs)
+
