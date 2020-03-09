@@ -318,8 +318,12 @@ def peptide_processor(peptide, best_res, **kwargs):
 
     use_allowed_ions = kwargs.get('use_allowed_ions')
     allowed_ions = kwargs.get('allowed_ions')
+    if kwargs['fast first stage']:
+        use_allowed_ions = 1
+        allowed_ions = {('b', 1), ('y', 1), ('a', 1), ('c', 1), ('x', 1), ('y-17', 1)}
     bions_map = kwargs.get('rank_map')
     yions_map = kwargs.get('rank_map_unf')
+    # xions_map = kwargs.get('rank_map_unf_new')
 
     # logger.info(bions_map)
     shifts_and_pime = kwargs['sapime']
@@ -396,8 +400,8 @@ def peptide_processor(peptide, best_res, **kwargs):
                         hf = kwargs['score_fast_basic'](s['fastset'], s['idict'], theoretical_set[fc], kwargs['min_matched'])
                     else:
                         # print('HERE2')
-                        hf = kwargs['score_fast_basic'](s['fastset'], s['idict'], theoretical_set[fc], kwargs['min_matched'])
-                        # hf = kwargs['score_fast'](s['fastset'], s['idict'], theoretical_set[fc], kwargs['min_matched'], yions_map[chim][spcharge])
+                        # hf = kwargs['score_fast_basic'](s['fastset'], s['idict'], theoretical_set[fc], kwargs['min_matched'])
+                        hf = kwargs['score_fast'](s['fastset'], s['idict'], theoretical_set[fc], kwargs['min_matched'], bions_map[chim][spcharge])
                     if hf[0]:
                         if -hf[1] <= best_res.get(st, 0):
                             if kwargs['fast first stage']:
@@ -407,7 +411,7 @@ def peptide_processor(peptide, best_res, **kwargs):
                                 if not reshaped[fc]:
                                     theor[fc] = reshape_theor_spectrum(theor[fc])
                                     reshaped[fc] = True
-                                score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos, bions_map=bions_map[chim][spcharge], yions_map=yions_map[chim][spcharge])#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
+                                score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos, bions_map=bions_map[chim][spcharge], yions_map=yions_map[chim][spcharge])#, xions_map=xions_map[chim][spcharge])#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
                                 sc = score.pop('score')
                             if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
                                 results.append((sc, st, charges[i], score))
@@ -415,7 +419,7 @@ def peptide_processor(peptide, best_res, **kwargs):
                 if not reshaped[fc]:
                     theor[fc] = reshape_theor_spectrum(theor[fc])
                     reshaped[fc] = True
-                score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos, bions_map=bions_map[chim][spcharge], yions_map=yions_map[chim][spcharge])#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
+                score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos, bions_map=bions_map[chim][spcharge], yions_map=yions_map[chim][spcharge])#, xions_map=xions_map[chim][spcharge])#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
                 sc = score.pop('score')
                 if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
                     results.append((sc, st, charges[i], score))
@@ -438,11 +442,13 @@ def process_peptides(fname, settings):
     try:
         kwargs['rank_map'] = settings.get('search', 'rank_map')
         kwargs['rank_map_unf'] = settings.get('search', 'rank_map_unf')
+        # kwargs['rank_map_unf_new'] = settings.get('search', 'rank_map_unf_new')
         kwargs['allowed_ions'] = settings.get('search', 'allowed_ions')
         kwargs['use_allowed_ions'] = 1
     except:
         kwargs['rank_map'] = False
         kwargs['rank_map_unf'] = False
+        # kwargs['rank_map_unf_new'] = False
         kwargs['allowed_ions'] = set()
         kwargs['use_allowed_ions'] = 0
 

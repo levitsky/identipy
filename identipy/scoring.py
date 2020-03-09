@@ -430,7 +430,7 @@ def RNHS_fast(spectrum_fastset, spectrum_idict, theoretical_set, min_matched):
     else:
         return 0, 0
 
-def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False, bions_map=False, yions_map=False):
+def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False, bions_map=False, yions_map=False, xions_map=False):
     if 'norm' not in spectrum:
         spectrum['norm'] = spectrum['Isum']
     mz_array = spectrum['m/z array']
@@ -493,6 +493,7 @@ def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False, bions_map=Fa
                 return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0, 'IPGF': 0, 'IPGF2': 0, 'RNHS': 0}
     rscore2 = 0
     rscore = 0
+    # rscore3 = 0
     if bions_map:
         for ion in match2:
             idx2 = 0
@@ -518,15 +519,27 @@ def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False, bions_map=Fa
                             rscore2 += yions_map['m']
                     idx2 += 1
 
+        # for ion in match2:
+        #     idx2 = 0
+        #     for idx, bion in enumerate(match2[ion]):
+        #         if bion:
+        #             i_r = matchI[ion][idx2]
+        #             if i_r in xions_map:
+        #                 dval = xions_map[i_r]
+        #                 if ion in dval:
+        #                     rscore3 += dval[ion]
+        #                 else:
+        #                     rscore3 += xions_map['m']
+        #             idx2 += 1
     for m in mult:
         score *= m
 
     sumI = np.log10(sumI)
 
-    outscore = score if bions_map else score
+    outscore = rscore if bions_map else score
 
     return {'score': outscore, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched, 'score_std': 0,
-    'IPGF': rscore, 'IPGF2': rscore2, 'RNHS': score}
+    'IPGF': rscore, 'IPGF2': rscore2, 'RNHS': score}#, 'IPGF3': rscore3}
 
 def rank_cor(theoretical_list, experimental_list):
     n = len(theoretical_list)
