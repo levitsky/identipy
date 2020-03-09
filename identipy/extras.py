@@ -195,6 +195,9 @@ def fragment_mass_optimization(results, settings, results_unf):
     fragmassdif = []
     I_all = []
 
+    results = sorted(results, key=lambda x: x['candidates'][0][5])[::-1]
+    r_l = len(results)
+    results = results[:int(r_l/2)]
 
     maxcharge = settings.getint('search', 'maximum charge')
     mincharge = settings.getint('search', 'minimum charge')
@@ -560,17 +563,17 @@ def fragment_mass_optimization(results, settings, results_unf):
     fragmassdif = np.array(fragmassdif)
     # fragmassdif_Da = np.array(fragmassdif_Da)
 
-    try:
-        import cPickle as pickle
-    except ImportError:
-        import pickle
-    filenamep = '/home/mark/2020_poster_Denmark/frag.pickle'
-    with open(filenamep, 'wb') as output:
-        pickle.dump(fragmassdif, output)
+    # try:
+    #     import cPickle as pickle
+    # except ImportError:
+    #     import pickle
+    # filenamep = '/home/mark/2020_poster_Denmark/frag.pickle'
+    # with open(filenamep, 'wb') as output:
+    #     pickle.dump(fragmassdif, output)
 
-    filenamep = '/home/mark/2020_poster_Denmark/iall.pickle'
-    with open(filenamep, 'wb') as output:
-        pickle.dump(I_all, output)
+    # filenamep = '/home/mark/2020_poster_Denmark/iall.pickle'
+    # with open(filenamep, 'wb') as output:
+    #     pickle.dump(I_all, output)
 
 
     # print(len(I_all), len(fragmassdif))
@@ -633,7 +636,7 @@ def fragment_mass_optimization(results, settings, results_unf):
         import cPickle as pickle
     except ImportError:
         import pickle
-    filenamep = '/home/mark/2020_poster_Denmark/rank_map_o.pickle'
+    filenamep = '/home/mark/2020_poster_Denmark/IPGF1.pickle'
     with open(filenamep, 'wb') as output:
         pickle.dump(rank_map, output)
 
@@ -700,7 +703,7 @@ def fragment_mass_optimization(results, settings, results_unf):
             for key, val in rank_map[chim][ch].items():
                 if key != 'u' and key != 'med':
                     all_vals.extend(list(val.values()))
-            rank_map[chim][ch]['m'] = min(all_vals) - np.log(1./4.)
+            rank_map[chim][ch]['m'] = min(all_vals)# - np.log(1./4.)
     for ch in range(mincharge, maxcharge+1, 1):
         for chim in [0, 1]:
             if ch not in rank_map[chim]:
@@ -731,7 +734,7 @@ def fragment_mass_optimization(results, settings, results_unf):
         import cPickle as pickle
     except ImportError:
         import pickle
-    filenamep = '/home/mark/2020_poster_Denmark/rank_map.pickle'
+    filenamep = '/home/mark/2020_poster_Denmark/IPGF1.pickle'
     with open(filenamep, 'wb') as output:
         pickle.dump(rank_map, output)
 
@@ -788,7 +791,7 @@ def fragment_mass_optimization(results, settings, results_unf):
         tres = get_fragment_mass_tol(res['spectrum'], str(res['candidates'][0][1]), settings, charge_state)
         # tres = get_fragment_mass_tol_ppm(res['spectrum'], str(res['candidates'][0][1]), settings, charge_state, acc_ppm=best_frag_mt)
         orig_acc = settings.getfloat('search', 'product accuracy')
-        settings.set('search', 'product accuracy', 50 * orig_acc)
+        settings.set('search', 'product accuracy', 2 * orig_acc)
         tresw = get_fragment_mass_tol(res['spectrum'], str(res['candidates'][0][1]), settings, charge_state)
         settings.set('search', 'product accuracy', orig_acc)
         all_ion_cur = tres['allions']
@@ -818,9 +821,25 @@ def fragment_mass_optimization(results, settings, results_unf):
         ttl_cnt_ions[k] = ttl_cnt_ions[k]# / sum(vv for kk, vv in ttl_cnt_d[0].items() if max(1, (kk - 1)) >= k[-1]) * 100
         ttl_cnt_ions[k] = ttl_cnt_ions[k] / ttl_cnt_ions_all[k] * 100
     print(ttl_cnt_ions)
+
+
+    try:
+        import cPickle as pickle
+    except ImportError:
+        import pickle
+    filenamep = '/home/mark/2020_poster_Denmark/ttl_cnt_ions_highres.pickle'
+    with open(filenamep, 'wb') as output:
+        pickle.dump(ttl_cnt_ions, output)
+
+    massdif = list(ttl_cnt_ions.values())
+    mass_shift, mass_sigma, covvalue = calibrate_mass(0.1, 0, 100, massdif)
+    print(mass_shift, mass_sigma, covvalue)
+    perc_threshold = mass_shift + 3 * mass_sigma
+    print(perc_threshold)
+
     allowed_ions = set()
     for k in ttl_cnt_ions:
-        if ttl_cnt_ions[k] >= 5.0:
+        if ttl_cnt_ions[k] >= perc_threshold:
             allowed_ions.add(k)
     settings.set('search', 'allowed_ions', allowed_ions)
 
@@ -850,13 +869,13 @@ def fragment_mass_optimization(results, settings, results_unf):
                 for kk in rank_mapw[chim][ch][k]:
                     rank_mapw[chim][ch][k][kk] = rank_mapw[chim][ch][k][kk] / ttl_cnt_d[chim][ch]
 
-    try:
-        import cPickle as pickle
-    except ImportError:
-        import pickle
-    filenamep = '/home/mark/2020_poster_Denmark/rank_map_o.pickle'
-    with open(filenamep, 'wb') as output:
-        pickle.dump(rank_map, output)
+    # try:
+    #     import cPickle as pickle
+    # except ImportError:
+    #     import pickle
+    # filenamep = '/home/mark/2020_poster_Denmark/IPGF1.pickle'
+    # with open(filenamep, 'wb') as output:
+    #     pickle.dump(rank_map, output)
 
     # for ch in list(rank_map.keys()):
     #     all_vals = []
@@ -910,12 +929,15 @@ def fragment_mass_optimization(results, settings, results_unf):
 
                         orig_v = rank_map[chim][ch][k].get(kk, 0)
                         ext_v = rank_mapw[chim][ch][k][kk]
-                        false_v = float(ext_v - orig_v) / 9
+                        false_v = float(ext_v - orig_v)# / 9
                         true_v = orig_v - false_v
+                        # false_v = ext_v#float(ext_v - orig_v)# / 9
+                        # true_v = orig_v# - false_v
 
 
-                        if false_v:
+                        if false_v and true_v:
                             rank_map[chim][ch][k][kk] = np.log(true_v / false_v)
+                            # rank_map[chim][ch][k][kk] = -np.log(true_v / false_v)
                             # rank_map[chim][ch][k][kk] = np.sqrt(true_v / false_v)
                         else:
                             # rank_map[chim][ch][k][kk] = np.log(1e4)
@@ -932,7 +954,7 @@ def fragment_mass_optimization(results, settings, results_unf):
             for k in list(rank_map[chim][ch].keys()):
                 all_vals = []
                 all_vals.extend(list(rank_map[chim][ch][k].values()))
-                if len(all_vals) <= 3:
+                if len(all_vals) == 0:
                     del rank_mapw[chim][ch][k]
                     del rank_map[chim][ch][k]
 
@@ -955,58 +977,20 @@ def fragment_mass_optimization(results, settings, results_unf):
             for key, val in rank_map[chim][ch].items():
                 if key != 'u' and key != 'med':
                     all_vals.extend(list(val.values()))
-            rank_map[chim][ch]['m'] = 0#min(all_vals)# - np.log(1./4.)
+            rank_map[chim][ch]['m'] = min(all_vals)# - np.log(1./4.)#0#min(all_vals)# - np.log(1./4.)
                         
-
-
-    # logger.info('NEW FRAGMENT MASS TOLERANCE Da = %s', best_frag_mt)
-    # settings.set('search', 'product accuracy', best_frag_mt)
-
-
-    # for chim in list(rank_map.keys()):
-    #     for ch in list(rank_map[chim].keys()):
-    #         all_vals = []
-    #         for k in rank_map[chim][ch]:
-    #             all_vals.extend(list(rank_map[chim][ch][k].values()))
-
-    #     # noise_mean, noise_sigma, covvalue = calibrate_mass(0.01, 0, 1.0, all_vals)
-
-
-    #         u_val = scoreatpercentile(all_vals, 1)
-    #         if len(all_vals) == 0:
-    #             del rank_map[chim][ch]
-    #         else:
-    #             # rank_map[ch]['u'] = np.median(all_vals) * 2
-    #             # rank_map[ch]['u'] = noise_mean + 3 * noise_sigma
-    #             rank_map[chim][ch]['u'] = u_val
-    #             # rank_map[ch]['u'] = 0.01
-    #             # rank_map[chim][ch]['u'] = np.std(all_vals)
-    #             # rank_map[chim][ch]['med'] = np.median(all_vals)
-    # for chim in rank_map:
-    #     for ch in rank_map[chim]:
-    #         for k in rank_map[chim][ch]:
-    #             if k != 'u' and k != 'med':
-    #                 for kk in list(rank_map[chim][ch][k].keys()):
-    #                     # rank_map[chim][ch][k][kk] = (float(rank_map[chim][ch][k][kk]) - rank_map[chim][ch]['med']) / rank_map[chim][ch]['u'] 
-    #                     # rank_map[ch][k][kk] = max(0, np.log(float(rank_map[ch][k][kk])/rank_map[ch]['u'])) 
-    #                     # min_val = min(rank_map[ch][k].values())
-    #                     # if not min_val:
-    #                     #     rank_map[ch][k][kk] = 0
-    #                     # else:
-    #                         # rank_map[ch][k][kk] = max(0, np.log(float(rank_map[ch][k][kk])/min_val))
-    #                     rank_map[chim][ch][k][kk] = np.log(float(rank_map[chim][ch][k][kk])/rank_map[chim][ch]['u'])
-    #                     # rank_map[chim][ch][k][kk] = max(0, np.log(float(rank_map[chim][ch][k][kk])/rank_map[chim][ch]['u']))
-    #         all_vals = []
-    #         for key, val in rank_map[chim][ch].items():
-    #             if key != 'u' and key != 'med':
-    #                 all_vals.extend(list(val.values()))
-    #         rank_map[chim][ch]['m'] = min(all_vals) - np.log(1./4.)
-
-
-
-
-
-
+    for chim in list(rank_map.keys()):
+        for ch in list(rank_map[chim].keys()):
+            for k in list(range(1, max(z for z in rank_map[chim][ch] if type(z) != str)+1, 1))[::-1]:
+                if k not in rank_map[chim][ch]:
+                    if k-1 in rank_map[chim][ch]:
+                        rank_map[chim][ch][k] = rank_map[chim][ch][k-1]
+                if k in list(rank_map[chim][ch].keys()):
+                    for kk in list(rank_map[chim][ch][1].keys()):
+                        if kk not in rank_map[chim][ch][k]:
+                            if k-1 in rank_map[chim][ch]:
+                                if kk in rank_map[chim][ch][k-1]:
+                                    rank_map[chim][ch][k][kk] = rank_map[chim][ch][k-1][kk]
 
     for ch in range(mincharge, maxcharge+1, 1):
         for chim in [0, 1]:
@@ -1018,55 +1002,18 @@ def fragment_mass_optimization(results, settings, results_unf):
                         rank_map[chim][ch] = rank_map[chim][ch+1]
                     except:
                         print('missing autofill for %d chim, %d charge' % (chim, ch))
-    # rank_map[1] = rank_map[2]
-    # rank_map[3] = rank_map[2]
-    # rank_map[4] = rank_map[2]
-    # rank_map[5] = rank_map[2]
     print(rank_map[0][2][1])
     print(rank_map[0][2][5])
-    try:
-        print(rank_map[0][2][10])
-        print(rank_map[0][2][15])
-        print(rank_map[0][2][25])
-    except:
-        pass
-    try:
-        print(rank_map[1][2][1])
-    except:
-        pass
-    # print(rank_map[4])
-    # print(rank_map)
-
-
-    # settings.set('search', 'product accuracy', orig_acc)
-
 
     try:
         import cPickle as pickle
     except ImportError:
         import pickle
-    filenamep = '/home/mark/2020_poster_Denmark/rank_map_o2.pickle'
+    filenamep = '/home/mark/2020_poster_Denmark/IPGF2.pickle'
     with open(filenamep, 'wb') as output:
         pickle.dump(rank_map, output)
 
-    # rank_map2 = pickle.load(filenamep)
-
-    # all_ions = set()
-    # for chim in rank_map2:
-    #     for ch in rank_map2[chim]:
-    #         for k in rank_map2[chim][ch]:
-    #             if k != 'u' and k != 'm':
-    #                 all_ions.update(rank_map2[chim][ch][k].keys())
-                    
-    # for ion in all_ions:
-    #     for chim in rank_map2:
-    #         for ch in rank_map2[chim]:
-    #             for idx in range(1, 51, 1):
-    #                 rank_map2[chim][ch][idx][ion] = max(rank_map2[chim][ch].get(idx-1, {}).get(ion, 0), rank_map2[chim][ch].get(idx, {}).get(ion, 0))
-
-
-
-    settings.set('search', 'rank_map_unf', rank_map)
+    settings.set('search', 'rank_map_unf', deepcopy(rank_map))
 
     return settings
 

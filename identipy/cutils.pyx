@@ -269,7 +269,7 @@ cdef tuple ctheor_spectrum(str peptide, double acc_frag, double nterm_mass, doub
                     else:
                         theoretical_set[iname] = ions_scaled
                 if nterminal:
-                    iname = (ion_type+str('-28'), charge)
+                    iname = (str('a'), charge)
                     if not use_allowed_ions or iname in allowed_ions:
                         ions_scaled = [<int>((x-27.994914619560063) / acc_frag) for x in marr]
                         if iname in theoretical_set:
@@ -277,8 +277,32 @@ cdef tuple ctheor_spectrum(str peptide, double acc_frag, double nterm_mass, doub
                             theoretical_set_item.extend(ions_scaled)
                         else:
                             theoretical_set[iname] = ions_scaled
+                    iname = (str('a-18'), charge)
+                    if not use_allowed_ions or iname in allowed_ions:
+                        ions_scaled = [<int>((x-27.994914619560063-18.0105646837) / acc_frag) for x in marr]
+                        if iname in theoretical_set:
+                            theoretical_set_item = <list>PyDict_GetItem(theoretical_set, iname)
+                            theoretical_set_item.extend(ions_scaled)
+                        else:
+                            theoretical_set[iname] = ions_scaled
+                    iname = (str('a-17'), charge)
+                    if not use_allowed_ions or iname in allowed_ions:
+                        ions_scaled = [<int>((x-27.994914619560063-17.02654910101) / acc_frag) for x in marr]
+                        if iname in theoretical_set:
+                            theoretical_set_item = <list>PyDict_GetItem(theoretical_set, iname)
+                            theoretical_set_item.extend(ions_scaled)
+                        else:
+                            theoretical_set[iname] = ions_scaled
+                    iname = (str('c'), charge)
+                    if not use_allowed_ions or iname in allowed_ions:
+                        ions_scaled = [<int>((x + 17.02654910100989) / acc_frag) for x in marr]
+                        if iname in theoretical_set:
+                            theoretical_set_item = <list>PyDict_GetItem(theoretical_set, iname)
+                            theoretical_set_item.extend(ions_scaled)
+                        else:
+                            theoretical_set[iname] = ions_scaled
                 else:
-                    iname = (ion_type+str('+26'), charge)
+                    iname = (str('x'), charge)
                     if not use_allowed_ions or iname in allowed_ions:
                         ions_scaled = [<int>((x+25.979264555419945) / acc_frag) for x in marr]
                         if iname in theoretical_set:
@@ -305,23 +329,20 @@ cdef tuple ctheor_spectrum(str peptide, double acc_frag, double nterm_mass, doub
                     if not use_allowed_ions or iname in allowed_ions:
                         peaks[iname] = marr_storage - 18.0105646837
                     if nterminal:
-                        iname = (ion_type+str('-28-17'), charge)
+                        iname = (str('a-17'), charge)
                         if not use_allowed_ions or iname in allowed_ions:
                             peaks[iname] = marr_storage - 27.994914619560063 - 17.02654910101
-                        iname = (ion_type+str('-28-18'), charge)
+                        iname = (str('a-18'), charge)
                         if not use_allowed_ions or iname in allowed_ions:
                             peaks[iname] = marr_storage - 27.994914619560063 - 18.0105646837
-                        iname = (ion_type+str('-28'), charge)
+                        iname = (str('a'), charge)
                         if not use_allowed_ions or iname in allowed_ions:
                             peaks[iname] = marr_storage - 27.994914619560063
+                        iname = (str('c'), charge)
+                        if not use_allowed_ions or iname in allowed_ions:
+                            peaks[iname] = marr_storage + 17.02654910100989
                     else:
-                        iname = (ion_type+str('+26-17'), charge)
-                        if not use_allowed_ions or iname in allowed_ions:
-                            peaks[iname] = marr_storage + 25.979264555419945 - 17.02654910101
-                        iname = (ion_type+str('+26-18'), charge)
-                        if not use_allowed_ions or iname in allowed_ions:
-                            peaks[iname] = marr_storage + 25.979264555419945 - 18.0105646837
-                        iname = (ion_type+str('+26'), charge)
+                        iname = (str('x'), charge)
                         if not use_allowed_ions or iname in allowed_ions:
                             peaks[iname] = marr_storage + 25.979264555419945
             else:
@@ -336,25 +357,22 @@ cdef tuple ctheor_spectrum(str peptide, double acc_frag, double nterm_mass, doub
                     if not use_allowed_ions or iname in allowed_ions:
                         peaks[iname] = sorted([z - 18.0105646837 for z in marr])
                     if nterminal:
-                        iname = (ion_type+str('-28'), charge)
+                        iname = (str('a'), charge)
                         if not use_allowed_ions or iname in allowed_ions:
                             peaks[iname] = sorted([z - 27.994914619560063 for z in marr])
-                        iname = (ion_type+str('-28-17'), charge)
+                        iname = (str('c'), charge)
+                        if not use_allowed_ions or iname in allowed_ions:
+                            peaks[iname] = sorted([z + 17.02654910100989 for z in marr])
+                        iname = (str('a-17'), charge)
                         if not use_allowed_ions or iname in allowed_ions:
                             peaks[iname] = sorted([z - 27.994914619560063 - 17.02654910101 for z in marr])
-                        iname = (ion_type+str('-28-18'), charge)
+                        iname = (str('a-18'), charge)
                         if not use_allowed_ions or iname in allowed_ions:
                             peaks[iname] = sorted([z - 27.994914619560063 - 18.0105646837 for z in marr])
                     else:
-                        iname = (ion_type+str('+26'), charge)
+                        iname = (ion_type+str('x'), charge)
                         if not use_allowed_ions or iname in allowed_ions:
                             peaks[iname] = sorted([z + 25.979264555419945 for z in marr])
-                        iname = (ion_type+str('+26-17'), charge)
-                        if not use_allowed_ions or iname in allowed_ions:
-                            peaks[iname] = sorted([z + 25.979264555419945 - 17.02654910101 for z in marr])
-                        iname = (ion_type+str('+26-18'), charge)
-                        if not use_allowed_ions or iname in allowed_ions:
-                            peaks[iname] = sorted([z + 25.979264555419945 - 18.0105646837 for z in marr])
     return peaks, theoretical_set
 
 
