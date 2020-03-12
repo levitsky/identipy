@@ -79,8 +79,8 @@ def optimization(fname, settings):
     filtered = get_subset(results, settings, fdr=0.01)
     filtered = get_peptides_subset(filtered)
     logger.info('%s PSMs with 1%% FDR.', len(filtered))
-    if len(filtered) < 50:
-        if len(filtered) < 10:
+    if len(filtered) < 250:
+        if len(filtered) < 250:
             logger.warning('OPTIMIZATION ABORTED')
             return settings
         else:
@@ -194,10 +194,6 @@ def fragment_mass_optimization(results, settings, results_unf):
     settings = settings.copy()
     fragmassdif = []
     I_all = []
-
-    results = sorted(results, key=lambda x: x['candidates'][0][5])[::-1]
-    r_l = len(results)
-    results = results[:int(r_l/2)]
 
     maxcharge = settings.getint('search', 'maximum charge')
     mincharge = settings.getint('search', 'minimum charge')
@@ -832,10 +828,17 @@ def fragment_mass_optimization(results, settings, results_unf):
         pickle.dump(ttl_cnt_ions, output)
 
     massdif = list(ttl_cnt_ions.values())
-    mass_shift, mass_sigma, covvalue = calibrate_mass(0.1, 0, 100, massdif)
-    print(mass_shift, mass_sigma, covvalue)
-    perc_threshold = mass_shift + 3 * mass_sigma
-    print(perc_threshold)
+    try:
+        mass_shift, mass_sigma, covvalue = calibrate_mass(0.1, 0, 100, massdif)
+        print(mass_shift, mass_sigma, covvalue)
+        perc_threshold = mass_shift + 3 * mass_sigma
+        print(perc_threshold)
+    except:
+        perc_threshold = 5
+        print(perc_threshold)
+    if perc_threshold < 0:
+        perc_threshold = 5
+        print(perc_threshold)
 
     allowed_ions = set()
     for k in ttl_cnt_ions:

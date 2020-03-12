@@ -411,7 +411,10 @@ def peptide_processor(peptide, best_res, **kwargs):
                                 if not reshaped[fc]:
                                     theor[fc] = reshape_theor_spectrum(theor[fc])
                                     reshaped[fc] = True
-                                score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos, bions_map=bions_map[chim][spcharge], yions_map=yions_map[chim][spcharge])#, xions_map=xions_map[chim][spcharge])#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
+                                if bions_map:
+                                    score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos, bions_map=bions_map[chim][spcharge], yions_map=yions_map[chim][spcharge])#, xions_map=xions_map[chim][spcharge])#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
+                                else:
+                                    score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos)#, xions_map=xions_map[chim][spcharge])#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
                                 sc = score.pop('score')
                             if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
                                 results.append((sc, st, charges[i], score))
@@ -419,7 +422,10 @@ def peptide_processor(peptide, best_res, **kwargs):
                 if not reshaped[fc]:
                     theor[fc] = reshape_theor_spectrum(theor[fc])
                     reshaped[fc] = True
-                score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos, bions_map=bions_map[chim][spcharge], yions_map=yions_map[chim][spcharge])#, xions_map=xions_map[chim][spcharge])#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
+                if bions_map:
+                    score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos, bions_map=bions_map[chim][spcharge], yions_map=yions_map[chim][spcharge])#, xions_map=xions_map[chim][spcharge])#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
+                else:
+                    score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos)#, xions_map=xions_map[chim][spcharge])#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
                 sc = score.pop('score')
                 if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
                     results.append((sc, st, charges[i], score))

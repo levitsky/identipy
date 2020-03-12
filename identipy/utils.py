@@ -1635,7 +1635,7 @@ def write_output(inputfile, settings, results):
 
     return writer(inputfile, settings, results)
 
-def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
+def demix_chimeric(path_to_features, path_to_mzml, isolation_window, demixing=False):
 
     basename_mzml = os.path.splitext(path.basename(path_to_mzml))[0]
 
@@ -1666,16 +1666,23 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
             except:
                 # logger.info('missing ion mob')
                 ion_mob = 0.0
+            try:
+                ch = int(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['charge state'])
+            except:
+                ch = 0
+
             title = a['id']
             mzs.append(pepmass)
             RTs.append(RT)
             ionmobs.append(ion_mob)
+            chs.append(ch)
             titles.append(title)
             ms2_map[title] = a
 
     mzs = np.array(mzs)
     RTs = np.array(RTs)
     ionmobs = np.array(ionmobs)
+    chs = np.array(chs)
     titles = np.array(titles)
     idx = np.argsort(mzs)
     mzs = mzs[idx]
@@ -1687,8 +1694,8 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
     if 'sulfur' not in df1.columns:
         df1['sulfur'] = 0
     df1['MSMS'] = df1.apply(findMSMS, axis=1, args = (isolation_window_left, isolation_window_right, mzs, RTs, titles, ionmobs))
-    df1['MSMS_accurate'] = df1.apply(findMSMS_accurate, axis=1, args = (mzs, RTs, titles, ionmobs))
-
+    df1['MSMS_accurate'] = df1.apply(findMSMS_accurate, axis=1, args = (mzs, RTs, titles, ionmobs, chs))
+    
     outmgf_name = os.path.splitext(path_to_mzml)[0] + '_identipy' + os.extsep + 'mgf'
     outmgf = open(outmgf_name, 'w')
 
@@ -1697,60 +1704,109 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window):
 
     added_MSMS = set()
 
-    for z in df1[['mz', 'rtApex', 'charge', 'intensityApex', 'MSMS', 'MSMS_accurate', 'rtStart', 'rtEnd', 'ion_mobility', 'sulfur']].values:
-        mz, RT, ch, Intensity, ttls, ttl_ac, rt_ll, rt_rr, ion_mob, sulfur = z[0], z[1], z[2], z[3], z[4], z[5], z[6], z[7], z[8], z[9]
-        if ttls:
-            f_i += 1
-            for ttl in ttls:
-                if ttl in ttl_ac:
-                    added_MSMS.add(ttl)
-                mz_arr, I_arr = ms2_map[ttl]['m/z array'], ms2_map[ttl]['intensity array']
-                pepmass = float(ms2_map[ttl]['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
-                t_i_orig = ms2_map[ttl]['index']
+    if demixing:
+
+        for z in df1[['mz', 'rtApex', 'charge', 'intensityApex', 'MSMS', 'MSMS_accurate', 'rtStart', 'rtEnd', 'ion_mobility', 'sulfur']].values:
+            mz, RT, ch, Intensity, ttls, ttl_ac, rt_ll, rt_rr, ion_mob, sulfur = z[0], z[1], z[2], z[3], z[4], z[5], z[6], z[7], z[8], z[9]
+            if ttls:
+                f_i += 1
+                for ttl in ttls:
+                    if ttl in ttl_ac:
+                        added_MSMS.add(ttl)
+                    mz_arr, I_arr = ms2_map[ttl]['m/z array'], ms2_map[ttl]['intensity array']
+                    pepmass = float(ms2_map[ttl]['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
+                    t_i_orig = ms2_map[ttl]['index']
+                    outmgf.write('BEGIN IONS\n')
+                    outmgf.write('TITLE=%s.%d.%d.%d.%d\n' % (basename_mzml, t_i_orig, t_i, t_i, ch))
+                    outmgf.write('RTINSECONDS=%f\n' % (RT * 60, ))
+                    outmgf.write('PEPMASS=%f %f\n' % (mz, Intensity))
+                    outmgf.write('CHARGE=%d+\n' % (ch, ))
+                    outmgf.write('ISOWIDTHDIFF=%f\n' % (mz - pepmass, ))
+                    outmgf.write('RTwidth=%f\n' % (rt_rr - rt_ll, ))
+                    outmgf.write('MS1Intensity=%f\n' % (Intensity, ))
+                    outmgf.write('IonMobility=%f\n' % (ion_mob, ))
+                    outmgf.write('Sulfur=%f\n' % (sulfur, ))
+                    for mz_val, I_val in zip(mz_arr, I_arr):
+                        outmgf.write('%f %f\n' % (mz_val, I_val))
+                    outmgf.write('END IONS\n\n')
+                    t_i += 1
+
+        for k in ms2_map:
+            if k not in added_MSMS:
+                f_i += 1
+                a = ms2_map[k]
+                mz_arr, I_arr = a['m/z array'], a['intensity array']
+                mz = float(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
+                RT = float(a['scanList']['scan'][0]['scan start time'])
+                t_i_orig = a['index']
+                try:
+                    ch = int(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['charge state'])
+                except:
+                    ch = ''
                 outmgf.write('BEGIN IONS\n')
-                outmgf.write('TITLE=%s.%d.%d.%d.%d\n' % (basename_mzml, t_i_orig, t_i, t_i, ch))
+                outmgf.write('TITLE=%s.%d.%d.%d.%s\n' % (basename_mzml, t_i_orig, t_i, t_i, str(ch)))
                 outmgf.write('RTINSECONDS=%f\n' % (RT * 60, ))
-                outmgf.write('PEPMASS=%f %f\n' % (mz, Intensity))
-                outmgf.write('CHARGE=%d+\n' % (ch, ))
-                outmgf.write('ISOWIDTHDIFF=%f\n' % (mz - pepmass, ))
-                outmgf.write('RTwidth=%f\n' % (rt_rr - rt_ll, ))
-                outmgf.write('MS1Intensity=%f\n' % (Intensity, ))
-                outmgf.write('IonMobility=%f\n' % (ion_mob, ))
-                outmgf.write('Sulfur=%f\n' % (sulfur, ))
+                outmgf.write('PEPMASS=%f %f\n' % (mz, 0))
+                if ch:
+                    outmgf.write('CHARGE=%d+\n' % (ch, ))
+                outmgf.write('ISOWIDTHDIFF=%f\n' % (0.0, ))
+                outmgf.write('RTwidth=%f\n' % (0.0, ))
+                outmgf.write('MS1Intensity=%f\n' % (0.0, ))
+                outmgf.write('IonMobility=%f\n' % (0.0, ))
+                outmgf.write('Sulfur=%f\n' % (-1.0, ))
                 for mz_val, I_val in zip(mz_arr, I_arr):
                     outmgf.write('%f %f\n' % (mz_val, I_val))
                 outmgf.write('END IONS\n\n')
                 t_i += 1
 
-
-    for k in ms2_map:
-        if k not in added_MSMS:
-            f_i += 1
+    else:
+        
+        MS2_acc_map = {}
+        
+        for z in df1[['mz', 'rtApex', 'charge', 'intensityApex', 'MSMS', 'MSMS_accurate', 'rtStart', 'rtEnd', 'ion_mobility', 'sulfur']].values:
+            ttl_ac = z[5]
+            for ttl in ttl_ac:
+                if ttl not in MS2_acc_map:
+                    MS2_acc_map[ttl] = z
+                else:
+                    if MS2_acc_map[ttl][3] < z[3]:
+                        MS2_acc_map[ttl] = z
+                        
+        
+        for k in ms2_map:
             a = ms2_map[k]
+            
+            if 0 and k in MS2_acc_map:
+                mz, RT, ch, Intensity, ttls, ttl_ac, rt_ll, rt_rr, ion_mob, sulfur = z[0], z[1], z[2], z[3], z[4], z[5], z[6], z[7], z[8], z[9]
+            else:
+                mz = float(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
+                RT = float(a['scanList']['scan'][0]['scan start time'])
+                try:
+                    ch = int(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['charge state'])
+                except:
+                    ch = 0
+                Intensity, ttls, ttl_ac, rt_ll, rt_rr, ion_mob, sulfur = 0, 0, 0, 0, 0, 0, 0
+                
+            
             mz_arr, I_arr = a['m/z array'], a['intensity array']
-            mz = float(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
-            RT = float(a['scanList']['scan'][0]['scan start time'])
+#             mz = float(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
+#             RT = float(a['scanList']['scan'][0]['scan start time'])
             t_i_orig = a['index']
-            try:
-                ch = int(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['charge state'])
-            except:
-                ch = ''
             outmgf.write('BEGIN IONS\n')
             outmgf.write('TITLE=%s.%d.%d.%d.%s\n' % (basename_mzml, t_i_orig, t_i, t_i, str(ch)))
             outmgf.write('RTINSECONDS=%f\n' % (RT * 60, ))
-            outmgf.write('PEPMASS=%f %f\n' % (mz, 0))
+            outmgf.write('PEPMASS=%f %f\n' % (mz, Intensity))
             if ch:
                 outmgf.write('CHARGE=%d+\n' % (ch, ))
-            outmgf.write('ISOWIDTHDIFF=%f\n' % (0.0, ))
-            outmgf.write('RTwidth=%f\n' % (0.0, ))
-            outmgf.write('MS1Intensity=%f\n' % (0.0, ))
-            outmgf.write('IonMobility=%f\n' % (0.0, ))
-            outmgf.write('Sulfur=%f\n' % (-1.0, ))
+            outmgf.write('ISOWIDTHDIFF=%f\n' % 0)
+            outmgf.write('RTwidth=%f\n' % (rt_rr - rt_ll, ))
+            outmgf.write('MS1Intensity=%f\n' % (Intensity, ))
+            outmgf.write('IonMobility=%f\n' % (ion_mob, ))
+            outmgf.write('Sulfur=%f\n' % (sulfur, ))
             for mz_val, I_val in zip(mz_arr, I_arr):
                 outmgf.write('%f %f\n' % (mz_val, I_val))
             outmgf.write('END IONS\n\n')
             t_i += 1
-
     outmgf.close()
 
     return outmgf_name
@@ -1774,10 +1830,11 @@ def findMSMS(raw, isolation_window_left, isolation_window_right, mzs, RTs, title
     else:
         return None
 
-def findMSMS_accurate(raw, mzs, RTs, titles, ionmobs):
+def findMSMS_accurate(raw, mzs, RTs, titles, ionmobs, chs):
     out = set()
     acc = 10
     mz = raw['mz']
+    ch = raw['charge']
     RT_l = raw['rtStart']
     RT_r = raw['rtEnd']
     ion_mob_p = raw['ion_mobility']
@@ -1787,7 +1844,9 @@ def findMSMS_accurate(raw, mzs, RTs, titles, ionmobs):
     for idx, RT in enumerate(RTs[id_l:id_r]):
         if RT_l <= RT <= RT_r:
             if abs(ionmobs[id_l+idx] - ion_mob_p) <= 0.1:
-                out.add(titles[id_l+idx])
+                ch_msms = chs[id_l+idx]
+                if not ch_msms or ch_msms == ch:
+                    out.add(titles[id_l+idx])
             # return True
     # return False
     return out
