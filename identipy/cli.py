@@ -122,6 +122,7 @@ def run():
     parser.add_argument('-tags',    help='Add quantitation tags to the pepXML output. Can be tmt10plex, tmt6plex, tmt11plex or custom format label1:mass1,label2:mass2...')
     parser.add_argument('-debug',  help='Print debugging messages', action='store_true')
     parser.add_argument('-dino', help='path to Dinosaur. Used for chimeric spectrum processing and MS1 Intensity calculation', default=False)
+    parser.add_argument('-demixing',      help='Use demixing', action='store_true')
 
     args = vars(parser.parse_args())
     if args['debug']:
@@ -225,6 +226,7 @@ def run():
     inputfile = args['file']
 
     dino_path = args['dino']
+    demixing = args['demixing']
     if dino_path:
         if os.path.splitext(inputfile)[1].lower() != '.mzml':
             logger.info('Only mzml supported for Dinosaur!\n')
@@ -239,7 +241,7 @@ def run():
                     subprocess.call([os.path.realpath(dino_path), inputfile, '-out', path_to_features], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 path_to_features = os.path.splitext(inputfile)[0] + os.extsep + 'features' + os.extsep + 'tsv'
                 logger.info('Start demultiplexing...\n')
-                path_to_mgf = utils.demix_chimeric(path_to_features, inputfile, 0.65)
+                path_to_mgf = utils.demix_chimeric(path_to_features, inputfile, 0.65, demixing)
                 logger.info('Demultiplexing was finished...\n')
                 utils.write_output(path_to_mgf, settings, main.process_file(path_to_mgf, settings))
                 return
