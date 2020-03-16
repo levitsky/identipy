@@ -321,8 +321,13 @@ def peptide_processor(peptide, best_res, **kwargs):
     if kwargs['fast first stage']:
         use_allowed_ions = 1
         allowed_ions = {('b', 1), ('y', 1), ('a', 1), ('c', 1), ('x', 1), ('y-17', 1)}
+    if not use_allowed_ions:
+        use_allowed_ions = 1
+        allowed_ions = {('b', 1), ('y', 1), ('a', 1), ('c', 1), ('x', 1), ('y-17', 1)}
     bions_map = kwargs.get('rank_map')
     yions_map = kwargs.get('rank_map_unf')
+
+    # print(bions_map, use_allowed_ions, allowed_ions)
     # xions_map = kwargs.get('rank_map_unf_new')
 
     # logger.info(bions_map)
@@ -450,7 +455,7 @@ def process_peptides(fname, settings):
         kwargs['rank_map_unf'] = settings.get('search', 'rank_map_unf')
         # kwargs['rank_map_unf_new'] = settings.get('search', 'rank_map_unf_new')
         kwargs['allowed_ions'] = settings.get('search', 'allowed_ions')
-        kwargs['use_allowed_ions'] = 1
+        kwargs['use_allowed_ions'] = settings.get('search', 'use_allowed_ions')
     except:
         kwargs['rank_map'] = False
         kwargs['rank_map_unf'] = False
