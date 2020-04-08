@@ -1687,6 +1687,8 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window, demixing=Fa
     idx = np.argsort(mzs)
     mzs = mzs[idx]
     RTs = RTs[idx]
+    ionmobs = ionmobs[idx]
+    chs = chs[idx]
     titles = titles[idx]
 
     if 'ion_mobility' not in df1.columns:
@@ -1695,6 +1697,7 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window, demixing=Fa
         df1['sulfur'] = 0
     df1['MSMS'] = df1.apply(findMSMS, axis=1, args = (isolation_window_left, isolation_window_right, mzs, RTs, titles, ionmobs))
     df1['MSMS_accurate'] = df1.apply(findMSMS_accurate, axis=1, args = (mzs, RTs, titles, ionmobs, chs))
+    # print(df1['MSMS_accurate'])
     
     outmgf_name = os.path.splitext(path_to_mzml)[0] + '_identipy' + os.extsep + 'mgf'
     outmgf = open(outmgf_name, 'w')
@@ -1772,11 +1775,14 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window, demixing=Fa
                     if MS2_acc_map[ttl][3] < z[3]:
                         MS2_acc_map[ttl] = z
                         
+        # print(MS2_acc_map)
         
         for k in ms2_map:
             a = ms2_map[k]
             
-            if 0 and k in MS2_acc_map:
+            if k in MS2_acc_map:
+                # print('HERE, ok')
+                z = MS2_acc_map[k]
                 mz, RT, ch, Intensity, ttls, ttl_ac, rt_ll, rt_rr, ion_mob, sulfur = z[0], z[1], z[2], z[3], z[4], z[5], z[6], z[7], z[8], z[9]
             else:
                 mz = float(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])

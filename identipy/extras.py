@@ -796,6 +796,13 @@ def fragment_mass_optimization(results, settings, results_unf):
             all_ion_cur = tres['allions']
             all_ion_curI = tres['allionsI']
             for ion in all_ion_cur:
+    #     print('IPGF scores deactivated!')
+    #     settings.set('search', 'rank_map', False)
+    #     settings.set('search', 'rank_map_unf', False)
+    #     settings.set('search', 'bions_map', False)
+    #     settings.set('search', 'yions_map', False)
+    #     settings.set('search', 'allowed_ions', set())
+    #     settings.set('search'
                 idx2 = 0
                 for idx, b_cur in enumerate(all_ion_cur[ion]):
                     if b_cur:
@@ -962,6 +969,13 @@ def fragment_mass_optimization(results, settings, results_unf):
                     all_vals.extend(list(rank_map[chim][ch][k].values()))
                     if len(all_vals) == 0:
                         del rank_mapw[chim][ch][k]
+    #     print('IPGF scores deactivated!')
+    #     settings.set('search', 'rank_map', False)
+    #     settings.set('search', 'rank_map_unf', False)
+    #     settings.set('search', 'bions_map', False)
+    #     settings.set('search', 'yions_map', False)
+    #     settings.set('search', 'allowed_ions', set())
+    #     settings.set('search'
                         del rank_map[chim][ch][k]
 
         for chim in list(rank_map.keys()):
@@ -975,7 +989,6 @@ def fragment_mass_optimization(results, settings, results_unf):
                     del rank_map[chim][ch]
                 else:
                     print('OK %d %d' % (len(all_vals), ch))
-
 
         for chim in rank_map:
             for ch in rank_map[chim]:
@@ -992,7 +1005,7 @@ def fragment_mass_optimization(results, settings, results_unf):
                         if k-1 in rank_map[chim][ch]:
                             rank_map[chim][ch][k] = rank_map[chim][ch][k-1]
                     if k in list(rank_map[chim][ch].keys()):
-                        for kk in list(rank_map[chim][ch][1].keys()):
+                        for kk in allowed_ions:
                             if kk not in rank_map[chim][ch][k]:
                                 if k-1 in rank_map[chim][ch]:
                                     if kk in rank_map[chim][ch][k-1]:
@@ -1000,7 +1013,7 @@ def fragment_mass_optimization(results, settings, results_unf):
 
         for ch in range(mincharge, maxcharge+1, 1):
             for chim in [0, 1]:
-                if ch not in rank_map[chim]:
+                if chim in rank_map and ch not in rank_map[chim]:
                     try:
                         rank_map[chim][ch] = rank_map[chim][ch-1]
                     except:
