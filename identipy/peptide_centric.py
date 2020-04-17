@@ -6,6 +6,7 @@ import random
 from bisect import bisect
 from pyteomics import parser, mass, fasta, auxiliary as aux, mgf, mzml
 from . import scoring, utils
+from multiprocessing import cpu_count
 import logging
 logger = logging.getLogger(__name__)
 from copy import copy
@@ -28,37 +29,51 @@ from .cutils import RNHS_ultrafast
 
 def prepare_peptide_processor(fname, settings):
 
-    global spectra
-    global nmasses
-    global nmasses_set
-    global titles
-    global t2s
-    global charges
-    global effcharges
-    # global best_res
-    global fulls_global
-    # spectra = {}
-    # titles = {}
-    # best_res = {}
-    # nmasses = {}
-    # t2s = {}
-    # charges = {}
-    spectra = []
-    titles = []
-    nmasses = []
-    charges = []
-    effcharges = []
-    fulls_global = {}
+    # global spectra
+    # global nmasses
+    # global nmasses_set
+    # global titles
+    # global t2s
+    # global charges
+    # global effcharges
+    # global fulls_global
 
-    nmasses_set = set()
+    global_data = list()
+    n_proc = settings.getint('performance', 'processes')
+    if n_proc == 0:
+        try:
+            n_proc = cpu_count()
+        except NotImplementedError:
+            n_proc = 1
+    for _ in range(n_proc):
+        global_data.append({
+            'spectra': [],
+            'titles': [],
+            'nmasses': [],
+            'nmasses_set': set(),
+            't2s': {},
+            'charges': [],
+            'effcharges': [],
+            'fulls_global': {},
+        })
+
+    print(len(global_data), 'global data')
+
+    # spectra = []
+    # titles = []
+    # nmasses = []
+    # charges = []
+    # effcharges = []
+    # fulls_global = {}
+
+    # nmasses_set = set()
 
     try:
         fast_first_stage = settings.getint('misc', 'fast first stage')
     except:
         fast_first_stage = 0
 
-    t2s = {}
-    best_res = {}
+    # t2s = {}
     maxcharges = {}
     fcharge = settings.getint('scoring', 'maximum fragment charge')
     ch_range = range(settings.getint('search', 'minimum charge'),
@@ -92,133 +107,122 @@ def prepare_peptide_processor(fname, settings):
         prec_acc_Da = prec_acc_Da
     #     prec_acc_Da = prec_acc_Da * 1e-6 * 5000
 
-    if not spectra:
-        logger.info('Reading spectra ...')
-        if not rapid_check:
-            tmp_spec = utils.iterate_spectra(fname)
-        else:
-            tmp_spec = [spec for spec in utils.iterate_spectra(fname)]
-            if len(tmp_spec) >= 2000:
-                tmp_spec = random.sample(tmp_spec, 2000)
-        for spec in tmp_spec:
-            ps = utils.preprocess_spectrum(spec, params)
-            if ps is not None:
-                ttl = utils.get_title(ps)
-                t2s[ttl] = ps
-                for m, c in utils.neutral_masses(ps, params):
-                    effc = maxcharges[c]
-                    # nmasses.setdefault(effc, []).append(m)
-                    # spectra.setdefault(effc, []).append(ps)
-                    # titles.setdefault(effc, []).append(ttl)
-                    # charges.setdefault(effc, []).append(c)
-                    nmasses.append(m)
-                    spectra.append(ps)
-                    titles.append(ttl)
-                    charges.append(c)
-                    effcharges.append(effc)
-                    ps.setdefault('nm', {})[c] = m
-        num_spectra = len(spectra)
-        # num_spectra = sum(map(len, spectra.itervalues()))
-        logger.info('%s spectra pass quality criteria.', num_spectra)
-
-            # for specs, ttls in zip(spectra[c], titles[c]):
-            #     for tmpval in specs['idict']:
-            #         fulls_global[tmpval].append(ttls)
-
-        # logger.info(list(fulls_global.items())[:1])
-
+    # if not spectra:
+    logger.info('Reading spectra ...')
+    if not rapid_check:
+        tmp_spec = utils.iterate_spectra(fname)
     else:
-        num_spectra = len(spectra)
-        # num_spectra = sum(map(len, spectra.itervalues()))
-        logger.info('Reusing %s spectra from previous run.', num_spectra)
+        tmp_spec = [spec for spec in utils.iterate_spectra(fname)]
+        if len(tmp_spec) >= 2000:
+            tmp_spec = random.sample(tmp_spec, 2000)
 
-    fulls_global = {}
-    i = np.argsort(nmasses)
-    nmasses = np.array(nmasses)[i]
-    spectra = np.array(spectra)[i]
-    titles = np.array(titles)[i]
-    charges = np.array(charges)[i]
-    effcharges = np.array(effcharges)[i]
+    num_spectra = 0
+
+    tmp_spec2 = []
+    nmasses_tmp = []
+    charges_tmp = []
+    global_data_index_map = {}
+
+    for spec in tmp_spec:
+        ps = utils.preprocess_spectrum(spec, params)
+        if ps is not None:
+
+            tmp_spec2.append(ps)
+            for m, c in utils.neutral_masses(ps, params):
+                nmasses_tmp.append(m)
+                charges_tmp.append(c)
+
+    nmasses_tmp = np.array(nmasses_tmp)
+    idx_t = np.argsort(nmasses_tmp)
+    max_l = int(len(nmasses_tmp)/n_proc)+1
+    for idx, k in enumerate(idx_t):
+        global_data_index_map[k] = idx / max_l
+    # print(global_data_index_map)
+
+    for ps in tmp_spec2:
+        # global_data_index = num_spectra % n_proc
+        ttl = utils.get_title(ps)
+        # t2s[ttl] = ps
+        for m, c in utils.neutral_masses(ps, params):
+            global_data_index = global_data_index_map[num_spectra]
+            effc = maxcharges[c]
+            ps.setdefault('nm', {})[c] = m
+
+            global_data[global_data_index]['t2s'][ttl] = ps
+            global_data[global_data_index]['nmasses'].append(m)
+            global_data[global_data_index]['spectra'].append(ps)
+            global_data[global_data_index]['titles'].append(ttl)
+            global_data[global_data_index]['charges'].append(c)
+            global_data[global_data_index]['effcharges'].append(effc)
+
+            # nmasses.append(m)
+            # spectra.append(ps)
+            # titles.append(ttl)
+            # charges.append(c)
+            # effcharges.append(effc)
+
+            num_spectra += 1
+    logger.info('%s spectra pass quality criteria.', num_spectra)
+    
+    # else:
+    #     num_spectra = len(spectra)
+    #     # num_spectra = sum(map(len, spectra.itervalues()))
+    #     logger.info('Reusing %s spectra from previous run.', num_spectra)
 
     if not ptol_unit == 'Da':
-        max_prec_acc_Da = max(nmasses) * 1e-6 * max(abs(lptol), abs(rptol))
+        max_prec_acc_Da = max((max(global_data_local['nmasses']) for global_data_local in global_data)) * 1e-6 * max(abs(lptol), abs(rptol))
     else:
         max_prec_acc_Da = max(abs(lptol), abs(rptol))
-    tmp = (nmasses / max_prec_acc_Da).astype(int)
-    nmasses_set.update(tmp)
-    nmasses_set.update(tmp+1)
-    nmasses_set.update(tmp-1)
 
-    if prec_acc_Da:
-        nmasses_conv = nmasses / prec_acc_Da
-        nmasses_conv = nmasses_conv.astype(int)
 
-        tmp_dict = {}
-        for idx, nm in enumerate(nmasses_conv):
-            if nm not in tmp_dict:
-                tmp_dict[nm] = {}
-            if nm+1 not in tmp_dict:
-                tmp_dict[nm+1] = {}
-            if nm-1 not in tmp_dict:
-                tmp_dict[nm-1] = {}
-            for spval in spectra[idx]['idict']:
-                if spval not in tmp_dict[nm]:
-                    tmp_dict[nm][spval] = [idx, ]
-                else:
-                    tmp_dict[nm][spval].append(idx)
-                if spval not in tmp_dict[nm+1]:
-                    tmp_dict[nm+1][spval] = [idx, ]
-                else:
-                    tmp_dict[nm+1][spval].append(idx)
-                if spval not in tmp_dict[nm-1]:
-                    tmp_dict[nm-1][spval] = [idx, ]
-                else:
-                    tmp_dict[nm-1][spval].append(idx)
+    for global_data_index in range(n_proc):
 
-        del nmasses_conv
+        i = np.argsort(global_data[global_data_index]['nmasses'])
+        global_data[global_data_index]['nmasses'] = np.array(global_data[global_data_index]['nmasses'])[i]
+        global_data[global_data_index]['spectra'] = np.array(global_data[global_data_index]['spectra'])[i]
+        global_data[global_data_index]['titles'] = np.array(global_data[global_data_index]['titles'])[i]
+        global_data[global_data_index]['charges'] = np.array(global_data[global_data_index]['charges'])[i]
+        global_data[global_data_index]['effcharges'] = np.array(global_data[global_data_index]['effcharges'])[i]
 
-        fulls_global = tmp_dict
+        tmp = (global_data[global_data_index]['nmasses'] / max_prec_acc_Da).astype(int)
+        global_data[global_data_index]['nmasses_set'].update(tmp)
+        global_data[global_data_index]['nmasses_set'].update(tmp+1)
+        global_data[global_data_index]['nmasses_set'].update(tmp-1)
 
-    # fulls_global = {}
-    # for c in list(spectra):
-    #     i = np.argsort(nmasses[c])
-    #     nmasses[c] = np.array(nmasses[c])[i]
-    #     spectra[c] = np.array(spectra[c])[i]
-    #     titles[c] = np.array(titles[c])[i]
-    #     charges[c] = np.array(charges[c])[i]
+        if prec_acc_Da:
+            nmasses_conv = global_data[global_data_index]['nmasses'] / prec_acc_Da
+            nmasses_conv = nmasses_conv.astype(int)
 
-    #     if prec_acc_Da:
-    #         nmasses_conv = nmasses[c] / prec_acc_Da
-    #         nmasses_conv = nmasses_conv.astype(int)
+            tmp_dict = {}
+            for idx, nm in enumerate(nmasses_conv):
+                if nm not in tmp_dict:
+                    tmp_dict[nm] = {}
+                if nm+1 not in tmp_dict:
+                    tmp_dict[nm+1] = {}
+                if nm-1 not in tmp_dict:
+                    tmp_dict[nm-1] = {}
+                for spval in global_data[global_data_index]['spectra'][idx]['idict']:
+                    if spval not in tmp_dict[nm]:
+                        tmp_dict[nm][spval] = [idx, ]
+                    else:
+                        tmp_dict[nm][spval].append(idx)
+                    if spval not in tmp_dict[nm+1]:
+                        tmp_dict[nm+1][spval] = [idx, ]
+                    else:
+                        tmp_dict[nm+1][spval].append(idx)
+                    if spval not in tmp_dict[nm-1]:
+                        tmp_dict[nm-1][spval] = [idx, ]
+                    else:
+                        tmp_dict[nm-1][spval].append(idx)
 
-    #         tmp_dict = {}
-    #         for idx, nm in enumerate(nmasses_conv):
-    #             if nm not in tmp_dict:
-    #                 tmp_dict[nm] = {}#defaultdict(list)
-    #             if nm+1 not in tmp_dict:
-    #                 tmp_dict[nm+1] = {}#defaultdict(list)
-    #             if nm-1 not in tmp_dict:
-    #                 tmp_dict[nm-1] = {}#defaultdict(list)
-    #             for spval in spectra[c][idx]['idict']:
-    #                 # tmp_dict[nm][spval].append(idx)
-    #                 # tmp_dict[nm+1][spval].append(idx)
-    #                 # tmp_dict[nm-1][spval].append(idx)
-    #                 if spval not in tmp_dict[nm]:
-    #                     tmp_dict[nm][spval] = [idx, ]
-    #                 else:
-    #                     tmp_dict[nm][spval].append(idx)
-    #                 if spval not in tmp_dict[nm+1]:
-    #                     tmp_dict[nm+1][spval] = [idx, ]
-    #                 else:
-    #                     tmp_dict[nm+1][spval].append(idx)
-    #                 if spval not in tmp_dict[nm-1]:
-    #                     tmp_dict[nm-1][spval] = [idx, ]
-    #                 else:
-    #                     tmp_dict[nm-1][spval].append(idx)
+            del nmasses_conv
 
-    #         del nmasses_conv
+            global_data[global_data_index]['nmasses_set'] = tmp_dict
 
-    #         fulls_global[c] = tmp_dict
+    # print(global_data[0]['nmasses'][:20])
+    # print(global_data[1]['nmasses'][:20])
+    # print(global_data[2]['nmasses'][:20])
+    # print(global_data[3]['nmasses'][:20])
 
     utils.set_mod_dict(settings)
 
@@ -269,48 +273,61 @@ def prepare_peptide_processor(fname, settings):
             'unit': unit, 'nmods': nmods, 'maxmods': maxmods, 'fast first stage': fast_first_stage,
             'sapime': utils.get_shifts_and_pime(settings),
             'cond': cond, 'score': score, 'score_fast': score_fast, 'score_fast_basic': score_fast_basic,
-            'settings': settings, 'max_v': num_spectra, 'prec_acc_Da': prec_acc_Da, 'max_prec_acc_Da': max_prec_acc_Da}
+            'settings': settings, 'max_v': num_spectra, 'prec_acc_Da': prec_acc_Da, 'max_prec_acc_Da': max_prec_acc_Da}, global_data
 
-def peptide_processor_iter_isoforms(peptide, best_res, **kwargs):
-    nmods, maxmods = op.itemgetter('nmods', 'maxmods')(kwargs)
-    if nmods and maxmods:
-        out = []
-        for form in utils.custom_isoforms(peptide, variable_mods=nmods, maxmods=maxmods, snp=kwargs['snp']):
-            res = peptide_processor(form, best_res, **kwargs)
-            if res:
-                out.append(res)
-        if out:
-            return out
-    else:
-        res = peptide_processor(peptide, best_res, **kwargs)
-        if res:
-            return [res, ]
+def peptide_processor_iter_isoforms(peptide, best_res, global_data_local, **kwargs):
+    res = peptide_processor(peptide, best_res, global_data_local, **kwargs)
+    if res:
+        return [res, ]
 
 
-def peptide_processor(peptide, best_res, **kwargs):
-    if kwargs['snp']:
-        if 'snp' not in peptide:
-            seqm = peptide
-            aachange_pos = False
-            snp_label = 'wild'
-        else:
-            tmp = peptide.split('snp')
-            seqm = tmp[0] + tmp[1].split('at')[0].split('to')[-1] + tmp[2]
-            aachange_pos = len(tmp[0]) + 1
-            snp_label = tmp[1]
-        aachange_pos = False
-    else:
-        seqm = peptide
-        aachange_pos = False
-        snp_label = False
+    # nmods, maxmods = op.itemgetter('nmods', 'maxmods')(kwargs)
+    # if nmods and maxmods:
+    #     out = []
+    #     for form in utils.custom_isoforms(peptide, variable_mods=nmods, maxmods=maxmods, snp=kwargs['snp']):
+    #         res = peptide_processor(form, best_res, global_data_local, **kwargs)
+    #         if res:
+    #             out.append(res)
+    #     if out:
+    #         return out
+    # else:
+    #     res = peptide_processor(peptide, best_res, global_data_local, **kwargs)
+    #     if res:
+    #         return [res, ]
 
-    nterm_mass = kwargs.get('nterm_mass')
-    cterm_mass = kwargs.get('cterm_mass')
-    m = utils.custom_mass(seqm, aa_mass=kwargs['aa_mass'], nterm_mass = nterm_mass, cterm_mass = cterm_mass)
+
+def peptide_processor(peptide, best_res, global_data_local, **kwargs):
+    spectra = global_data_local['spectra']
+    titles = global_data_local['titles']
+    nmasses = global_data_local['nmasses']
+    nmasses_set = global_data_local['nmasses_set']
+    t2s = global_data_local['t2s']
+    charges = global_data_local['charges']
+    effcharges = global_data_local['effcharges']
+    fulls_global = global_data_local['fulls_global']
+    seqm, aachange_pos, snp_label, m = peptide
+    # if kwargs['snp']:
+    #     if 'snp' not in peptide:
+    #         seqm = peptide
+    #         aachange_pos = False
+    #         snp_label = 'wild'
+    #     else:
+    #         tmp = peptide.split('snp')
+    #         seqm = tmp[0] + tmp[1].split('at')[0].split('to')[-1] + tmp[2]
+    #         aachange_pos = len(tmp[0]) + 1
+    #         snp_label = tmp[1]
+    #     aachange_pos = False
+    # else:
+    #     seqm = peptide
+    #     aachange_pos = False
+    #     snp_label = False
+
     # m = cmass.fast_mass(seqm, aa_mass=kwargs['aa_mass']) + (nterm_mass - 1.007825) + (cterm_mass - 17.002735)
 
     max_prec_acc_Da = kwargs.get('max_prec_acc_Da')
 
+    nterm_mass = kwargs.get('nterm_mass')
+    cterm_mass = kwargs.get('cterm_mass')
     rel = kwargs['rel']
     acc_l = kwargs['acc_l']
     acc_r = kwargs['acc_r']
@@ -442,7 +459,7 @@ def peptide_processor(peptide, best_res, **kwargs):
 def process_peptides(fname, settings):
     spec_results = defaultdict(dict)
     peps = utils.peptide_gen(settings)
-    kwargs = prepare_peptide_processor(fname, settings)
+    kwargs, global_data = prepare_peptide_processor(fname, settings)
     func = peptide_processor_iter_isoforms
     kwargs['min_matched'] = settings.getint('output', 'minimum matched')
     kwargs['snp'] = settings.getint('search', 'snp')
@@ -474,11 +491,15 @@ def process_peptides(fname, settings):
     except:
         kwargs['best_peptides'] = False
 
-    best_res_raw, best_res = utils.multimap(n, func, peps, **kwargs)
+    best_res_raw, best_res = utils.multimap(n, func, peps, global_data=global_data, **kwargs)
+
+    t2s_global = {}
+    for global_data_local in global_data:
+        t2s_global.update(global_data_local['t2s'])
 
     for spec_t, v in best_res_raw.items():
         peptide, m, snp_label, score, st, c, info = v
-        spec_results[spec_t]['spectrum'] = t2s[spec_t]
+        spec_results[spec_t]['spectrum'] = t2s_global[spec_t]
         info['pep_nm'] = m
         info['charge'] = c
         spec_results[spec_t]['top_scores'] = -score

@@ -36,6 +36,7 @@ except:
     from . import customparser as cparser
 from scipy.spatial import cKDTree
 from scipy.stats import rankdata
+import operator as op
 
 default_tags = {
 'tmt10plex': {
@@ -912,8 +913,17 @@ def get_aa_mass(settings):
                     aa_mass[mod+aa] = aa_mass[mod] + aa_mass[aa]
     return aa_mass
 
-def multimap(n, func, it, best_res_in=False, best_res_raw_in=False, best_peptides=False, **kw):
+def multimap(n, func, it, global_data, best_res_in=False, best_res_raw_in=False, best_peptides=False, **kw):
     global best_res
+
+
+    rel = kw['rel']
+    nterm_mass = kw.get('nterm_mass')
+    cterm_mass = kw.get('cterm_mass')
+    acc_l = kw['acc_l']
+    acc_r = kw['acc_r']
+
+    shifts_and_pime = kw['sapime']
 
     if best_res_in:
         best_res = deepcopy(best_res_in)
@@ -928,13 +938,13 @@ def multimap(n, func, it, best_res_in=False, best_res_raw_in=False, best_peptide
             n = cpu_count()
         except NotImplementedError:
             n = 1
-    if n == 1:
+    if 0:#n == 1:
         cnt1 = 0
         for s in it:
             cnt1 += 1
             if cnt1 % 10000 == 0:
                 print(cnt1)
-            result = func(s, best_res, **kw)
+            result = func(s, best_res, global_data[0], **kw)
             if result:
                 for x in result:
                     peptide, m, snp_label, res = x
@@ -947,20 +957,17 @@ def multimap(n, func, it, best_res_in=False, best_res_raw_in=False, best_peptide
 
     else:
 
-        def worker2(qout, shift, step):
-            qout.put(None)
-
-        def worker(qout, shift, step):
-            maxval = len(qin)
-            start = 0
+        def worker(qout, start, end, global_data_local):
+            # maxval = len(qin)
+            # start = 0
 
             new_best_res = {}
             new_best_res_raw = {}
             best_pep_res = {}
 
-            while start + shift < maxval:
-                item = qin[start+shift]
-                result = func(item, best_res, **kw)
+            while start < end:
+                item = qin[start]
+                result = func(item, best_res, global_data_local, **kw)
 
                 if result:
                     for x in result:
@@ -971,7 +978,7 @@ def multimap(n, func, it, best_res_in=False, best_res_raw_in=False, best_peptide
                                 new_best_res[spec_t] = -score
                                 best_res[spec_t] = -score
                                 new_best_res_raw[spec_t] = [peptide, m, snp_label, score, spec_t, c, info]
-                start += step
+                start += 1
             qout.put(new_best_res_raw)
             qout.put(None)
         qsize = kw.pop('qsize')
@@ -980,50 +987,104 @@ def multimap(n, func, it, best_res_in=False, best_res_raw_in=False, best_peptide
 
         global qin
 
-        if best_peptides:
-            qin = best_peptides
-            procs = []
-            for proc_num in range(n):
-                p = Process(target=worker, args=(qout, proc_num, n))
-                p.start()
-                procs.append(p)
+        # if best_peptides:
+        #     qin = best_peptides
+        #     procs = []
+        #     for proc_num in range(n):
+        #         p = Process(target=worker, args=(qout, proc_num, n, global_data[proc_num]))
+        #         p.start()
+        #         procs.append(p)
 
-            count = len(qin)
+        #     count = len(qin)
 
-            for _ in range(n):
-                for item in iter(qout.get, None):
-                    for k, v in item.items():
-                        if -v[3] <= best_res.get(k, 0):
-                            best_res_raw[k] = v
-                            best_res[k] = -v[3]
-                            best_res_pep[k] = v[0]
+        #     for _ in range(n):
+        #         for item in iter(qout.get, None):
+        #             for k, v in item.items():
+        #                 print(k)
+        #                 if -v[3] <= best_res.get(k, 0):
+        #                     best_res_raw[k] = v
+        #                     best_res[k] = -v[3]
+        #                     best_res_pep[k] = v[0]
 
-            for p in procs:
-                p.join()
+        #     for p in procs:
+        #         p.join()
 
             
         while True:
-            qin = list(islice(it, 5000000))
-            if not len(qin):
+            qint = list(islice(it, 5000000))
+            if not len(qint):
                 break
+
+            qin = []
+            for peptide in qint:
+
+                nmods, maxmods = op.itemgetter('nmods', 'maxmods')(kw)
+                if nmods and maxmods:
+                    out = []
+                    for form in custom_isoforms(peptide, variable_mods=nmods, maxmods=maxmods, snp=kw['snp']):
+                        if kw['snp']:
+                            if 'snp' not in form:
+                                seqm = form
+                                aachange_pos = False
+                                snp_label = 'wild'
+                            else:
+                                tmp = form.split('snp')
+                                seqm = tmp[0] + tmp[1].split('at')[0].split('to')[-1] + tmp[2]
+                                aachange_pos = len(tmp[0]) + 1
+                                snp_label = tmp[1]
+                            aachange_pos = False
+                        else:
+                            seqm = form
+                            aachange_pos = False
+                            snp_label = False
+
+
+
+                        m = custom_mass(seqm, aa_mass=kw['aa_mass'], nterm_mass = nterm_mass, cterm_mass = cterm_mass)
+
+                        qin.append((seqm, aachange_pos, snp_label, m))
+            qin = sorted(qin, key=lambda x: x[3])
+            qin_masses = np.array([z[3] for z in qin])
+
+
             procs = []
             for proc_num in range(n):
-                p = Process(target=worker, args=(qout, proc_num, n))
+
+                min_mass = min(global_data[proc_num]['nmasses'])
+                max_mass = max(global_data[proc_num]['nmasses'])
+                if rel:
+                    dm_l = acc_l * max_mass / 1.0e6
+                    dm_r = acc_r * max_mass / 1.0e6
+                elif not rel:
+                    dm_l = acc_l
+                    dm_r = acc_r
+                dm_l -= min(shifts_and_pime)
+                dm_r += max(shifts_and_pime)
+                start = qin_masses.searchsorted(min_mass + dm_l)
+                end = qin_masses.searchsorted(max_mass + dm_r)
+
+                p = Process(target=worker, args=(qout, start, end, global_data[proc_num]))
                 p.start()
                 procs.append(p)
 
             count = len(qin)
 
             for _ in range(n):
+                print(_, len(best_res_pep))
                 for item in iter(qout.get, None):
                     for k, v in item.items():
                         if -v[3] <= best_res.get(k, 0):
                             best_res_raw[k] = v
                             best_res[k] = -v[3]
                             best_res_pep[k] = v[0]
+                print(_, len(best_res_pep))
+
+            print('HERE1')
 
             for p in procs:
                 p.join()
+
+            print('HERE2')
 
         logger.info(len(best_res_pep))
         return best_res_raw, best_res
