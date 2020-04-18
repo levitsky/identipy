@@ -1019,30 +1019,30 @@ def multimap(n, func, it, global_data, best_res_in=False, best_res_raw_in=False,
             for peptide in qint:
 
                 nmods, maxmods = op.itemgetter('nmods', 'maxmods')(kw)
-                if nmods and maxmods:
-                    out = []
-                    for form in custom_isoforms(peptide, variable_mods=nmods, maxmods=maxmods, snp=kw['snp']):
-                        if kw['snp']:
-                            if 'snp' not in form:
-                                seqm = form
-                                aachange_pos = False
-                                snp_label = 'wild'
-                            else:
-                                tmp = form.split('snp')
-                                seqm = tmp[0] + tmp[1].split('at')[0].split('to')[-1] + tmp[2]
-                                aachange_pos = len(tmp[0]) + 1
-                                snp_label = tmp[1]
-                            aachange_pos = False
-                        else:
+                out = []
+                for form in (custom_isoforms(peptide, variable_mods=nmods, maxmods=maxmods, snp=kw['snp']) if (nmods and maxmods) else [peptide, ]):
+                    if kw['snp']:
+                        if 'snp' not in form:
                             seqm = form
                             aachange_pos = False
-                            snp_label = False
+                            snp_label = 'wild'
+                        else:
+                            tmp = form.split('snp')
+                            seqm = tmp[0] + tmp[1].split('at')[0].split('to')[-1] + tmp[2]
+                            aachange_pos = len(tmp[0]) + 1
+                            snp_label = tmp[1]
+                        aachange_pos = False
+                    else:
+                        seqm = form
+                        aachange_pos = False
+                        snp_label = False
 
 
 
-                        m = custom_mass(seqm, aa_mass=kw['aa_mass'], nterm_mass = nterm_mass, cterm_mass = cterm_mass)
 
-                        qin.append((seqm, aachange_pos, snp_label, m))
+                    m = custom_mass(seqm, aa_mass=kw['aa_mass'], nterm_mass = nterm_mass, cterm_mass = cterm_mass)
+
+                    qin.append((seqm, aachange_pos, snp_label, m))
             qin = sorted(qin, key=lambda x: x[3])
             qin_masses = np.array([z[3] for z in qin])
 
