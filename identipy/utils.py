@@ -534,6 +534,17 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
     if not states:
         return None
 
+    if tags:
+        # TODO optimize performance
+        max_mass_label_val = max(tags.values()) + 1.0
+        tmp_idx = np.nonzero(mz <= max_mass_label_val)
+        tags_res = defaultdict(float)
+        for tmt_label, tmt_mass in tags.iteritems():
+            for t_m, t_i in zip(mz[tmp_idx], spectrum['intensity array'][tmp_idx]):
+                if abs(t_m - tmt_mass) / tmt_mass <= 1e-5:
+                    tags_res[tmt_label] += t_i
+        for tmt_label, tmt_intensity in tags_res.iteritems():
+            spectrum[tmt_label] = tmt_intensity
 
     if kwargs['deisotope']:
         deisotope(spectrum, dacc, states[-1])
@@ -554,19 +565,6 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
         return None
 
     spectrum['intensity array'] = spectrum['intensity array'].astype(np.float32)
-
-    if tags:
-        # TODO optimize performance
-        max_mass_label_val = max(tags.values()) + 1.0
-        tmp_idx = np.nonzero(mz <= max_mass_label_val)
-        tags_res = defaultdict(float)
-        for tmt_label, tmt_mass in tags.iteritems():
-            for t_m, t_i in zip(mz[tmp_idx], spectrum['intensity array'][tmp_idx]):
-                if abs(t_m - tmt_mass) / tmt_mass <= 1e-5:
-                    tags_res[tmt_label] += t_i
-        for tmt_label, tmt_intensity in tags_res.iteritems():
-            spectrum[tmt_label] = tmt_intensity
-
 
     if dynrange:
         i = spectrum['intensity array'] > spectrum['intensity array'].max(
