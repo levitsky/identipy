@@ -1505,6 +1505,12 @@ def write_pepxml(inputfile, settings, results):
                                 tmp4.set('name', 'MS1Intensity')
                                 tmp4.set('value', str(spectrum['params'].get('ms1intensity', 0)))
                                 tmp3.append(copy(tmp4))
+
+                            if 'pif' in spectrum['params']:
+                                tmp4 = etree.Element('search_score')
+                                tmp4.set('name', 'PIF')
+                                tmp4.set('value', str(spectrum['params'].get('pif', -3)))
+                                tmp3.append(copy(tmp4))
                             
                             if 'sulfur' in spectrum['params']:
                                 tmp4 = etree.Element('search_score')
@@ -1694,7 +1700,7 @@ def write_output(inputfile, settings, results):
 
     return writer(inputfile, settings, results)
 
-def demix_chimeric(path_to_features, path_to_mzml, isolation_window, demixing=False):
+def demix_chimeric(path_to_features, path_to_mzml, isolation_window, demixing=False, calc_PIF=True):
 
     basename_mzml = os.path.splitext(path.basename(path_to_mzml))[0]
 
@@ -1711,7 +1717,12 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window, demixing=Fa
     ms2_map = {}
     isolation_window_left = False
     isolation_window_right = False
+
+    cur_ms1 = False
+    mass_acc = 20
     for a in mzml.read(path_to_mzml):
+        if a['ms level'] == 1:
+            cur_ms1 = a
         if a['ms level'] == 2 and len(a['m/z array']) > 0:
             # if :
             if not isolation_window_left:
@@ -1730,6 +1741,37 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window, demixing=Fa
             except:
                 ch = 0
 
+            if calc_PIF:
+                if not cur_ms1:
+                    calc_PIF = False
+                    # logger.info('Missing MS1 spectra in mzML, turning off PIF calculation')
+                elif not isolation_window_left:
+                    calc_PIF = False
+                    # logger.info('Missing isolation window info in mzML, turning off PIF calculation')
+                else:
+                    intensity_full_ms2 = 0
+                    intensity_precursor = 0
+                    
+                    idx_l = cur_ms1['m/z array'].searchsorted(pepmass - isolation_window_left)
+                    idx_r = cur_ms1['m/z array'].searchsorted(pepmass + isolation_window_right)
+                    
+                    if not ch:
+                        tch = 2
+                    else:
+                        tch = ch
+                        
+                    abs_error = pepmass * mass_acc * 1e-6
+                    for mz, intensity in zip(cur_ms1['m/z array'][idx_l:idx_r], cur_ms1['intensity array'][idx_l:idx_r]):
+                        if any(abs(mz - (pepmass + (k * 1.007825) / tch)) <= abs_error for k in [-2, -1, 0, 1, 2, 3, 4]):
+                            intensity_precursor += intensity
+                        intensity_full_ms2 += intensity
+                    if intensity_full_ms2:
+                        PIF = intensity_precursor / intensity_full_ms2 * 100
+                    else:
+                        PIF = -1
+                    a['PIF'] = PIF
+
+
             title = a['id']
             mzs.append(pepmass)
             RTs.append(RT)
@@ -1737,6 +1779,7 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window, demixing=Fa
             chs.append(ch)
             titles.append(title)
             ms2_map[title] = a
+
 
     mzs = np.array(mzs)
     RTs = np.array(RTs)
@@ -1776,6 +1819,7 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window, demixing=Fa
                     if ttl in ttl_ac:
                         added_MSMS.add(ttl)
                     mz_arr, I_arr = ms2_map[ttl]['m/z array'], ms2_map[ttl]['intensity array']
+                    PIF = ms2_map[ttl].get('PIF', -2)
                     pepmass = float(ms2_map[ttl]['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
                     t_i_orig = ms2_map[ttl]['index']
                     outmgf.write('BEGIN IONS\n')
@@ -1786,6 +1830,7 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window, demixing=Fa
                     outmgf.write('ISOWIDTHDIFF=%f\n' % (mz - pepmass, ))
                     outmgf.write('RTwidth=%f\n' % (rt_rr - rt_ll, ))
                     outmgf.write('MS1Intensity=%f\n' % (Intensity, ))
+                    outmgf.write('PIF=%f\n' % (PIF, ))
                     outmgf.write('IonMobility=%f\n' % (ion_mob, ))
                     outmgf.write('Sulfur=%f\n' % (sulfur, ))
                     for mz_val, I_val in zip(mz_arr, I_arr):
@@ -1798,6 +1843,7 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window, demixing=Fa
                 f_i += 1
                 a = ms2_map[k]
                 mz_arr, I_arr = a['m/z array'], a['intensity array']
+                PIF = a.get('PIF', -2)
                 mz = float(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
                 RT = float(a['scanList']['scan'][0]['scan start time'])
                 t_i_orig = a['index']
@@ -1814,6 +1860,7 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window, demixing=Fa
                 outmgf.write('ISOWIDTHDIFF=%f\n' % (0.0, ))
                 outmgf.write('RTwidth=%f\n' % (0.0, ))
                 outmgf.write('MS1Intensity=%f\n' % (0.0, ))
+                outmgf.write('PIF=%f\n' % (PIF, ))
                 outmgf.write('IonMobility=%f\n' % (0.0, ))
                 outmgf.write('Sulfur=%f\n' % (-1.0, ))
                 for mz_val, I_val in zip(mz_arr, I_arr):
@@ -1854,6 +1901,7 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window, demixing=Fa
                 
             
             mz_arr, I_arr = a['m/z array'], a['intensity array']
+            PIF = a.get('PIF', -2)
 #             mz = float(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
 #             RT = float(a['scanList']['scan'][0]['scan start time'])
             t_i_orig = a['index']
@@ -1866,6 +1914,7 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window, demixing=Fa
             outmgf.write('ISOWIDTHDIFF=%f\n' % 0)
             outmgf.write('RTwidth=%f\n' % (rt_rr - rt_ll, ))
             outmgf.write('MS1Intensity=%f\n' % (Intensity, ))
+            outmgf.write('PIF=%f\n' % (PIF, ))
             outmgf.write('IonMobility=%f\n' % (ion_mob, ))
             outmgf.write('Sulfur=%f\n' % (sulfur, ))
             for mz_val, I_val in zip(mz_arr, I_arr):
