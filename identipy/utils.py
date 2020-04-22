@@ -1700,14 +1700,17 @@ def write_output(inputfile, settings, results):
 
     return writer(inputfile, settings, results)
 
-def demix_chimeric(path_to_features, path_to_mzml, isolation_window, demixing=False, calc_PIF=True):
+def demix_chimeric(path_to_features, path_to_mzml, demixing=False, calc_PIF=True):
 
     basename_mzml = os.path.splitext(path.basename(path_to_mzml))[0]
 
-    df1 = pd.read_table(path_to_features)
-    df1 = df1.rename(columns=lambda x: x.strip())
-    df1 = df1[df1['nIsotopes'] >= 2]
-    logger.info(df1.shape)
+    if path_to_features:
+        df1 = pd.read_table(path_to_features)
+        df1 = df1.rename(columns=lambda x: x.strip())
+        df1 = df1[df1['nIsotopes'] >= 2]
+        logger.info(df1.shape)
+    else:
+        df1 = None
 
     mzs = []
     RTs = []
@@ -1793,13 +1796,14 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window, demixing=Fa
     chs = chs[idx]
     titles = titles[idx]
 
-    if 'ion_mobility' not in df1.columns:
-        df1['ion_mobility'] = 0
-    if 'sulfur' not in df1.columns:
-        df1['sulfur'] = 0
-    df1['MSMS'] = df1.apply(findMSMS, axis=1, args = (isolation_window_left, isolation_window_right, mzs, RTs, titles, ionmobs))
-    df1['MSMS_accurate'] = df1.apply(findMSMS_accurate, axis=1, args = (mzs, RTs, titles, ionmobs, chs))
-    # print(df1['MSMS_accurate'])
+    if not df1 is None:
+        if 'ion_mobility' not in df1.columns:
+            df1['ion_mobility'] = 0
+        if 'sulfur' not in df1.columns:
+            df1['sulfur'] = 0
+        df1['MSMS'] = df1.apply(findMSMS, axis=1, args = (isolation_window_left, isolation_window_right, mzs, RTs, titles, ionmobs))
+        df1['MSMS_accurate'] = df1.apply(findMSMS_accurate, axis=1, args = (mzs, RTs, titles, ionmobs, chs))
+        # print(df1['MSMS_accurate'])
     
     outmgf_name = os.path.splitext(path_to_mzml)[0] + '_identipy' + os.extsep + 'mgf'
     outmgf = open(outmgf_name, 'w')
@@ -1872,14 +1876,15 @@ def demix_chimeric(path_to_features, path_to_mzml, isolation_window, demixing=Fa
         
         MS2_acc_map = {}
         
-        for z in df1[['mz', 'rtApex', 'charge', 'intensityApex', 'MSMS', 'MSMS_accurate', 'rtStart', 'rtEnd', 'ion_mobility', 'sulfur']].values:
-            ttl_ac = z[5]
-            for ttl in ttl_ac:
-                if ttl not in MS2_acc_map:
-                    MS2_acc_map[ttl] = z
-                else:
-                    if MS2_acc_map[ttl][3] < z[3]:
+        if not df1 is None:
+            for z in df1[['mz', 'rtApex', 'charge', 'intensityApex', 'MSMS', 'MSMS_accurate', 'rtStart', 'rtEnd', 'ion_mobility', 'sulfur']].values:
+                ttl_ac = z[5]
+                for ttl in ttl_ac:
+                    if ttl not in MS2_acc_map:
                         MS2_acc_map[ttl] = z
+                    else:
+                        if MS2_acc_map[ttl][3] < z[3]:
+                            MS2_acc_map[ttl] = z
                         
         # print(MS2_acc_map)
         

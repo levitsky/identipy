@@ -123,6 +123,7 @@ def run():
     parser.add_argument('-debug',  help='Print debugging messages', action='store_true')
     parser.add_argument('-dino', help='path to Dinosaur. Used for chimeric spectrum processing and MS1 Intensity calculation', default=False)
     parser.add_argument('-demixing',      help='Use demixing', action='store_true')
+    parser.add_argument('-pif',      help='Calculate PIF', action='store_true')
 
     args = vars(parser.parse_args())
     if args['debug']:
@@ -227,22 +228,33 @@ def run():
 
     dino_path = args['dino']
     demixing = args['demixing']
-    if dino_path:
+    calc_PIF = args['pif']
+    if dino_path or calc_PIF:
+        logger.info('Start mzML analysis...\n')
         if os.path.splitext(inputfile)[1].lower() != '.mzml':
-            logger.info('Only mzml supported for Dinosaur!\n')
+            if dino_path:
+                logger.info('Only mzml supported for Dinosaur!\n')
+            elif calc_PIF:
+                logger.info('mzml required for PIF calculation!\n')
         else:
             try:
-                path_to_features = os.path.splitext(inputfile)[0] + os.extsep + 'features' + os.extsep + 'tsv'
-                if dino_path.endswith('.jar'):
-                    advpath = '--advParams=' + os.path.join(os.path.dirname(os.path.realpath(__file__)), 'adv.txt')
-                    logger.info('Start Dinosaur...\n')
-                    subprocess.call(['java', '-Djava.awt.headless=true', '-jar', os.path.realpath(dino_path), advpath, '--concurrency=12', inputfile], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                if dino_path:
+                    path_to_features = os.path.splitext(inputfile)[0] + os.extsep + 'features' + os.extsep + 'tsv'
+                    if dino_path.endswith('.jar'):
+                        advpath = '--advParams=' + os.path.join(os.path.dirname(os.path.realpath(__file__)), 'adv.txt')
+                        logger.info('Start Dinosaur...\n')
+                        subprocess.call(['java', '-Djava.awt.headless=true', '-jar', os.path.realpath(dino_path), advpath, '--concurrency=12', inputfile], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    else:
+                        logger.info('Start Biosaur...\n')
+                        subprocess.call([os.path.realpath(dino_path), inputfile, '-out', path_to_features], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    if demixing:
+                        logger.info('Start demultiplexing...\n')
                 else:
-                    logger.info('Start Biosaur...\n')
-                    subprocess.call([os.path.realpath(dino_path), inputfile, '-out', path_to_features], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                logger.info('Start demultiplexing...\n')
-                path_to_mgf = utils.demix_chimeric(path_to_features, inputfile, 0.65, demixing)
-                logger.info('Demultiplexing was finished...\n')
+                    path_to_features = False
+                path_to_mgf = utils.demix_chimeric(path_to_features, inputfile, demixing, calc_PIF)
+                logger.info('mgf was created...\n')
+                if demixing:
+                    logger.info('Demultiplexing was finished...\n')
                 utils.write_output(path_to_mgf, settings, main.process_file(path_to_mgf, settings))
                 return
             except Exception as e:
