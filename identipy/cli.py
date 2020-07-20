@@ -244,6 +244,10 @@ def run():
                         advpath = '--advParams=' + os.path.join(os.path.dirname(os.path.realpath(__file__)), 'adv.txt')
                         logger.info('Start Dinosaur...\n')
                         subprocess.call(['java', '-Djava.awt.headless=true', '-jar', os.path.realpath(dino_path), advpath, '--concurrency=12', inputfile], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    elif 'dinosaur' in dino_path:
+                        advpath = '--advParams=' + os.path.join(os.path.dirname(os.path.realpath(__file__)), 'adv.txt')
+                        logger.info('Start Dinosaur...\n')
+                        subprocess.call([os.path.realpath(dino_path), advpath, '--concurrency=12', inputfile], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                     else:
                         logger.info('Start Biosaur...\n')
                         subprocess.call([os.path.realpath(dino_path), inputfile, '-out', path_to_features], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
