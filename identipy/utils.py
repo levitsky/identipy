@@ -1404,7 +1404,8 @@ def write_pepxml(inputfile, settings, results):
                                     tmp4.set('num_tol_term', str(pept_ntts.get(sequence, '?')))
                                     tmp3.append(copy(tmp4))
 
-                        labels = parser.std_labels + [la.rstrip('[]') for la in leg if len(la) > 1]
+                        labels = parser.std_labels + [la[:-1] if la[-1] == '[' else '-' + la[:-2] if la[-1] == ']' else la for la in leg if len(la) > 1]
+#                       logger.debug('Known labels: %s', labels)
                         try:
                             aalist = parser.parse(mod_sequence, labels=labels)
                         except Exception as e:
