@@ -1,0 +1,5 @@
+identipy/*.pyc
+identipy/*.so
+identipy/*.c
+build/
+*.egg-info/
