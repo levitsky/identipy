@@ -530,6 +530,9 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
     except:
         fast_first_stage = 0
 
+    if 'm/z array' not in spectrum:
+        return None
+
     _, states = get_expmass(spectrum, kwargs)#, settings)
     if not states:
         return None
