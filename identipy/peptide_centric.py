@@ -1,15 +1,12 @@
 import numpy as np
 from string import punctuation
 from collections import defaultdict
-import operator as op
 import random
-from bisect import bisect
-from pyteomics import parser, mass, fasta, auxiliary as aux, mgf, mzml
-from . import scoring, utils
+from pyteomics import mass
+from . import utils
 from multiprocessing import cpu_count
 import logging
 logger = logging.getLogger(__name__)
-from copy import copy
 try:
     from pyteomics import cmass
 except ImportError:
@@ -28,15 +25,6 @@ from .utils import reshape_theor_spectrum
 from .cutils import RNHS_ultrafast
 
 def prepare_peptide_processor(fname, settings):
-
-    # global spectra
-    # global nmasses
-    # global nmasses_set
-    # global titles
-    # global t2s
-    # global charges
-    # global effcharges
-    # global fulls_global
 
     global_data = list()
     n_proc = settings.getint('performance', 'processes')
@@ -57,16 +45,7 @@ def prepare_peptide_processor(fname, settings):
             'fulls_global': {},
         })
 
-    print(len(global_data), 'global data')
-
-    # spectra = []
-    # titles = []
-    # nmasses = []
-    # charges = []
-    # effcharges = []
-    # fulls_global = {}
-
-    # nmasses_set = set()
+    logger.debug('global data: %s', len(global_data))
 
     try:
         fast_first_stage = settings.getint('misc', 'fast first stage')
@@ -83,19 +62,17 @@ def prepare_peptide_processor(fname, settings):
     for c in ch_range:
         maxcharges[c] = max(1, min(fcharge, c-1) if fcharge else c-1)
 
-
     params = {}
     params['maxpeaks'] = settings.getint('scoring', 'maximum peaks')
     params['minpeaks'] = settings.getint('scoring', 'minimum peaks')
     params['dynrange'] = settings.getfloat('scoring', 'dynamic range')
     params['acc'] = settings.getfloat('search', 'product accuracy')
     params['min_mz'] = settings.getfloat('search', 'product minimum m/z')
-    params.update(utils._charge_params(settings)) 
+    params.update(utils._charge_params(settings))
     params['dacc'] = settings.getfloat('input', 'deisotoping mass tolerance')
     params['deisotope'] = settings.getboolean('input', 'deisotope')
     params['tags'] = utils.get_tags(settings.get('output', 'tags'))
     rapid_check = settings.getint('search', 'rapid_check')
-    
 
     ptol_unit = settings.get('search', 'precursor accuracy unit')
     lptol = settings.getfloat('search', 'precursor accuracy left')
@@ -163,7 +140,7 @@ def prepare_peptide_processor(fname, settings):
 
             num_spectra += 1
     logger.info('%s spectra pass quality criteria.', num_spectra)
-    
+
     # else:
     #     num_spectra = len(spectra)
     #     # num_spectra = sum(map(len, spectra.itervalues()))
@@ -219,18 +196,7 @@ def prepare_peptide_processor(fname, settings):
 
             global_data[global_data_index]['nmasses_set'] = tmp_dict
 
-    # print(global_data[0]['nmasses'][:20])
-    # print(global_data[1]['nmasses'][:20])
-    # print(global_data[2]['nmasses'][:20])
-    # print(global_data[3]['nmasses'][:20])
-
     utils.set_mod_dict(settings)
-
-    mods = settings.get('modifications', 'variable')
-    maxmods = settings.getint('modifications', 'maximum variable mods')
-    leg = settings.get('misc', 'legend')
-    punct = set(punctuation)
-    nmods = [(p, mod[1], mod[2]) for p, mod in leg.iteritems() if p in punct]
 
     aa_mass = utils.get_aa_mass(settings)
     score = utils.import_(settings.get('scoring', 'score'))
@@ -240,7 +206,7 @@ def prepare_peptide_processor(fname, settings):
             try:
                 from cutils import RNHS_fast as score_fast
                 from cutils import RNHS_fast_basic as score_fast_basic
-            except: 
+            except:
                 score_fast = utils.import_(settings.get('scoring', 'score') + '_fast')
                 score_fast = utils.import_(settings.get('scoring', 'score') + '_fast_basic')
         else:
@@ -269,17 +235,19 @@ def prepare_peptide_processor(fname, settings):
 
     score = utils.import_(settings.get('scoring', 'score'))
 
-    return {'rel': rel, 'aa_mass': aa_mass, 'acc_l': acc_l, 'acc_r': acc_r, 'acc_frag': acc_frag, 'acc_frag_ppm': acc_frag_ppm,
-            'unit': unit, 'nmods': nmods, 'maxmods': maxmods, 'fast first stage': fast_first_stage,
+    return {'rel': rel, 'aa_mass': aa_mass,
+            'acc_l': acc_l, 'acc_r': acc_r, 'acc_frag': acc_frag, 'acc_frag_ppm': acc_frag_ppm,
+            'unit': unit,  # 'nmods': nmods, 'maxmods': maxmods,
+            'fast first stage': fast_first_stage,
             'sapime': utils.get_shifts_and_pime(settings),
             'cond': cond, 'score': score, 'score_fast': score_fast, 'score_fast_basic': score_fast_basic,
             'settings': settings, 'max_v': num_spectra, 'prec_acc_Da': prec_acc_Da, 'max_prec_acc_Da': max_prec_acc_Da}, global_data
+
 
 def peptide_processor_iter_isoforms(peptide, best_res, global_data_local, **kwargs):
     res = peptide_processor(peptide, best_res, global_data_local, **kwargs)
     if res:
         return [res, ]
-
 
     # nmods, maxmods = op.itemgetter('nmods', 'maxmods')(kwargs)
     # if nmods and maxmods:
@@ -306,23 +274,6 @@ def peptide_processor(peptide, best_res, global_data_local, **kwargs):
     effcharges = global_data_local['effcharges']
     fulls_global = global_data_local['fulls_global']
     seqm, aachange_pos, snp_label, m = peptide
-    # if kwargs['snp']:
-    #     if 'snp' not in peptide:
-    #         seqm = peptide
-    #         aachange_pos = False
-    #         snp_label = 'wild'
-    #     else:
-    #         tmp = peptide.split('snp')
-    #         seqm = tmp[0] + tmp[1].split('at')[0].split('to')[-1] + tmp[2]
-    #         aachange_pos = len(tmp[0]) + 1
-    #         snp_label = tmp[1]
-    #     aachange_pos = False
-    # else:
-    #     seqm = peptide
-    #     aachange_pos = False
-    #     snp_label = False
-
-    # m = cmass.fast_mass(seqm, aa_mass=kwargs['aa_mass']) + (nterm_mass - 1.007825) + (cterm_mass - 17.002735)
 
     max_prec_acc_Da = kwargs.get('max_prec_acc_Da')
 
@@ -394,7 +345,7 @@ def peptide_processor(peptide, best_res, global_data_local, **kwargs):
     ind = cand_idx
     # reshaped = False
     if kwargs['prec_acc_Da']:
-        print('HERERERE')
+        logger.debug('HERERERE')
         fulls_global_charge = fulls_global
         nm_key = int(m / kwargs['prec_acc_Da'])
         cur_idict = fulls_global_charge.get(nm_key, dict())
@@ -458,7 +409,7 @@ def peptide_processor(peptide, best_res, global_data_local, **kwargs):
 
 def process_peptides(fname, settings):
     spec_results = defaultdict(dict)
-    peps = utils.peptide_gen(settings)
+    peps = utils.peptide_isoforms(settings)
     kwargs, global_data = prepare_peptide_processor(fname, settings)
     func = peptide_processor_iter_isoforms
     kwargs['min_matched'] = settings.getint('output', 'minimum matched')
@@ -484,7 +435,9 @@ def process_peptides(fname, settings):
     n = settings.getint('performance', 'processes')
     leg = {}
     if settings.has_option('misc', 'legend'):
-        leg = settings.get('misc', 'legend')
+        leg = settings.get('misc', 'legend').copy()
+    if settings.has_option('misc', 'plegend'):
+        leg.update(settings.get('misc', 'plegend'))
 
     try:
         kwargs['best_peptides'] = settings.get('scoring', 'best peptides')
@@ -532,4 +485,3 @@ def process_peptides(fname, settings):
         evalues.append(-1./score if -score else 1e6)
         c = np.array(c, dtype=dtype)
         yield {'spectrum': s, 'candidates': c, 'e-values': evalues}
-

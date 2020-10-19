@@ -1,7 +1,6 @@
 import re
 from pyteomics import mass, electrochem as ec, auxiliary as aux, fasta, mzml, parser, mgf
 import pandas as pd
-import sys
 from itertools import combinations, islice
 from collections import defaultdict, Counter
 import numpy as np
@@ -36,43 +35,43 @@ except:
     from . import customparser as cparser
 from scipy.spatial import cKDTree
 from scipy.stats import rankdata
-import operator as op
 
 default_tags = {
-'tmt10plex': {
-    'tmt_126': 126.1277261,
-    'tmt_127N': 127.1247610,
-    'tmt_128C': 128.1344357,
-    'tmt_129N': 129.1314706,
-    'tmt_130C': 130.1411453,
-    'tmt_131': 131.1381802,
-    'tmt_127C': 127.1310809,
-    'tmt_128N': 128.1281158,
-    'tmt_129C': 129.1377905,
-    'tmt_130N': 130.1348254
-},
-'tmt11plex': {
-    'tmt_126': 126.1277261,
-    'tmt_127N': 127.1247610,
-    'tmt_128C': 128.1344357,
-    'tmt_129N': 129.1314706,
-    'tmt_130C': 130.1411453,
-    'tmt_131': 131.1381802,
-    'tmt_127C': 127.1310809,
-    'tmt_128N': 128.1281158,
-    'tmt_129C': 129.1377905,
-    'tmt_130N': 130.1348254,
-    'tmt_131C': 130.144999
-},
-'tmt6plex':{
-    'tmt_126': 126.1277261,
-    'tmt_127N': 127.1247610,
-    'tmt_128C': 128.1344357,
-    'tmt_129N': 129.1314706,
-    'tmt_130C': 130.1411453,
-    'tmt_131': 131.1381802,
+    'tmt10plex': {
+        'tmt_126': 126.1277261,
+        'tmt_127N': 127.1247610,
+        'tmt_128C': 128.1344357,
+        'tmt_129N': 129.1314706,
+        'tmt_130C': 130.1411453,
+        'tmt_131': 131.1381802,
+        'tmt_127C': 127.1310809,
+        'tmt_128N': 128.1281158,
+        'tmt_129C': 129.1377905,
+        'tmt_130N': 130.1348254
+    },
+    'tmt11plex': {
+        'tmt_126': 126.1277261,
+        'tmt_127N': 127.1247610,
+        'tmt_128C': 128.1344357,
+        'tmt_129N': 129.1314706,
+        'tmt_130C': 130.1411453,
+        'tmt_131': 131.1381802,
+        'tmt_127C': 127.1310809,
+        'tmt_128N': 128.1281158,
+        'tmt_129C': 129.1377905,
+        'tmt_130N': 130.1348254,
+        'tmt_131C': 130.144999
+    },
+    'tmt6plex': {
+        'tmt_126': 126.1277261,
+        'tmt_127N': 127.1247610,
+        'tmt_128C': 128.1344357,
+        'tmt_129N': 129.1314706,
+        'tmt_130C': 130.1411453,
+        'tmt_131': 131.1381802,
+    }
 }
-}
+
 
 def get_tags(tags):
     logger.debug('Tags: %s', tags)
@@ -87,6 +86,7 @@ def get_tags(tags):
             return ctags
     else:
         return tags
+
 
 def get_child_for_mods(mods_str, settings, fixed=True):
     if mods_str:
@@ -122,13 +122,13 @@ def get_child_for_mods(mods_str, settings, fixed=True):
                 child_mod.set('variable', 'Y' if not fixed else 'N')
                 yield child_mod
 
+
 def custom_mass(sequence, nterm_mass, cterm_mass, **kwargs):
     return cmass.fast_mass(sequence, **kwargs) + (nterm_mass - 1.007825) + (cterm_mass - 17.002735)
 
-def get_RCs(sequences, RTs, lcp = -0.21,
-            term_aa = False, **kwargs):
 
-    labels = kwargs.get('labels')
+def get_RCs(sequences, RTs, lcp=-0.21, term_aa=False, **kwargs):
+
     peptide_lengths = kwargs.get('lengths', np.log([len(peptide) for peptide in sequences]))
     peptide_dicts = sequences#[Counter(peptide) for peptide in sequences]
 
@@ -140,8 +140,7 @@ def get_RCs(sequences, RTs, lcp = -0.21,
     composition_array = []
     for idx, pdict in enumerate(peptide_dicts):
         loglen = peptide_lengths[idx]#np.log(parser.length(pdict))
-        composition_array.append([pdict.get(aa, 0.)
-             * (1. + lcp * loglen)
+        composition_array.append([pdict.get(aa, 0.) * (1. + lcp * loglen)
                for aa in detected_amino_acids] + [1.])
 
     # Add normalizing conditions for terminal retention coefficients. The
@@ -163,8 +162,7 @@ def get_RCs(sequences, RTs, lcp = -0.21,
             RTs.append(0.0)
 
     # Use least square linear regression.
-    RCs, res, rank, s = np.linalg.lstsq(np.array(composition_array),
-                                           np.array(RTs))
+    RCs, res, rank, s = np.linalg.lstsq(np.array(composition_array), np.array(RTs))
 
     # Remove normalizing elements from the RTs vector.
     if term_aa:
@@ -186,15 +184,13 @@ def get_RCs(sequences, RTs, lcp = -0.21,
         for term_label in ['nterm', 'cterm']:
             # Check if there are terminal RCs remaining undefined.
             undefined_term_RCs = [aa for aa in RC_dict['aa']
-                                if aa[1:5] != 'term'
-                                and term_label + aa not in RC_dict['aa']]
+                                if aa[1:5] != 'term' and term_label + aa not in RC_dict['aa']]
             if not undefined_term_RCs:
                 continue
 
             # Find a linear relationship between internal and terminal RCs.
             defined_term_RCs = [aa for aa in RC_dict['aa']
-                              if aa[1:5] != 'term'
-                              and term_label + aa in RC_dict['aa']]
+                              if aa[1:5] != 'term' and term_label + aa in RC_dict['aa']]
 
             a, b, r, stderr = aux.linear_regression(
                 [RC_dict['aa'][aa] for aa in defined_term_RCs],
@@ -206,10 +202,8 @@ def get_RCs(sequences, RTs, lcp = -0.21,
 
     return RC_dict
 
-def get_RCs_vary_lcp(sequences, RTs,
-                term_aa = False,
-                lcp_range = (-1.0, 1.0),
-                **kwargs):
+
+def get_RCs_vary_lcp(sequences, RTs, term_aa=False, lcp_range=(-1.0, 1.0), **kwargs):
 
     labels = kwargs.get('labels')
 
@@ -239,6 +233,7 @@ def get_RCs_vary_lcp(sequences, RTs,
 
     return best_RC_dict
 
+
 def calculate_RT(peptide, RC_dict, raise_no_mod=True):
     plen = len(peptide)
     peptide_dict = peptide
@@ -246,11 +241,11 @@ def calculate_RT(peptide, RC_dict, raise_no_mod=True):
     for aa in peptide_dict:
         if aa not in RC_dict['aa']:
             if len(aa) == 1:
-                raise PyteomicsError('No RC for residue "{}".'.format(aa))
+                raise aux.PyteomicsError('No RC for residue "{}".'.format(aa))
             if (not raise_no_mod) and aa[-1] in RC_dict['aa']:
                 RT += RC_dict['aa'][aa[-1]]
             else:
-                raise PyteomicsError(
+                raise aux.PyteomicsError(
                     'Residue "{0}" not found in RC_dict. '.format(aa) +
                     'Set raise_no_mod=False to ignore this error ' +
                     'and use the RC for "{0}"" instead.'.format(aa[-1]))
@@ -265,7 +260,10 @@ def calculate_RT(peptide, RC_dict, raise_no_mod=True):
 
     return RT
 
+
 _modchars = set(string.ascii_lowercase + string.digits)
+
+
 def custom_split_label(mod):
     j = 0
     while mod[j] in _modchars:
@@ -283,6 +281,7 @@ def custom_split_label(mod):
             return mod[:j], '-', '['
         else:
             return mod[:j], mod[j:], ''
+
 
 def iterate_spectra(fname):
     ftype = fname.rsplit('.', 1)[-1].lower()
@@ -303,6 +302,7 @@ def iterate_and_preprocess(fname, params, settings):
     it = iterate_spectra(fname)
     n = settings.getint('performance', 'processes')
     return multimap(n, preprocess_spectrum, it, kwargs=params)
+
 
 def is_decoy_function(settings):
     prefix = settings.get('input', 'decoy prefix').strip()
@@ -326,8 +326,50 @@ def peptide_gen(settings, clear_seen_peptides=False):
     maxlen = settings.getint('search', 'peptide maximum length')
     snp = settings.getint('search', 'snp')
     for prot in prot_gen(settings):
-        for pep in prot_peptides(prot[1], enzyme, mc, minlen, maxlen, is_decoy=isdecoy(prot[0]), snp=snp, desc=prot[0], semitryptic=semitryptic):
-            yield pep
+        for pep, pos in prot_peptides(prot[1], enzyme, mc, minlen, maxlen, is_decoy=isdecoy(prot[0]), snp=snp, desc=prot[0], semitryptic=semitryptic, position=True):
+            term = (pos == 0) or (pos + len(pep) == len(prot[1]))
+            yield pep, term
+
+
+def peptide_isoforms(settings, clear_seen_peptides=False):
+    snp = settings.getint('search', 'snp')
+    maxmods = settings.getint('modifications', 'maximum variable mods')
+    leg = settings.get('misc', 'legend')
+    pleg = settings.get('misc', 'plegend')
+    logger.debug('leg: %s, pleg: %s', leg, pleg)
+    punct = set(string.punctuation)
+    nmods = [(p, mod[1], mod[2]) for p, mod in leg.iteritems() if p in punct]
+    pmods = [(p, mod[1], mod[2]) for p, mod in pleg.iteritems() if p in punct]
+    logger.debug('nmods: %s', nmods)
+    logger.debug('pmods: %s', pmods)
+    aa_mass = get_aa_mass(settings)
+    nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage')
+    cterm_mass = settings.getfloat('modifications', 'protein cterm cleavage')
+    for peptide, term in peptide_gen(settings, clear_seen_peptides):
+        if term:
+            mods = nmods + pmods
+        else:
+            mods = nmods
+        for form in (custom_isoforms(peptide, variable_mods=mods, maxmods=maxmods, snp=snp) if (nmods and maxmods) else [peptide, ]):
+            if snp:
+                if 'snp' not in form:
+                    seqm = form
+                    aachange_pos = False
+                    snp_label = 'wild'
+                else:
+                    tmp = form.split('snp')
+                    seqm = tmp[0] + tmp[1].split('at')[0].split('to')[-1] + tmp[2]
+                    aachange_pos = len(tmp[0]) + 1
+                    snp_label = tmp[1]
+                aachange_pos = False
+            else:
+                seqm = form
+                aachange_pos = False
+                snp_label = False
+
+            m = custom_mass(seqm, aa_mass=aa_mass, nterm_mass=nterm_mass, cterm_mass=cterm_mass)
+            yield (seqm, aachange_pos, snp_label, m)
+
 
 def prot_gen(settings):
     db = settings.get('input', 'database')
@@ -337,6 +379,7 @@ def prot_gen(settings):
     with fasta.read(db) as f:
         for p in f:
             yield p
+
 
 def get_peptides(prot_seq, enzyme, mc, minlen, maxlen, semitryptic=False):
     peptides = cparser._cleave(prot_seq, enzyme, mc)
@@ -350,6 +393,7 @@ def get_peptides(prot_seq, enzyme, mc, minlen, maxlen, semitryptic=False):
                     yield pep[i:], startposition + i, plen - i
                 for i in range(1, plen-minlen+1, 1):
                     yield pep[:-i], startposition, plen - i
+
 
 seen_target = set()
 seen_decoy = set()
@@ -412,6 +456,7 @@ def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_
                         yield f if not position else (f, startposition)
             loopcnt -= 1
 
+
 def custom_snp(peptide, startposition):
     yield peptide, None
     j = len(peptide) - 1
@@ -423,6 +468,7 @@ def custom_snp(peptide, startposition):
                 yield out
         j -= 1
 
+
 def normalize_mods(sequence, settings):
     leg = settings.get('misc', 'legend')
     if leg:
@@ -433,6 +479,7 @@ def normalize_mods(sequence, settings):
                 else:
                     sequence = sequence.replace(char, ''.join(leg[char][:2]))
     return sequence
+
 
 def custom_isoforms(peptide, variable_mods, maxmods=2, nterm=False, cterm=False, snp=False):
     if not variable_mods:
@@ -470,6 +517,7 @@ def custom_isoforms(peptide, variable_mods, maxmods=2, nterm=False, cterm=False,
                     for z in custom_isoforms(v, variable_mods[:-1], maxmods=maxmods - m, nterm=tmpnterm, cterm=tmpcterm, snp=snp):
                         yield z
 
+
 def remove_precursor(mz_prec, spectrum, acc):
     mz = spectrum['m/z array']
     intens = spectrum['intensity array']
@@ -481,8 +529,9 @@ def remove_precursor(mz_prec, spectrum, acc):
     spectrum['m/z array'] = mz[idx]
     spectrum['intensity array'] = intens[idx]
 
+
 def deisotope(spectrum, acc, charge):
-#   acc = 0.3
+    #   acc = 0.3
     mz = spectrum['m/z array']
     intens = spectrum['intensity array']
 
@@ -511,11 +560,12 @@ def deisotope(spectrum, acc, charge):
     for i, z in add:
         newmz.append(mz[i]*z - (z-1)*h)
         newint.append(intens[i])
-#   print len(skip), len(add)
+    #   print len(skip), len(add)
     mz = np.hstack((mz[ix], newmz))
     intens = np.hstack((intens[ix], newint))
     spectrum['m/z array'] = mz
     spectrum['intensity array'] = intens
+
 
 def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, min_mz, settings):
     spectrum = copy(spectrum)
@@ -526,7 +576,7 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
     dacc = kwargs['dacc']#settings.getfloat('search', 'product accuracy')
     tags = kwargs['tags']
     try:
-        fast_first_stage = settings.getint('misc', 'fast first stage')
+        fast_first_stage = settings.getint('misc', 'fast first stage')  ## FIXME - NameError
     except:
         fast_first_stage = 0
 
@@ -554,15 +604,13 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
 
     mz_prec, _ = get_expmass(spectrum, kwargs)
     remove_precursor(mz_prec, spectrum, acc)
-    
+
     mz = spectrum['m/z array']
 
     idx = np.nonzero(mz >= kwargs['min_mz'])#settings.getfloat('search', 'product minimum m/z'))
     spectrum['intensity array'] = spectrum['intensity array'][idx]
     mz = mz[idx]
     spectrum['intensity array'] = spectrum['intensity array'].astype(np.float32)
-
-
 
     if minpeaks and spectrum['intensity array'].size < minpeaks:
         return None
@@ -597,9 +645,9 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
 
     tmp2 = dict()
     tmp = spectrum['m/z array'] / acc
-#    tmp2 = spectrum['intensity array'] + 1
+    #    tmp2 = spectrum['intensity array'] + 1
     tmp = tmp.astype(int)
-#    tmp2 = tmp.astype(int)
+    #    tmp2 = tmp.astype(int)
     for idx, mt in enumerate(tmp):
         if fast_first_stage:
             i_val = spectrum['intensity array'][idx] / spectrum['Isum']
@@ -618,6 +666,7 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
 
     return spectrum
 
+
 def relative(unit):
     if unit == 'ppm':
         return True
@@ -626,26 +675,49 @@ def relative(unit):
     else:
         raise ValueError('Unrecognized precursor accuracy unit: ' + unit)
 
+
 def set_mod_dict(settings):
     mods = settings.get('modifications', 'variable')
+    pmods = settings.get('modifications', 'protein variable')
+
     settings.set('modifications', 'variable_original', mods)
+    i = None
     if isinstance(mods, basestring):
-        mods = mods.strip()
+        mods = mods.strip(' ,')
         mod_dict = {}
         legend = {}
 
         if mods:
             mods = [custom_split_label(l) for l in re.split(r',\s*', mods)]
             mods.sort(key=lambda x: len(x[0]), reverse=True)
-            for mod, char in zip(mods, string.punctuation):
+            for i, (mod, char) in enumerate(zip(mods, string.punctuation), 1):
                 legend[''.join(mod)] = char
                 legend[char] = mod
             assert all(len(m) == 3 for m in mods), 'unmodified residue given'
             for mod, aa, term in mods:
                 mod_dict.setdefault(mod, []).append(aa)
-            settings.set('modifications', 'variable', mod_dict)
-        settings.set('misc', 'legend', legend)
+        settings.set('modifications', 'variable', mod_dict)
         logger.info('Setting legend: %s', legend)
+        settings.set('misc', 'legend', legend)
+
+    if isinstance(pmods, basestring):
+        plegend = {}
+        pmod_dict = {}
+        if pmods:
+            pmods = [custom_split_label(l) for l in re.split(r',\s*', pmods)]
+            pmods.sort(key=lambda x: len(x[0]), reverse=True)
+            for mod, char in zip(pmods, string.punctuation[i:]):
+                plegend[''.join(mod)] = char
+                plegend[char] = mod
+            assert all(len(m) == 3 for m in pmods), 'unmodified residue given'
+            for mod, aa, term in pmods:
+                pmod_dict.setdefault(mod, []).append(aa)
+        settings.set('modifications', 'protein variable', pmod_dict)
+        mod_dict.update(pmod_dict)
+        settings.set('modifications', 'variable', mod_dict)
+        settings.set('misc', 'plegend', plegend)
+        logger.info('Setting plegend: %s', plegend)
+
 
 def get_enzyme(enzyme):
     if enzyme in parser.expasy_rules:
@@ -656,6 +728,7 @@ def get_enzyme(enzyme):
             return enzyme
         except:
             return enzyme
+
 
 def convert_tandem_cleave_rule_to_regexp(cleavage_rule):
 
@@ -702,6 +775,7 @@ def convert_tandem_cleave_rule_to_regexp(cleavage_rule):
                 out_rules.append('(?=[%s])' % (cut, ))
     return '|'.join(out_rules)
 
+
 class CustomRawConfigParser(RawConfigParser, object):
     def get(self, section, option):
         val = super(CustomRawConfigParser, self).get(section, option)
@@ -729,6 +803,7 @@ class CustomRawConfigParser(RawConfigParser, object):
 
 def find_nearest(array, value):
     return (np.abs(np.array(array) - value)).argmin()
+
 
 def _charge_params(settings):
     params = {}
@@ -763,6 +838,7 @@ def get_info(spectrum, result, settings, aa_mass=None):
     idx = find_nearest(masses, custom_mass(str(result['candidates'][0][1]), aa_mass=aa_mass, nterm_mass=nterm_mass, cterm_mass=cterm_mass))
     return (masses[idx], states[idx], RT)
 
+
 def reshape_theor_spectrum(peaks):
     for k in peaks.keys():
         marr = np.array(peaks[k])
@@ -780,6 +856,7 @@ ion_shift_dict = {
     'z': 17.026549101010005,
 }
 
+
 def calc_ions_from_neutral_mass(peptide, nm, ion_type, charge, aa_mass, cterm_mass, nterm_mass):
     if ion_type in 'abc':
         nmi = nm - aa_mass[peptide[-1]] - ion_shift_dict[ion_type] - (cterm_mass - 17.002735)
@@ -787,14 +864,17 @@ def calc_ions_from_neutral_mass(peptide, nm, ion_type, charge, aa_mass, cterm_ma
         nmi = nm - aa_mass[peptide[0]] - ion_shift_dict[ion_type] - (nterm_mass - 1.007825)
     return (nmi + 1.0072764667700085 * charge) / charge
 
+
 def check_n_term(ion_type):
     return (ion_type[0] == 'b' or ion_type[0] == 'a' or ion_type[0] == 'c')
+
 
 def get_n_ions(peptide, maxmass, pl, charge, k_aa_mass):
     tmp = [maxmass, ]
     for i in xrange(1, pl):
         tmp.append(tmp[-1] - k_aa_mass[peptide[-i-1]]/charge)
     return tmp
+
 
 def get_c_ions(peptide, maxmass, pl, charge, k_aa_mass):
     tmp = [maxmass, ]
@@ -837,6 +917,7 @@ def theor_spectrum(peptide, acc_frag, nterm_mass, cterm_mass, types=('b', 'y'), 
                 marr = marr.reshape((n, 1))
             peaks[ion_type, charge] = marr
     return peaks, theoretical_set
+
 
 def get_expmass(spectrum, kwargs):
     maxcharge = kwargs['maxcharge'] or None
@@ -886,13 +967,14 @@ def import_(name):
         logger.error('%s', e)
         return getattr(__import__('identipy.scoring', fromlist=[name]), name)
 
+
 def get_aa_mass(settings):
     if settings.has_option('misc', 'aa_mass'):
         return settings.get('misc', 'aa_mass')
     aa_mass = mass.std_aa_mass.copy()
     aa_mass['-'] = 0.0
     for k, v in settings.items('modifications'):
-        if k not in {'fixed', 'variable', 'variable_original'}:
+        if k not in {'fixed', 'variable', 'variable_original', 'protein variable'}:
             aa_mass[k] = float(v)
     fmods = settings.get('modifications', 'fixed')
     if fmods:
@@ -912,7 +994,20 @@ def get_aa_mass(settings):
                 else:
                     aa_mass[p] = aa_mass[mod] + aa_mass[aa]
                     aa_mass[mod+aa] = aa_mass[mod] + aa_mass[aa]
+    pmods = settings.get('modifications', 'protein variable')
+    if pmods:
+        leg = settings.get('misc', 'plegend')
+        for p in string.punctuation:
+            if p in leg:
+                mod, aa, term = leg[p]
+                if term == ']' and aa == '-':
+                    aa_mass[p] = aa_mass[mod] + aa_mass[aa]
+                    aa_mass[aa+mod] = aa_mass[mod] + aa_mass[aa]
+                else:
+                    aa_mass[p] = aa_mass[mod] + aa_mass[aa]
+                    aa_mass[mod+aa] = aa_mass[mod] + aa_mass[aa]
     return aa_mass
+
 
 def multimap(n, func, it, global_data, best_res_in=False, best_res_raw_in=False, best_peptides=False, **kw):
     global best_res
@@ -988,65 +1083,16 @@ def multimap(n, func, it, global_data, best_res_in=False, best_res_raw_in=False,
 
         global qin
 
-        # if best_peptides:
-        #     qin = best_peptides
-        #     procs = []
-        #     for proc_num in range(n):
-        #         p = Process(target=worker, args=(qout, proc_num, n, global_data[proc_num]))
-        #         p.start()
-        #         procs.append(p)
-
-        #     count = len(qin)
-
-        #     for _ in range(n):
-        #         for item in iter(qout.get, None):
-        #             for k, v in item.items():
-        #                 print(k)
-        #                 if -v[3] <= best_res.get(k, 0):
-        #                     best_res_raw[k] = v
-        #                     best_res[k] = -v[3]
-        #                     best_res_pep[k] = v[0]
-
-        #     for p in procs:
-        #         p.join()
-
-            
         while True:
             qint = list(islice(it, 5000000))
             if not len(qint):
                 break
 
             qin = []
-            for peptide in qint:
-
-                nmods, maxmods = op.itemgetter('nmods', 'maxmods')(kw)
-                out = []
-                for form in (custom_isoforms(peptide, variable_mods=nmods, maxmods=maxmods, snp=kw['snp']) if (nmods and maxmods) else [peptide, ]):
-                    if kw['snp']:
-                        if 'snp' not in form:
-                            seqm = form
-                            aachange_pos = False
-                            snp_label = 'wild'
-                        else:
-                            tmp = form.split('snp')
-                            seqm = tmp[0] + tmp[1].split('at')[0].split('to')[-1] + tmp[2]
-                            aachange_pos = len(tmp[0]) + 1
-                            snp_label = tmp[1]
-                        aachange_pos = False
-                    else:
-                        seqm = form
-                        aachange_pos = False
-                        snp_label = False
-
-
-
-
-                    m = custom_mass(seqm, aa_mass=kw['aa_mass'], nterm_mass = nterm_mass, cterm_mass = cterm_mass)
-
-                    qin.append((seqm, aachange_pos, snp_label, m))
+            for seqm, aachange_pos, snp_label, m in qint:
+                qin.append((seqm, aachange_pos, snp_label, m))
             qin = sorted(qin, key=lambda x: x[3])
             qin_masses = np.array([z[3] for z in qin])
-
 
             procs = []
             for proc_num in range(n):
@@ -1071,21 +1117,21 @@ def multimap(n, func, it, global_data, best_res_in=False, best_res_raw_in=False,
             count = len(qin)
 
             for _ in range(n):
-                print(_, len(best_res_pep))
+                logger.debug('%s %s', _, len(best_res_pep))
                 for item in iter(qout.get, None):
                     for k, v in item.items():
                         if -v[3] <= best_res.get(k, 0):
                             best_res_raw[k] = v
                             best_res[k] = -v[3]
                             best_res_pep[k] = v[0]
-                print(_, len(best_res_pep))
+                logger.debug('%s %s', _, len(best_res_pep))
 
-            print('HERE1')
+            logger.debug('HERE1')
 
             for p in procs:
                 p.join()
 
-            print('HERE2')
+            logger.debug('HERE2')
 
         logger.info(len(best_res_pep))
         return best_res_raw, best_res
@@ -1109,11 +1155,13 @@ def get_RT(spectrum):
                     return 0
     return spectrum['scanList']['scan'][0]['scan start time'] * 60
 
+
 def get_title(spectrum):
     if 'params' in spectrum:
         return spectrum['params']['title']
     else:
         return spectrum['id']
+
 
 def get_precursor_mz(spectrum):
     try:
@@ -1148,6 +1196,7 @@ def get_shifts_and_pime(settings):
     for i in range(pime):
         shifts_and_pime += [x + (i + 1) * dM for x in shifts]
     return shifts_and_pime
+
 
 def build_pept_prot(settings, results):
     mc = settings.getint('search', 'number of missed cleavages')
@@ -1212,10 +1261,12 @@ def build_pept_prot(settings, results):
 
     return pept_prot, prots, pept_neighbors, pept_ntts
 
+
 def get_outpath(inputfile, settings, suffix):
     outpath = settings.get('output', 'path')
     filename = os.path.join(outpath, os.path.splitext(os.path.basename(inputfile))[0] + os.path.extsep + suffix)
     return filename
+
 
 def write_pepxml(inputfile, settings, results):
     outpath = settings.get('output', 'path')
@@ -1515,7 +1566,7 @@ def write_pepxml(inputfile, settings, results):
                                 tmp4.set('name', 'PIF')
                                 tmp4.set('value', str(spectrum['params'].get('pif', -3)))
                                 tmp3.append(copy(tmp4))
-                            
+
                             if 'sulfur' in spectrum['params']:
                                 tmp4 = etree.Element('search_score')
                                 tmp4.set('name', 'sulfur')
@@ -1565,14 +1616,15 @@ def write_csv(inputfile, settings, results):
     logger.info('Writing %s ...', fname)
     df.to_csv(fname, index=False, sep=sep)
 
+
 def dataframe(inputfile, settings, results):
-#   results = list(get_output(results, settings))
+    #   results = list(get_output(results, settings))
     results = list(results)
     if not results:
         return None
 
     logger.info('Accumulated results: %s', len(results))
-#   ensure_decoy(settings)
+    #   ensure_decoy(settings)
     set_mod_dict(settings)
     fmods = settings.get('modifications', 'fixed')
     pept_prot, prots, pept_neighbors, pept_ntts = build_pept_prot(settings, results)
@@ -1626,18 +1678,12 @@ def dataframe(inputfile, settings, results):
                     break
                 else:
                     allproteins = pept_prot[re.sub(r'[^A-Z]', '', sequence)]
-#                   try:
-#                       protein_descr = prots[proteins[0]].split(' ', 1)[1]
-#                   except:
-#                       protein_descr = ''
-#                   row['Description'] = protein_descr
 
                     row.append(sum(v.sum() for v in match.values()))
                     row.append((len(sequence) - 1) * 2)
                     neutral_mass_theor = custom_mass(sequence, aa_mass=aa_mass, nterm_mass = nterm_mass, cterm_mass = cterm_mass)
                     row.append(neutral_mass_theor)
                     row.append(candidate[4]['mzdiff']['Da'])
-#                   row['num_tol_term'] = '2')  # ???)
                     row.append(parser.num_sites(sequence, get_enzyme(enzyme)))
 
                     proteins = [allproteins[0]]
@@ -1687,7 +1733,6 @@ def write_pickle(inputfile, settings, results):
         pickle.dump((inputfile, settings, results), output, -1)
 
 
-
 def write_output(inputfile, settings, results):
     formats = {'pepxml': write_pepxml, 'csv': write_csv, 'tsv': write_csv, 'pickle': write_pickle}
     of = settings.get('output', 'format')
@@ -1703,6 +1748,7 @@ def write_output(inputfile, settings, results):
         settings.set('output', 'path', outpath)
 
     return writer(inputfile, settings, results)
+
 
 def demix_chimeric(path_to_features, path_to_mzml, demixing=False, calc_PIF=True):
 
@@ -1758,15 +1804,15 @@ def demix_chimeric(path_to_features, path_to_mzml, demixing=False, calc_PIF=True
                 else:
                     intensity_full_ms2 = 0
                     intensity_precursor = 0
-                    
+
                     idx_l = cur_ms1['m/z array'].searchsorted(pepmass - isolation_window_left)
                     idx_r = cur_ms1['m/z array'].searchsorted(pepmass + isolation_window_right)
-                    
+
                     if not ch:
                         tch = 2
                     else:
                         tch = ch
-                        
+
                     abs_error = pepmass * mass_acc * 1e-6
                     for mz, intensity in zip(cur_ms1['m/z array'][idx_l:idx_r], cur_ms1['intensity array'][idx_l:idx_r]):
                         if any(abs(mz - (pepmass + (k * 1.007825) / tch)) <= abs_error for k in [-2, -1, 0, 1, 2, 3, 4]):
@@ -1808,7 +1854,7 @@ def demix_chimeric(path_to_features, path_to_mzml, demixing=False, calc_PIF=True
         df1['MSMS'] = df1.apply(findMSMS, axis=1, args = (isolation_window_left, isolation_window_right, mzs, RTs, titles, ionmobs))
         df1['MSMS_accurate'] = df1.apply(findMSMS_accurate, axis=1, args = (mzs, RTs, titles, ionmobs, chs))
         # print(df1['MSMS_accurate'])
-    
+
     outmgf_name = os.path.splitext(path_to_mzml)[0] + '_identipy' + os.extsep + 'mgf'
     outmgf = open(outmgf_name, 'w')
 
@@ -1877,9 +1923,9 @@ def demix_chimeric(path_to_features, path_to_mzml, demixing=False, calc_PIF=True
                 t_i += 1
 
     else:
-        
+
         MS2_acc_map = {}
-        
+
         if not df1 is None:
             for z in df1[['mz', 'rtApex', 'charge', 'intensityApex', 'MSMS', 'MSMS_accurate', 'rtStart', 'rtEnd', 'ion_mobility', 'sulfur']].values:
                 ttl_ac = z[5]
@@ -1889,12 +1935,12 @@ def demix_chimeric(path_to_features, path_to_mzml, demixing=False, calc_PIF=True
                     else:
                         if MS2_acc_map[ttl][3] < z[3]:
                             MS2_acc_map[ttl] = z
-                        
+
         # print(MS2_acc_map)
-        
+
         for k in ms2_map:
             a = ms2_map[k]
-            
+
             if k in MS2_acc_map:
                 # print('HERE, ok')
                 z = MS2_acc_map[k]
@@ -1907,8 +1953,8 @@ def demix_chimeric(path_to_features, path_to_mzml, demixing=False, calc_PIF=True
                 except:
                     ch = 0
                 Intensity, ttls, ttl_ac, rt_ll, rt_rr, ion_mob, sulfur = 0, 0, 0, 0, 0, 0, 0
-                
-            
+
+
             mz_arr, I_arr = a['m/z array'], a['intensity array']
             PIF = a.get('PIF', -2)
 #             mz = float(a['precursorList']['precursor'][0]['selectedIonList']['selectedIon'][0]['selected ion m/z'])
@@ -1934,6 +1980,7 @@ def demix_chimeric(path_to_features, path_to_mzml, demixing=False, calc_PIF=True
 
     return outmgf_name
 
+
 def findMSMS(raw, isolation_window_left, isolation_window_right, mzs, RTs, titles, ionmobs):
     out = []
     isotope_fix = raw['nIsotopes'] / raw['charge']
@@ -1952,6 +1999,7 @@ def findMSMS(raw, isolation_window_left, isolation_window_right, mzs, RTs, title
         return out
     else:
         return None
+
 
 def findMSMS_accurate(raw, mzs, RTs, titles, ionmobs, chs):
     out = set()
@@ -1973,6 +2021,7 @@ def findMSMS_accurate(raw, mzs, RTs, titles, ionmobs, chs):
             # return True
     # return False
     return out
+
 
 def generate_database(settings, outname=None):
     add_decoy = settings.getboolean('input', 'add decoy')
@@ -1999,4 +2048,3 @@ def generate_database(settings, outname=None):
         return ft.name
     else:
         logger.debug('Skipping database generation. add_decoy = %s, target_only = %s', add_decoy, target_only)
-

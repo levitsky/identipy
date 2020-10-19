@@ -53,9 +53,30 @@ def get_label(modmass, labels):
             labels['i'] += 1
         return labels[modmass], labels, 1
 
+
+def process_mods(settings, spec, name, labels):
+    mods_array = []
+    if spec:
+        for mod in spec.split(','):
+            modmass, modaa = mod.split('@')
+            lbl, labels, flag = get_label(modmass, labels)
+            if modaa == '[':
+                ntermlabel, modaa, ctermlabel = '-', '', ''
+            elif modaa == ']':
+                ntermlabel, modaa, ctermlabel = '', '', '-'
+            else:
+                ntermlabel, ctermlabel = '', ''
+            mods_array.append(ctermlabel + lbl + modaa + ntermlabel)
+            if flag:
+                settings.set('modifications', lbl, modmass)
+    if mods_array or spec is not None:
+        settings.set('modifications', name, ','.join(mods_array))
+
+
 def _update(settings, section, name, value):
     if value is not None:
         settings.set(section, name, value)
+
 
 def run():
     parser = argparse.ArgumentParser(
@@ -119,11 +140,12 @@ def run():
     parser.add_argument('-ccleave', help='protein cterm cleavage', type=float)
     parser.add_argument('-fmods',   help='fixed modifications. in mass1@aminoacid1,mass2@aminoacid2 format')
     parser.add_argument('-vmods',   help='variable modifications. in mass1@aminoacid1,mass2@aminoacid2 format')
+    parser.add_argument('-pmods',   help='variable protein terminal modifications')
     parser.add_argument('-tags',    help='Add quantitation tags to the pepXML output. Can be tmt10plex, tmt6plex, tmt11plex or custom format label1:mass1,label2:mass2...')
-    parser.add_argument('-debug',  help='Print debugging messages', action='store_true')
-    parser.add_argument('-dino', help='path to Dinosaur. Used for chimeric spectrum processing and MS1 Intensity calculation', default=False)
-    parser.add_argument('-demixing',      help='Use demixing', action='store_true')
-    parser.add_argument('-pif',      help='Calculate PIF', action='store_true')
+    parser.add_argument('-debug',   help='Print debugging messages', action='store_true')
+    parser.add_argument('-dino',    help='path to Dinosaur. Used for chimeric spectrum processing and MS1 Intensity calculation', default=False)
+    parser.add_argument('-demixing',help='Use demixing', action='store_true')
+    parser.add_argument('-pif',     help='Calculate PIF', action='store_true')
 
     args = vars(parser.parse_args())
     if args['debug']:
@@ -135,41 +157,9 @@ def run():
         settings = main.settings()
 
     labels = {'i': 0, 'j': 0, 'k': 0}
-
-    fmods_array = []
-    vmods_array = []
-    if args['fmods']:
-        for mod in args['fmods'].split(','):
-            modmass, modaa = mod.split('@')
-            lbl, labels, flag = get_label(modmass, labels)
-            if modaa == '[':
-                ntermlabel, modaa, ctermlabel = '-', '', ''
-            elif modaa == ']':
-                ntermlabel, modaa, ctermlabel = '', '', '-'
-            else:
-                ntermlabel, ctermlabel = '', ''
-            fmods_array.append(ctermlabel + lbl + modaa + ntermlabel)
-            if flag:
-                settings.set('modifications', lbl, modmass)
-    if fmods_array or args['fmods'] is not None:
-        settings.set('modifications', 'fixed', ','.join(fmods_array))
-
-    if args['vmods']:
-        for mod in args['vmods'].split(','):
-            modmass, modaa = mod.split('@')
-            lbl, labels, flag = get_label(modmass, labels)
-            if modaa == '[':
-                ntermlabel, modaa, ctermlabel = '-', '', ''
-            elif modaa == ']':
-                ntermlabel, modaa, ctermlabel = '', '', '-'
-            else:
-                ntermlabel, ctermlabel = '', ''
-            vmods_array.append(ctermlabel + lbl + modaa + ntermlabel)
-            if flag:
-                settings.set('modifications', lbl, modmass)
-    if vmods_array or args['vmods'] is not None:
-        settings.set('modifications', 'variable', ','.join(vmods_array))
-
+    process_mods(settings, args['fmods'], 'fixed', labels)
+    process_mods(settings, args['vmods'], 'variable', labels)
+    process_mods(settings, args['pmods'], 'protein variable', labels)
 
     _update(settings, 'input',  'database', args['db'])
     _update(settings, 'search', 'precursor accuracy unit', args['punit'])
