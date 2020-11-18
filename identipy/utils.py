@@ -320,6 +320,7 @@ def peptide_gen(settings, clear_seen_peptides=False):
         seen_decoy.clear()
     isdecoy = is_decoy_function(settings)
     enzyme = get_enzyme(settings.get('search', 'enzyme'))
+    logger.debug('Using cleavage rule: %s', enzyme)
     semitryptic = settings.getint('search', 'semitryptic')
     mc = settings.getint('search', 'number of missed cleavages')
     minlen = settings.getint('search', 'peptide minimum length')
@@ -721,12 +722,13 @@ def set_mod_dict(settings):
 
 def get_enzyme(enzyme):
     if enzyme in parser.expasy_rules:
-        return parser.expasy_rules.get(enzyme)
+        return parser.expasy_rules[enzyme]
     else:
         try:
             enzyme = convert_tandem_cleave_rule_to_regexp(enzyme)
             return enzyme
-        except:
+        except Exception as e:
+            logger.debug('Exception parsing cleavage rule %s: %s', enzyme, e.args[0])
             return enzyme
 
 
