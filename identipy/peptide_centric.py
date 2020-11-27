@@ -202,11 +202,13 @@ def prepare_peptide_processor(fname, settings):
     score = utils.import_(settings.get('scoring', 'score'))
     try:
         score_fast_name = settings.get('scoring', 'score') + '_fast'
-        if score_fast_name == 'identipy.scoring.RNHS_fast':
+        logger.debug('Fast score name: %s', score_fast_name)
+        if score_fast_name in {'identipy.scoring.RNHS_fast', 'RNHS_fast'}:
             try:
                 from cutils import RNHS_fast as score_fast
                 from cutils import RNHS_fast_basic as score_fast_basic
-            except:
+            except ImportError as e:
+                logger.warning('Could not import from cutils: %s', e.args)
                 score_fast = utils.import_(settings.get('scoring', 'score') + '_fast')
                 score_fast = utils.import_(settings.get('scoring', 'score') + '_fast_basic')
         else:
