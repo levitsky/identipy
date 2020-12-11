@@ -5,10 +5,14 @@ setup.py file for identipy
 '''
 import os
 from setuptools import setup, Extension
+import subprocess
 
 
 def get_version():
-    version = open('VERSION').readline().strip()
+    try:
+        version = subprocess.check_output(['git', 'describe']).strip()
+    except subprocess.CalledProcessError:
+        version = open('VERSION').readline().strip()
     return version
 
 
