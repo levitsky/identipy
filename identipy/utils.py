@@ -35,6 +35,8 @@ except:
     from . import customparser as cparser
 from scipy.spatial import cKDTree
 from scipy.stats import rankdata
+import pkg_resources
+
 
 default_tags = {
     'tmt10plex': {
@@ -1340,6 +1342,7 @@ def write_pepxml(inputfile, settings, results):
         child4 = etree.Element('search_summary')
         child4.set('base_name', base_name)
         child4.set('search_engine', search_engine)
+        child4.set("search_engine_version", get_version())
         child4.set('precursor_mass_type', 'monoisotopic')
         child4.set('fragment_mass_type', 'monoisotopic')
         child4.set('search_id', '1')
@@ -2052,3 +2055,7 @@ def generate_database(settings, outname=None):
         return ft.name
     else:
         logger.debug('Skipping database generation. add_decoy = %s, target_only = %s', add_decoy, target_only)
+
+
+def get_version():
+    return pkg_resources.get_distribution('identipy').version
