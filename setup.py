@@ -6,7 +6,11 @@ setup.py file for identipy
 import os
 from setuptools import setup, Extension
 
-version = open('VERSION').readline().strip()
+
+def get_version():
+    version = open('VERSION').readline().strip()
+    return version
+
 
 def make_extensions():
     is_ci = bool(os.getenv("CI", ""))
@@ -46,10 +50,11 @@ def make_extensions():
         ]
     return extensions
 
+
 def do_setup(cext=True):
     setup(
         name             = 'identipy',
-        version          = version,
+        version          = get_version(),
         description      = '''Pyteomics-based search engine''',
         long_description = (''.join(open('README.md').readlines()) + '\n'
                             + ''.join(open('INSTALL').readlines())),
