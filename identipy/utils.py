@@ -1238,12 +1238,14 @@ def build_pept_prot(settings, results):
             else:
                 seqm = pep
             if seqm in peptides:
+                pept_neighbors.setdefault(seqm, {})
+                pept_ntts.setdefault(seqm, {})
                 if not semitryptic:
                     pept_prot.setdefault(seqm, []).append(dbinfo)
-                    pept_neighbors[seqm] = (prot[startposition-1] if startposition != 0 else 'N/A',
-                        prot[startposition+len(seqm)] if startposition + len(seqm) < len(prot) else 'N/A',
+                    pept_neighbors[seqm][dbinfo] = (prot[startposition-1] if startposition != 0 else '-',
+                        prot[startposition+len(seqm)] if startposition + len(seqm) < len(prot) else '-',
                                             startposition, min(startposition + len(seqm), len(prot)))
-                    pept_ntts[seqm] = 2
+                    pept_ntts[seqm][dbinfo] = 2
                 else:
                     ntt = (startposition in cl_positions) + ((startposition + len(seqm)) in cl_positions)
                     if seqm in pept_ntts:
@@ -1253,15 +1255,15 @@ def build_pept_prot(settings, results):
                                 del pept_prot[seqm]
                                 del pept_ntts[seqm]
                             pept_prot.setdefault(seqm, []).append(dbinfo)
-                            pept_neighbors[seqm] = (prot[startposition-1] if startposition != 0 else 'N/A',
-                                prot[startposition+len(seqm)] if startposition + len(seqm) < len(prot) else 'N/A',
+                            pept_neighbors[seqm][dbinfo] = (prot[startposition-1] if startposition != 0 else '-',
+                                prot[startposition+len(seqm)] if startposition + len(seqm) < len(prot) else '-',
                                                     startposition, min(startposition + len(seqm), len(prot)))
-                            pept_ntts[seqm] = ntt
+                            pept_ntts[seqm][dbinfo] = ntt
                     else:
                         pept_prot.setdefault(seqm, []).append(dbinfo)
-                        pept_neighbors[seqm] = (prot[startposition-1] if startposition != 0 else 'N/A',
-                            prot[startposition+len(seqm)] if startposition + len(seqm) < len(prot) else 'N/A')
-                        pept_ntts[seqm] = ntt
+                        pept_neighbors[seqm][dbinfo] = (prot[startposition-1] if startposition != 0 else '-',
+                            prot[startposition+len(seqm)] if startposition + len(seqm) < len(prot) else '-')
+                        pept_ntts[seqm][dbinfo] = ntt
 
     return pept_prot, prots, pept_neighbors, pept_ntts
 
@@ -1427,10 +1429,7 @@ def write_pepxml(inputfile, settings, results):
                         break
                     else:
                         tmp3.set('peptide', sequence)
-                        neighbors = pept_neighbors.get(sequence, ('N/A', 'N/A'))
 
-                        tmp3.set('peptide_prev_aa', neighbors[0])
-                        tmp3.set('peptide_next_aa', neighbors[1])
                         proteins = pept_prot[re.sub(r'[^A-Z]', '', sequence)]
 
                         tmp3.set('protein', prots[proteins[0]].split(' ', 1)[0] + (('_' + candidate[7]) if snp else ''))
@@ -1438,6 +1437,11 @@ def write_pepxml(inputfile, settings, results):
                             protein_descr = prots[proteins[0]].split(' ', 1)[1]
                         except:
                             protein_descr = ''
+
+                        neighbors = pept_neighbors.get(sequence, {}).get(proteins[0], ('-', '-'))
+
+                        tmp3.set('peptide_prev_aa', neighbors[0])
+                        tmp3.set('peptide_next_aa', neighbors[1])
                         tmp3.set('protein_descr', protein_descr)
 
                         num_tot_proteins = len(proteins)
@@ -1448,22 +1452,24 @@ def write_pepxml(inputfile, settings, results):
                         # neutral_mass_theor = cmass.fast_mass(sequence, aa_mass=aa_mass)
                         tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
                         tmp3.set('massdiff', str(candidate[4]['mzdiff']['Da']))
-                        tmp3.set('num_tol_term', str(pept_ntts.get(sequence, '?')))
+                        tmp3.set('num_tol_term', str(pept_ntts.get(sequence, {}).get(proteins[0], '?')))
                         tmp3.set('num_missed_cleavages', str(len(parser.cleave(sequence, get_enzyme(enzyme), 0)) - 1))
                         tmp3.set('is_rejected', '0')  # ???
 
                         if num_tot_proteins > 1 and (not snp or 'wild' not in prots[proteins[0]].split(' ', 1)[0]):
-                            for idx in range(len(proteins)):
-                                if idx != 0:
-                                    tmp4 = etree.Element('alternative_protein')
-                                    tmp4.set('protein', prots[proteins[idx]].split(' ', 1)[0] + (('_' + candidate[7]) if snp else ''))
-                                    try:
-                                        protein_descr = prots[proteins[idx]].split(' ', 1)[1]
-                                    except:
-                                        protein_descr = ''
-                                    tmp4.set('protein_descr', protein_descr)
-                                    tmp4.set('num_tol_term', str(pept_ntts.get(sequence, '?')))
-                                    tmp3.append(copy(tmp4))
+                            for prot in proteins[1:]:
+                                tmp4 = etree.Element('alternative_protein')
+                                tmp4.set('protein', prots[prot].split(' ', 1)[0] + (('_' + candidate[7]) if snp else ''))
+                                try:
+                                    protein_descr = prots[prot].split(' ', 1)[1]
+                                except:
+                                    protein_descr = ''
+                                tmp4.set('protein_descr', protein_descr)
+                                neighbors = pept_neighbors.get(sequence, {}).get(prot, ('-', '-'))
+                                tmp4.set('peptide_prev_aa', neighbors[0])
+                                tmp4.set('peptide_next_aa', neighbors[1])
+                                tmp4.set('num_tol_term', str(pept_ntts.get(sequence, {}).get(prot, '?')))
+                                tmp3.append(copy(tmp4))
 
                         labels = parser.std_labels + [la[:-1] if la[-1] == '[' else '-' + la[:-2] if la[-1] == ']' else la for la in leg if len(la) > 1]
 #                       logger.debug('Known labels: %s', labels)
