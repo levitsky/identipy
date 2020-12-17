@@ -1595,7 +1595,7 @@ def write_pepxml(inputfile, settings, results):
                         if tags:
                             for tag_label in tags.keys():
                                 tmp4 = etree.Element('search_score')
-                                tmp4.set('name', tag_label)
+                                tmp4.set('name', 'tag_' + tag_label)
                                 tmp4.set('value', str(spectrum.get(tag_label, 0)))
                                 tmp3.append(copy(tmp4))
 
