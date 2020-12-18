@@ -1146,9 +1146,11 @@ def allow_all(*args):
 
 
 def get_RT(spectrum):
+    """Return scan retention time in seconds"""
+    # MGF
     if 'params' in spectrum:
         try:
-            return float(spectrum['params']['rtinseconds'])# / 60
+            return float(spectrum['params']['rtinseconds'])
         except:
             try:
                 return float(spectrum['params']['title'].split(',')[-1].strip().split()[0])
@@ -1157,7 +1159,18 @@ def get_RT(spectrum):
                     return 60 * np.average([float(x) for x in spectrum['params']['title'].split('lution from: ')[-1].split(' period:')[0].split(' to ')])
                 except:
                     return 0
-    return spectrum['scanList']['scan'][0]['scan start time'] * 60
+    # mzML
+    try:
+        rt = spectrum['scanList']['scan'][0]['scan start time']
+        try:
+            if rt.unit_info == 'second':
+                return float(rt)
+            else:
+                return float(rt * 60)
+        except AttributeError:
+            return float(rt)
+    except KeyError:
+        return 0
 
 
 def get_title(spectrum):
