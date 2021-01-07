@@ -1250,33 +1250,20 @@ def build_pept_prot(settings, results):
                     seqm = tmp[0] + tmp[1].split('at')[0].split('to')[-1] + tmp[2]
             else:
                 seqm = pep
+
             if seqm in peptides:
-                pept_neighbors.setdefault(seqm, {})
                 pept_ntts.setdefault(seqm, {})
+                pept_neighbors.setdefault(seqm, {})
+                pept_neighbors[seqm][dbinfo] = (prot[startposition - 1] if startposition != 0 else '-',
+                        prot[startposition + len(seqm)] if startposition + len(seqm) < len(prot) else '-')
+
                 if not semitryptic:
                     pept_prot.setdefault(seqm, []).append(dbinfo)
-                    pept_neighbors[seqm][dbinfo] = (prot[startposition-1] if startposition != 0 else '-',
-                        prot[startposition+len(seqm)] if startposition + len(seqm) < len(prot) else '-',
-                                            startposition, min(startposition + len(seqm), len(prot)))
                     pept_ntts[seqm][dbinfo] = 2
                 else:
                     ntt = (startposition in cl_positions) + ((startposition + len(seqm)) in cl_positions)
-                    if seqm in pept_ntts:
-                        best_ntt = pept_ntts[seqm]
-                        if best_ntt <= ntt:
-                            if best_ntt < ntt:
-                                del pept_prot[seqm]
-                                del pept_ntts[seqm]
-                            pept_prot.setdefault(seqm, []).append(dbinfo)
-                            pept_neighbors[seqm][dbinfo] = (prot[startposition-1] if startposition != 0 else '-',
-                                prot[startposition+len(seqm)] if startposition + len(seqm) < len(prot) else '-',
-                                                    startposition, min(startposition + len(seqm), len(prot)))
-                            pept_ntts[seqm][dbinfo] = ntt
-                    else:
-                        pept_prot.setdefault(seqm, []).append(dbinfo)
-                        pept_neighbors[seqm][dbinfo] = (prot[startposition-1] if startposition != 0 else '-',
-                            prot[startposition+len(seqm)] if startposition + len(seqm) < len(prot) else '-')
-                        pept_ntts[seqm][dbinfo] = ntt
+                    pept_ntts[seqm][dbinfo] = ntt
+                    pept_prot.setdefault(seqm, []).append(dbinfo)
 
     return pept_prot, prots, pept_neighbors, pept_ntts
 
