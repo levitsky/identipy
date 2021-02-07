@@ -330,7 +330,11 @@ def peptide_gen(settings, clear_seen_peptides=False):
     snp = settings.getint('search', 'snp')
     for prot in prot_gen(settings):
         for pep, pos in prot_peptides(prot[1], enzyme, mc, minlen, maxlen, is_decoy=isdecoy(prot[0]), snp=snp, desc=prot[0], semitryptic=semitryptic, position=True):
-            term = (pos == 0) or (pos + len(pep) == len(prot[1]))
+            term = ''
+            if pos == 0:
+                term += 'n'
+            if pos + len(pep) == len(prot[1]):
+                term += 'c'
             yield pep, term
 
 
@@ -342,17 +346,25 @@ def peptide_isoforms(settings, clear_seen_peptides=False):
     logger.debug('leg: %s, pleg: %s', leg, pleg)
     punct = set(string.punctuation)
     nmods = [(p, mod[1], mod[2]) for p, mod in leg.iteritems() if p in punct]
-    pmods = [(p, mod[1], mod[2]) for p, mod in pleg.iteritems() if p in punct]
+    pmods_n, pmods_c = [], []
+    for p, mod in pleg.iteritems():
+        if p in punct:
+            if mod[2] == '[':
+                pmods_n.append((p, mod[1], mod[2]))
+            if mod[2] == ']':
+                pmods_c.append((p, mod[1], mod[2]))
     logger.debug('nmods: %s', nmods)
-    logger.debug('pmods: %s', pmods)
+    logger.debug('pmods_n: %s', pmods_n)
+    logger.debug('pmods_c: %s', pmods_c)
     aa_mass = get_aa_mass(settings)
     nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage')
     cterm_mass = settings.getfloat('modifications', 'protein cterm cleavage')
     for peptide, term in peptide_gen(settings, clear_seen_peptides):
-        if term:
-            mods = nmods + pmods
-        else:
-            mods = nmods
+        mods = nmods[:]
+        if 'n' in term:
+            mods += pmods_n
+        if 'c' in term:
+            mods += pmods_c
         for form in (custom_isoforms(peptide, variable_mods=mods, maxmods=maxmods, snp=snp) if (nmods and maxmods) else [peptide, ]):
             if snp:
                 if 'snp' not in form:
