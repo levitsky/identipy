@@ -464,7 +464,7 @@ def process_peptides(fname, settings):
 
     maxlen = settings.getint('search', 'peptide maximum length')
     dtype = np.dtype([('score', np.float64),
-        ('seq', np.str_, maxlen), ('note', np.str_, 1),
+        ('seq', np.str_, maxlen + 2), ('note', np.str_, 1),
         ('charge', np.int8), ('info', np.object_), ('sumI', np.float64), ('fragmentMT', np.float64), ('snp_label', np.str_, 15), ('nextscore_std', np.float64)])
     for spec_name, val in spec_results.iteritems():
         s = val['spectrum']
