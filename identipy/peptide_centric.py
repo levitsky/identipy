@@ -78,13 +78,9 @@ def prepare_peptide_processor(fname, settings):
     lptol = settings.getfloat('search', 'precursor accuracy left')
     rptol = settings.getfloat('search', 'precursor accuracy right')
     prec_acc_Da = max(abs(lptol), abs(rptol))
-    if not ptol_unit == 'Da' or prec_acc_Da < 1.0:
+    if ptol_unit != 'Da' or prec_acc_Da < 1.0:
         prec_acc_Da = False
-    else:
-        prec_acc_Da = prec_acc_Da
-    #     prec_acc_Da = prec_acc_Da * 1e-6 * 5000
 
-    # if not spectra:
     logger.info('Reading spectra ...')
     if not rapid_check:
         tmp_spec = utils.iterate_spectra(fname)
@@ -111,10 +107,10 @@ def prepare_peptide_processor(fname, settings):
 
     nmasses_tmp = np.array(nmasses_tmp)
     idx_t = np.argsort(nmasses_tmp)
+    max_nmass = nmasses_tmp[idx_t[-1]]
     max_l = int(len(nmasses_tmp)/n_proc)+1
     for idx, k in enumerate(idx_t):
         global_data_index_map[k] = idx / max_l
-    # print(global_data_index_map)
 
     for ps in tmp_spec2:
         # global_data_index = num_spectra % n_proc
@@ -132,22 +128,11 @@ def prepare_peptide_processor(fname, settings):
             global_data[global_data_index]['charges'].append(c)
             global_data[global_data_index]['effcharges'].append(effc)
 
-            # nmasses.append(m)
-            # spectra.append(ps)
-            # titles.append(ttl)
-            # charges.append(c)
-            # effcharges.append(effc)
-
             num_spectra += 1
     logger.info('%s spectra pass quality criteria.', num_spectra)
 
-    # else:
-    #     num_spectra = len(spectra)
-    #     # num_spectra = sum(map(len, spectra.itervalues()))
-    #     logger.info('Reusing %s spectra from previous run.', num_spectra)
-
-    if not ptol_unit == 'Da':
-        max_prec_acc_Da = max((max(global_data_local['nmasses']) for global_data_local in global_data)) * 1e-6 * max(abs(lptol), abs(rptol))
+    if ptol_unit != 'Da':
+        max_prec_acc_Da = max_nmass * 1e-6 * max(abs(lptol), abs(rptol))
     else:
         max_prec_acc_Da = max(abs(lptol), abs(rptol))
 
