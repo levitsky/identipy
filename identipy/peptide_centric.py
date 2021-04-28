@@ -111,6 +111,8 @@ def prepare_peptide_processor(fname, settings):
     max_l = int(len(nmasses_tmp)/n_proc)+1
     for idx, k in enumerate(idx_t):
         global_data_index_map[k] = idx / max_l
+    logger.debug('nproc: %d, nmasses: %d, max_l: %d, maximum index: %d',
+        n_proc, nmasses_tmp.size, max_l, max(global_data_index_map.values()))
 
     for ps in tmp_spec2:
         # global_data_index = num_spectra % n_proc
