@@ -1801,7 +1801,9 @@ def demix_chimeric(path_to_features, path_to_mzml, demixing=False, calc_PIF=True
     for a in mzml.read(path_to_mzml):
         if a['ms level'] == 1:
             cur_ms1 = a
-        if a['ms level'] == 2 and len(a['m/z array']) > 0:
+        elif a['ms level'] == 2:
+            logger.debug('PROCESSING RT: ' + str(a['scanList']['scan'][0]['scan start time']) )
+        if a['ms level'] == 2 and 'm/z array' in a.keys() and len(a['m/z array']) > 0:
             # if :
             if not isolation_window_left:
                 isolation_window_left = float(a['precursorList']['precursor'][0]['isolationWindow']['isolation window lower offset'])
