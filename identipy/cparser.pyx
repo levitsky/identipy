@@ -61,7 +61,7 @@ def _cleave(sequence, rule, missed_cleavages=0, min_length=None):
     # cdef list cleavage_sites
     peptides = []
     ml = missed_cleavages+2
-    trange = range(ml)
+    trange = list(range(ml))
     cleavage_sites = deque([0], maxlen=ml)
     cl = 1
     for i in it.chain([x.end() for x in re.finditer(rule, sequence)],

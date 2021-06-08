@@ -6,11 +6,11 @@ setup.py file for identipy
 import os
 from setuptools import setup, Extension
 import subprocess
-
+import sys
 
 def get_version():
     try:
-        version = subprocess.check_output(['git', 'describe']).strip().replace('-', '.')
+        version = subprocess.check_output(['git', 'describe']).strip().decode('ascii').replace('-', '.')
     except subprocess.CalledProcessError:
         version = open('VERSION').readline().strip()
     return version
@@ -28,11 +28,13 @@ def make_extensions():
         from pyteomics import _capi
     except ImportError:
         print("C Extensions require `pyteomics.cythonize`")
+        raise
     try:
         from Cython.Build import cythonize
         cython_directives = {
             'embedsignature': True,
-            "profile": include_diagnostics
+            'profile': include_diagnostics,
+            'language_level': sys.version_info.major
         }
         macros = []
         if include_diagnostics:
@@ -64,11 +66,11 @@ def do_setup(cext=True):
                             + ''.join(open('INSTALL').readlines())),
         author           = 'Lev Levitsky & Mark Ivanov',
         author_email     = 'pyteomics@googlegroups.com',
-        url              = 'http://hg.theorchromo.ru/identipy',
+        url              = 'https://github.com/levitsky/identipy',
         packages         = ['identipy', ],
-        package_data     = {'identipy': ['default.cfg', 'cparser.pyx']},
+        package_data     = {'identipy': ['default.cfg', ]},
         install_requires = [line.strip() for line in open('requirements.txt')],
-        ext_modules=make_extensions() if cext else None,
+        ext_modules      = make_extensions() if cext else None,
         classifiers      = ['Intended Audience :: Science/Research',
                             'Programming Language :: Python :: 2.7',
                             'Topic :: Scientific/Engineering :: Bio-Informatics',

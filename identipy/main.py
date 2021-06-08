@@ -2,6 +2,7 @@ import os
 from . import utils, peptide_centric
 import logging
 import re
+import sys
 logger = logging.getLogger(__name__)
 
 def process_file(fname, settings, initial_run=True):
@@ -43,7 +44,11 @@ def settings(fname=None, default_name=os.path.join(
         os.path.dirname(os.path.abspath(__file__)), 'default.cfg')):
     """Read a configuration file and return a :py:class:`RawConfigParser` object.
     """
-    raw_config = utils.CustomRawConfigParser(dict_type=dict, allow_no_value=True)
+    kwargs = dict(dict_type=dict, allow_no_value=True)
+    if sys.version_info.major == 3:
+        kwargs['inline_comment_prefixes'] = ('#', ';')
+
+    raw_config = utils.CustomRawConfigParser(**kwargs)
     if default_name:
         logger.info('Reading defaults from %s', default_name)
         if not os.path.isfile(default_name):

@@ -59,14 +59,14 @@ def get_fragment_mass_tol(spectrum, peptide, settings, charge_state):
     dist_total_tmp = np.array([])
     match2 = {}
     matchI = {}
-    for ion, fragments in theor.iteritems():
+    for ion, fragments in theor.items():
         n = fragments.size
         dist, ind = spectrum['__KDTree'].query(fragments.reshape((n, 1)), distance_upper_bound=acc)
         mask = (dist != np.inf)
 #       logger.debug('m/z array: %s', spectrum['m/z array'])
 #       logger.debug('fragments: %s', fragments)
 #       logger.debug('dist: %s\nind: %s\n', dist, ind)
-        
+
         logger.debug('%s %s %s', spectrum['intensity array'].size, ind.size, ind[mask])
         int_array_total = np.append(int_array_total, spectrum['intensity array'][ind[mask]])
 
@@ -130,7 +130,7 @@ def get_fragment_mass_tol_ppm(spectrum, peptide, settings, charge_state, acc_ppm
     dist_total_tmp = np.array([])
     match2 = {}
     matchI = {}
-    for ion, fragments in theor.iteritems():
+    for ion, fragments in theor.items():
         n = fragments.size
         dist, ind = spectrum['__KDTree'].query(fragments.reshape((n, 1)), distance_upper_bound=acc)
         mask = (dist != np.inf)
@@ -144,7 +144,7 @@ def get_fragment_mass_tol_ppm(spectrum, peptide, settings, charge_state, acc_ppm
 #       logger.debug('m/z array: %s', spectrum['m/z array'])
 #       logger.debug('fragments: %s', fragments)
 #       logger.debug('dist: %s\nind: %s\n', dist, ind)
-        
+
         logger.debug('%s %s %s', spectrum['intensity array'].size, ind.size, ind[mask])
         int_array_total = np.append(int_array_total, spectrum['intensity array'][ind[mask]])
 
@@ -211,7 +211,7 @@ def morpheusscore(spectrum, theoretical, acc, acc_ppm=False, position=False):
         spectrum['__KDTree'] = cKDTree(mz_array.reshape((mz_array.size, 1)))
 
     dist_all = []
-    for ion, fragments in theoretical.iteritems():
+    for ion, fragments in theoretical.items():
         dist, ind = spectrum['__KDTree'].query(fragments, distance_upper_bound=acc)
         mask1 = (dist != np.inf)
         if acc_ppm:
@@ -282,7 +282,7 @@ def hyperscore(spectrum, theoretical, acc, acc_ppm=False, position=False):
         spectrum['__KDTree'] = cKDTree(mz_array.reshape((mz_array.size, 1)))
 
     dist_all = []
-    for ion, fragments in theoretical.iteritems():
+    for ion, fragments in theoretical.items():
         dist, ind = spectrum['__KDTree'].query(fragments, distance_upper_bound=acc)
         mask1 = (dist != np.inf)
         if acc_ppm:
@@ -446,7 +446,7 @@ def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False, bions_map=Fa
         spectrum['__KDTree'] = cKDTree(mz_array.reshape((mz_array.size, 1)))
 
     dist_all = []
-    for ion, fragments in theoretical.iteritems():
+    for ion, fragments in theoretical.items():
         dist, ind = spectrum['__KDTree'].query(fragments, distance_upper_bound=acc)
         mask1 = (dist != np.inf)
         if acc_ppm:
@@ -577,7 +577,7 @@ def RNHS2(spectrum, theoretical, acc, acc_ppm=False, position=False, bions_map=F
     s_is = copy(spectrum['Isum'])
 
     query_dict = {}
-    for ion, fragments in theoretical.iteritems():
+    for ion, fragments in theoretical.items():
         query_dict[ion] = KDT.query(fragments, distance_upper_bound=acc)
 
     score_tmp = []
@@ -594,7 +594,7 @@ def RNHS2(spectrum, theoretical, acc, acc_ppm=False, position=False, bions_map=F
         total_matched = 0
         sumI = 0
         dist_all = []
-        for ion, fragments in theoretical.iteritems():
+        for ion, fragments in theoretical.items():
             dist, ind = query_dict[ion]#spectrum['__KDTree'].query(fragments, distance_upper_bound=accc)
             # dist, ind = spectrum['__KDTree'].query(fragments, distance_upper_bound=accc)
             mask1 = (dist != np.inf)

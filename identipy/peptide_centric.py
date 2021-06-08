@@ -110,7 +110,7 @@ def prepare_peptide_processor(fname, settings):
     max_nmass = nmasses_tmp[idx_t[-1]]
     max_l = int(len(nmasses_tmp)/n_proc)+1
     for idx, k in enumerate(idx_t):
-        global_data_index_map[k] = idx / max_l
+        global_data_index_map[k] = idx // max_l
     logger.debug('nproc: %d, nmasses: %d, max_l: %d, maximum index: %d',
         n_proc, nmasses_tmp.size, max_l, max(global_data_index_map.values()))
 
@@ -192,8 +192,8 @@ def prepare_peptide_processor(fname, settings):
         logger.debug('Fast score name: %s', score_fast_name)
         if score_fast_name in {'identipy.scoring.RNHS_fast', 'RNHS_fast'}:
             try:
-                from cutils import RNHS_fast as score_fast
-                from cutils import RNHS_fast_basic as score_fast_basic
+                from .cutils import RNHS_fast as score_fast
+                from .cutils import RNHS_fast_basic as score_fast_basic
             except ImportError as e:
                 logger.warning('Could not import from cutils: %s', e.args)
                 score_fast = utils.import_(settings.get('scoring', 'score') + '_fast')
@@ -453,7 +453,7 @@ def process_peptides(fname, settings):
     dtype = np.dtype([('score', np.float64),
         ('seq', np.str_, maxlen + 2), ('note', np.str_, 1),
         ('charge', np.int8), ('info', np.object_), ('sumI', np.float64), ('fragmentMT', np.float64), ('snp_label', np.str_, 15), ('nextscore_std', np.float64)])
-    for spec_name, val in spec_results.iteritems():
+    for spec_name, val in spec_results.items():
         s = val['spectrum']
         c = []
         evalues = []

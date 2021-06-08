@@ -29,14 +29,16 @@ except ImportError:
     logger.warning('pyteomics.cythonize not found. It is highly recommended for good performance.')
     cmass = mass
 try:
-    import pyximport; pyximport.install()
     from . import cparser
-except:
+except ImportError:
     from . import customparser as cparser
 from scipy.spatial import cKDTree
 from scipy.stats import rankdata
 import pkg_resources
-
+try:
+    basestring
+except NameError:
+    basestring = (str, bytes)
 
 default_tags = {
     'tmt10plex': {
@@ -364,9 +366,9 @@ def peptide_isoforms(settings, clear_seen_peptides=False):
     pleg = settings.get('misc', 'plegend')
     logger.debug('leg: %s, pleg: %s', leg, pleg)
     punct = set(string.punctuation)
-    nmods = [(p, mod[1], mod[2]) for p, mod in leg.iteritems() if p in punct]
+    nmods = [(p, mod[1], mod[2]) for p, mod in leg.items() if p in punct]
     pmods_n, pmods_c = [], []
-    for p, mod in pleg.iteritems():
+    for p, mod in pleg.items():
         if p in punct:
             if mod[2] == '[':
                 pmods_n.append((p, mod[1], mod[2]))
@@ -581,7 +583,7 @@ def deisotope(spectrum, acc, charge):
                 if d > 1.5*h:
                     j -= 1
                     continue
-                for z in xrange(1, charge+1):
+                for z in range(1, charge+1):
                     if abs(d - 1./z) < acc:
                         skip.add(j)
                         if z > 1:
@@ -626,11 +628,11 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
         max_mass_label_val = max(tags.values()) + 1.0
         tmp_idx = np.nonzero(spectrum['m/z array'] <= max_mass_label_val)
         tags_res = defaultdict(float)
-        for tmt_label, tmt_mass in tags.iteritems():
+        for tmt_label, tmt_mass in tags.items():
             for t_m, t_i in zip(spectrum['m/z array'][tmp_idx], spectrum['intensity array'][tmp_idx]):
                 if abs(t_m - tmt_mass) / tmt_mass <= 1e-5:
                     tags_res[tmt_label] += t_i
-        for tmt_label, tmt_intensity in tags_res.iteritems():
+        for tmt_label, tmt_intensity in tags_res.items():
             spectrum[tmt_label] = tmt_intensity
 
     if kwargs['deisotope']:
@@ -812,7 +814,7 @@ def convert_tandem_cleave_rule_to_regexp(cleavage_rule):
 
 
 class CustomRawConfigParser(RawConfigParser, object):
-    def get(self, section, option):
+    def get(self, section, option, **kwargs):
         val = super(CustomRawConfigParser, self).get(section, option)
         if isinstance(val, basestring):
             if section == 'search' and option == 'enzyme':
@@ -906,14 +908,14 @@ def check_n_term(ion_type):
 
 def get_n_ions(peptide, maxmass, pl, charge, k_aa_mass):
     tmp = [maxmass, ]
-    for i in xrange(1, pl):
+    for i in range(1, pl):
         tmp.append(tmp[-1] - k_aa_mass[peptide[-i-1]]/charge)
     return tmp
 
 
 def get_c_ions(peptide, maxmass, pl, charge, k_aa_mass):
     tmp = [maxmass, ]
-    for i in xrange(pl-2, -1, -1):
+    for i in range(pl-2, -1, -1):
         tmp.append(tmp[-1] - k_aa_mass[peptide[-(i+2)]]/charge)
     return tmp
 
@@ -928,7 +930,7 @@ def theor_spectrum(peptide, acc_frag, nterm_mass, cterm_mass, types=('b', 'y'), 
     pl = len(peptide) - 1
     if not maxcharge:
         maxcharge = 1 + int(ec.charge(peptide, pH=2))
-    for charge in xrange(1, maxcharge + 1):
+    for charge in range(1, maxcharge + 1):
         for ion_type in types:
             nterminal = check_n_term(ion_type)
             if nterminal:
@@ -1331,9 +1333,9 @@ def write_pepxml(inputfile, settings, results):
             nterm_fixed = settings.getfloat('modifications', 'protein nterm cleavage')
 
     filename = get_outpath(inputfile, settings, 'pep.xml')
-    with open(filename, 'w') as output:
+    with open(filename, 'wb') as output:
         logger.info('Writing %s ...', filename)
-        line1 = '<?xml version="1.0" encoding="UTF-8"?>\n\
+        line1 = b'<?xml version="1.0" encoding="UTF-8"?>\n\
         <?xml-stylesheet type="text/xsl" href="pepXML_std.xsl"?>\n'
         output.write(line1)
 
