@@ -18,6 +18,7 @@ You also need to install it before `pyteomics.cythonize`.
 ```
 $ git clone https://github.com/levitsky/identipy
 $ cd identipy
+$ git checkout exp5
 $ pip install "cython>=3.0a7"
 $ pip install -r requirements.txt
 $ pip install .
