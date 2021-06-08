@@ -15,19 +15,23 @@ IdentiPy is published under the Apache 2.0 license.
 ```
 #!shell
 
-$ hg clone https://bitbucket.org/levitsky/identipy
+$ git clone https://github.com/levitsky/identipy
 $ cd identipy
+$ pip install "cython>=3.0a7"
+$ pip install -r requirements.txt
 $ pip install .
 
 ```
 
 # Requirements #
 
- - Python 2.7
+See [requirements.txt](requirements.txt).
+
+ - Python
  - scipy
  - pyteomics
  - lxml
- 
+
 Not strictly required, but highly recommended:
 
  - cython
@@ -50,7 +54,7 @@ A typical command to process a file would look like this:
 $ identipy -cfg my.cfg spectra.mgf
 ```
 Here, `my.cfg` is a settings file specifying the search parameters. Allowed parameters and their default values are listed in the
-[default configuration file](https://bitbucket.org/levitsky/identipy/src/tip/identipy/default.cfg).
+[default configuration file](identipy/default.cfg).
 Settings not specified in `my.cfg` will be taken from the default file.
 
 Search settings can also be overriden using command-line options.
@@ -144,10 +148,10 @@ optional arguments:
 # Related projects #
 
 
- - Pyteomics: https://bitbucket.org/levitsky/pyteomics
+ - Pyteomics: https://github.com/levitsky/pyteomics
 
  - pyteomics.cythonize: https://github.com/mobiusklein/pyteomics.cythonize
 
- - MP score: https://bitbucket.org/markmipt/mp-score
+ - Scavager: https://github.com/markmipt/scavager
 
- - IdentiPy Server: https://bitbucket.org/levitsky/identipy_server
+ - IdentiPy Server: https://github.com/levitsky/identipy_server
