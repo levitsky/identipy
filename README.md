@@ -49,6 +49,7 @@ A typical command to process a file would look like this:
 ```
 $ identipy -cfg my.cfg spectra.mgf
 ```
+
 Here, `my.cfg` is a settings file specifying the search parameters. Allowed parameters and their default values are listed in the
 [default configuration file](identipy/default.cfg).
 Settings not specified in `my.cfg` will be taken from the default file.
@@ -58,15 +59,12 @@ Search settings can also be overriden using command-line options.
 For help on command-line usage, run:
 
 ```
-#!shell
-
 $ identipy --help
 ```
 
 You will see a message like this:
 
 ```
-
 $ identipy --help
 usage: identipy [-h] [-db DB] [-cfg CFG] [-punit PUNIT] [-ptol PTOL]
                 [-lptol LPTOL] [-rptol RPTOL] [-funit FUNIT] [-ftol FTOL]
