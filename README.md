@@ -16,8 +16,6 @@ To avoid issues with importing Pyteomics Cython extensions, you need a pre-relea
 You also need to install it before `pyteomics.cythonize`.
 
 ```
-#!shell
-
 $ git clone https://github.com/levitsky/identipy
 $ cd identipy
 $ pip install "cython>=3.0a7"
@@ -28,15 +26,12 @@ $ pip install .
 
 # Requirements #
 
-See [requirements.txt](requirements.txt).
+See [requirements.txt](requirements.txt). Key dependencies are:
 
  - Python
  - scipy
  - pyteomics
  - lxml
-
-Not strictly required, but highly recommended:
-
  - cython
  - pyteomics.cythonize
 
@@ -52,8 +47,6 @@ Please refer to the linked page for system requirements and installation instruc
 A typical command to process a file would look like this:
 
 ```
-#!shell
-
 $ identipy -cfg my.cfg spectra.mgf
 ```
 Here, `my.cfg` is a settings file specifying the search parameters. Allowed parameters and their default values are listed in the
