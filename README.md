@@ -39,7 +39,7 @@ See [requirements.txt](requirements.txt). Key dependencies are:
 
 ## GUI way ##
 
-You can separately install a web-based GUI for IdentiPy, [IdentiPy Server](https://bitbucket.org/levitsky/identipy_server).
+You can separately install a web-based GUI for IdentiPy, [IdentiPy Server](https://github.com/levitsky/identipy_server).
 Please refer to the linked page for system requirements and installation instructions.
 
 ## CLI way ##
