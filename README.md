@@ -12,8 +12,10 @@ IdentiPy is published under the Apache 2.0 license.
 
 # How to install #
 
-To avoid issues with importing Pyteomics Cython extensions, you need a pre-release 3.0 version of Cython.
-You also need to install it before `pyteomics.cythonize`.
+```
+pip install git+https://github.com/levitsky/identipy.git@exp5
+```
+or:
 
 ```
 $ git clone https://github.com/levitsky/identipy
