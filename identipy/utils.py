@@ -976,7 +976,7 @@ def get_expmass(spectrum, kwargs):
         states = [s for s in aux._parse_charge(charge, True)
                 if (mincharge is None or s >= mincharge) and (maxcharge is None or s <= maxcharge)]
     elif charge is None:
-        states = range(min_ucharge, 1 + max_ucharge)
+        states = list(range(min_ucharge, 1 + max_ucharge))
     else:
         states = [c for c in charge if
             (mincharge is None or c >= mincharge) and (maxcharge is None or c <= maxcharge)]
