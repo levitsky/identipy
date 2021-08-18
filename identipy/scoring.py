@@ -50,8 +50,13 @@ def get_fragment_mass_tol(spectrum, peptide, settings, charge_state):
     cterm_mass = settings.getfloat('modifications', 'protein cterm cleavage')
     nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage')
     m = custom_mass(peptide, aa_mass=get_aa_mass(settings), nterm_mass = nterm_mass, cterm_mass = cterm_mass)
+
+
+    allowed_ions = {('b', 1), ('y', 1)}
+    use_allowed_ions = 1
+    
     theor, _ = theor_spectrum(peptide, maxcharge=maxfrag_charge, reshape=True, aa_mass=get_aa_mass(settings), acc_frag=acc,
-        nterm_mass = nterm_mass, cterm_mass=cterm_mass, nm=m)
+        nterm_mass = nterm_mass, cterm_mass=cterm_mass, nm=m, allowed_ions=allowed_ions, use_allowed_ions=use_allowed_ions)
     if '__KDTree' not in spectrum:
         spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape((spectrum['m/z array'].size, 1)))
 

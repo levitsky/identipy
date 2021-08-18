@@ -197,10 +197,10 @@ def prepare_peptide_processor(fname, settings):
             except ImportError as e:
                 logger.warning('Could not import from cutils: %s', e.args)
                 score_fast = utils.import_(settings.get('scoring', 'score') + '_fast')
-                score_fast = utils.import_(settings.get('scoring', 'score') + '_fast_basic')
+                score_fast_basic = utils.import_(settings.get('scoring', 'score') + '_fast_basic')
         else:
             score_fast = utils.import_(settings.get('scoring', 'score') + '_fast')
-            score_fast = utils.import_(settings.get('scoring', 'score') + '_fast_basic')
+            score_fast_basic = utils.import_(settings.get('scoring', 'score') + '_fast_basic')
     except Exception as e:
         score_fast = False
         logging.debug('No fast score imported: %s', e)
@@ -273,21 +273,20 @@ def peptide_processor(peptide, best_res, global_data_local, **kwargs):
     acc_r = kwargs['acc_r']
     settings = kwargs['settings']
 
-    use_allowed_ions = kwargs.get('use_allowed_ions')
-    allowed_ions = kwargs.get('allowed_ions')
-    if kwargs['fast first stage']:
-        use_allowed_ions = 1
-        allowed_ions = {('b', 1), ('y', 1), ('a', 1), ('c', 1), ('x', 1), ('y-17', 1)}
-    if not use_allowed_ions:
-        use_allowed_ions = 1
-        allowed_ions = {('b', 1), ('y', 1), ('a', 1), ('c', 1), ('x', 1), ('y-17', 1)}
+    # use_ipgf = kwargs.get('ipgf')
+    use_ipgf = False
+    use_allowed_ions = 1
+    if use_ipgf:
+        if kwargs['fast first stage']:
+            allowed_ions = {('b', 1), ('y', 1), ('a', 1), ('c', 1), ('x', 1), ('y-17', 1)}
+        else:
+            allowed_ions = kwargs.get('allowed_ions')
+    else:
+        allowed_ions = {('b', 1), ('y', 1)}
+        
     bions_map = kwargs.get('rank_map')
     yions_map = kwargs.get('rank_map_unf')
 
-    # print(bions_map, use_allowed_ions, allowed_ions)
-    # xions_map = kwargs.get('rank_map_unf_new')
-
-    # logger.info(bions_map)
     shifts_and_pime = kwargs['sapime']
     theor = {}
     theoretical_set = {}
@@ -334,7 +333,6 @@ def peptide_processor(peptide, best_res, global_data_local, **kwargs):
     ind = cand_idx
     # reshaped = False
     if kwargs['prec_acc_Da']:
-        logger.debug('HERERERE')
         fulls_global_charge = fulls_global
         nm_key = int(m / kwargs['prec_acc_Da'])
         cur_idict = fulls_global_charge.get(nm_key, dict())
@@ -417,8 +415,8 @@ def process_peptides(fname, settings):
         kwargs['rank_map'] = False
         kwargs['rank_map_unf'] = False
         # kwargs['rank_map_unf_new'] = False
-        kwargs['allowed_ions'] = set()
-        kwargs['use_allowed_ions'] = 0
+        kwargs['allowed_ions'] = {('b', 1), ('y', 1)}
+        kwargs['use_allowed_ions'] = 1
 
     logger.info('Running the search ...')
     n = settings.getint('performance', 'processes')
