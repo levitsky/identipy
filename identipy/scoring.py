@@ -35,13 +35,8 @@ def simple_score(spectrum, peptide, settings):
 def get_fragment_mass_tol(spectrum, peptide, settings, charge_state):
     """A function for obtaining optimal fragment mass tolerance, dynamic range"""
     acc = settings.getfloat('search', 'product accuracy')
-#   spectrum = copy(spectrum)
-#   idx = np.nonzero(spectrum['m/z array'] >= 150)
-#   spectrum['intensity array'] = spectrum['intensity array'][idx]
-#   spectrum['m/z array'] = spectrum['m/z array'][idx]
     int_array = spectrum['intensity array']
     int_array = int_array / int_array.max() * 100
-    # charge = 1#max(1, max(c for _, c in neutral_masses(spectrum, settings)) - 1)
 
 
     fcharge = settings.getint('scoring', 'maximum fragment charge')
@@ -51,12 +46,9 @@ def get_fragment_mass_tol(spectrum, peptide, settings, charge_state):
     nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage')
     m = custom_mass(peptide, aa_mass=get_aa_mass(settings), nterm_mass = nterm_mass, cterm_mass = cterm_mass)
 
-
-    allowed_ions = {('b', 1), ('y', 1)}
-    use_allowed_ions = 1
     
     theor, _ = theor_spectrum(peptide, maxcharge=maxfrag_charge, reshape=True, aa_mass=get_aa_mass(settings), acc_frag=acc,
-        nterm_mass = nterm_mass, cterm_mass=cterm_mass, nm=m, allowed_ions=allowed_ions, use_allowed_ions=use_allowed_ions)
+        nterm_mass = nterm_mass, cterm_mass=cterm_mass, nm=m)
     if '__KDTree' not in spectrum:
         spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape((spectrum['m/z array'].size, 1)))
 
@@ -92,8 +84,6 @@ def get_fragment_mass_tol(spectrum, peptide, settings, charge_state):
         new_params['yions'] = yions
         new_params['bionsI'] = matchI[('b', 1)]
         new_params['yionsI'] = matchI[('y', 1)]
-        new_params['allions'] = match2
-        new_params['allionsI'] = matchI
         new_params['iall'] = int_array_total
     else:
         new_params['fmt'] = []
@@ -102,8 +92,6 @@ def get_fragment_mass_tol(spectrum, peptide, settings, charge_state):
         new_params['yions'] = []
         new_params['bionsI'] = []
         new_params['yionsI'] = []
-        new_params['allions'] = []
-        new_params['allionsI'] = []
         new_params['iall'] = []
     return new_params
 
@@ -170,8 +158,6 @@ def get_fragment_mass_tol_ppm(spectrum, peptide, settings, charge_state, acc_ppm
         new_params['yions'] = yions
         new_params['bionsI'] = matchI[('b', 1)]
         new_params['yionsI'] = matchI[('y', 1)]
-        new_params['allions'] = match2
-        new_params['allionsI'] = matchI
         new_params['iall'] = int_array_total
     else:
         new_params['fmt'] = []
@@ -180,8 +166,6 @@ def get_fragment_mass_tol_ppm(spectrum, peptide, settings, charge_state, acc_ppm
         new_params['yions'] = []
         new_params['bionsI'] = []
         new_params['yionsI'] = []
-        new_params['allions'] = []
-        new_params['allionsI'] = []
         new_params['iall'] = []
     return new_params
 

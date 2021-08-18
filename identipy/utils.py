@@ -1555,24 +1555,6 @@ def write_pepxml(inputfile, settings, results):
                             tmp4.set('value', str(result['e-values'][i]))
                             tmp3.append(copy(tmp4))
 
-                        if 'IPGF' in candidate[4]:
-                            tmp4 = etree.Element('search_score')
-                            tmp4.set('name', 'IPGF')
-                            tmp4.set('value', str(candidate[4]['IPGF']))
-                            tmp3.append(copy(tmp4))
-
-                        if 'IPGF2' in candidate[4]:
-                            tmp4 = etree.Element('search_score')
-                            tmp4.set('name', 'IPGF2')
-                            tmp4.set('value', str(candidate[4]['IPGF2']))
-                            tmp3.append(copy(tmp4))
-
-                        if 'IPGF3' in candidate[4]:
-                            tmp4 = etree.Element('search_score')
-                            tmp4.set('name', 'IPGF3')
-                            tmp4.set('value', str(candidate[4]['IPGF3']))
-                            tmp3.append(copy(tmp4))
-
                         tmp4 = etree.Element('search_score')
                         tmp4.set('name', 'sumI')
                         tmp4.set('value', str(candidate[5]))

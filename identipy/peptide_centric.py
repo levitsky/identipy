@@ -273,20 +273,6 @@ def peptide_processor(peptide, best_res, global_data_local, **kwargs):
     acc_r = kwargs['acc_r']
     settings = kwargs['settings']
 
-    # use_ipgf = kwargs.get('ipgf')
-    use_ipgf = False
-    use_allowed_ions = 1
-    if use_ipgf:
-        if kwargs['fast first stage']:
-            allowed_ions = {('b', 1), ('y', 1), ('a', 1), ('c', 1), ('x', 1), ('y-17', 1)}
-        else:
-            allowed_ions = kwargs.get('allowed_ions')
-    else:
-        allowed_ions = {('b', 1), ('y', 1)}
-        
-    bions_map = kwargs.get('rank_map')
-    yions_map = kwargs.get('rank_map_unf')
-
     shifts_and_pime = kwargs['sapime']
     theor = {}
     theoretical_set = {}
@@ -319,12 +305,9 @@ def peptide_processor(peptide, best_res, global_data_local, **kwargs):
         cand_idx = idx
         reshaped = {}
         for c in set(effcharges[i] for i in idx):
-            # theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=False,
-            #                                                 acc_frag=kwargs['acc_frag'], nterm_mass = nterm_mass,
-            #                                                 cterm_mass = cterm_mass, nm=m, simple=kwargs['fast first stage'])
             theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=False,
                                                             acc_frag=kwargs['acc_frag'], nterm_mass = nterm_mass,
-                                                            cterm_mass = cterm_mass, nm=m, allowed_ions=allowed_ions, use_allowed_ions=use_allowed_ions)
+                                                            cterm_mass = cterm_mass, nm=m)
             reshaped[c] = False
         # reshaped = False
 
@@ -353,15 +336,8 @@ def peptide_processor(peptide, best_res, global_data_local, **kwargs):
             spcharge = charges[i]
             # neutral_mass, charge_state, RT = get_info(res['spectrum'], res, settings, aa_mass)
             if kwargs['score_fast']:
-                if 1:#-idx_new[st] <= best_res.get(st, 0):
-                    # logger.info((-idx_new[st], best_res.get(st, 0)))
-                    if not bions_map:
-                        # print('HERE1')
-                        hf = kwargs['score_fast_basic'](s['fastset'], s['idict'], theoretical_set[fc], kwargs['min_matched'])
-                    else:
-                        # print('HERE2')
-                        # hf = kwargs['score_fast_basic'](s['fastset'], s['idict'], theoretical_set[fc], kwargs['min_matched'])
-                        hf = kwargs['score_fast'](s['fastset'], s['idict'], theoretical_set[fc], kwargs['min_matched'], bions_map[chim][spcharge])
+                if 1:
+                    hf = kwargs['score_fast_basic'](s['fastset'], s['idict'], theoretical_set[fc], kwargs['min_matched'])
                     if hf[0]:
                         if -hf[1] <= best_res.get(st, 0):
                             if kwargs['fast first stage']:
@@ -371,10 +347,7 @@ def peptide_processor(peptide, best_res, global_data_local, **kwargs):
                                 if not reshaped[fc]:
                                     theor[fc] = reshape_theor_spectrum(theor[fc])
                                     reshaped[fc] = True
-                                if bions_map:
-                                    score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos, bions_map=bions_map[chim][spcharge], yions_map=yions_map[chim][spcharge])#, xions_map=xions_map[chim][spcharge])#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
-                                else:
-                                    score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos)#, xions_map=xions_map[chim][spcharge])#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
+                                score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos) # FIXME (?)
                                 sc = score.pop('score')
                             if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
                                 results.append((sc, st, charges[i], score))
@@ -382,10 +355,7 @@ def peptide_processor(peptide, best_res, global_data_local, **kwargs):
                 if not reshaped[fc]:
                     theor[fc] = reshape_theor_spectrum(theor[fc])
                     reshaped[fc] = True
-                if bions_map:
-                    score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos, bions_map=bions_map[chim][spcharge], yions_map=yions_map[chim][spcharge])#, xions_map=xions_map[chim][spcharge])#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
-                else:
-                    score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos)#, xions_map=xions_map[chim][spcharge])#settings.getfloat('search', 'product accuracy ppm'))  # FIXME (?)
+                score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos) # FIXME (?)
                 sc = score.pop('score')
                 if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
                     results.append((sc, st, charges[i], score))
@@ -404,19 +374,6 @@ def process_peptides(fname, settings):
     kwargs['nterm_mass'] = settings.getfloat('modifications', 'protein nterm cleavage')
     kwargs['cterm_mass'] = settings.getfloat('modifications', 'protein cterm cleavage')
     kwargs['qsize'] = settings.getint('performance', 'out queue size')
-
-    try:
-        kwargs['rank_map'] = settings.get('search', 'rank_map')
-        kwargs['rank_map_unf'] = settings.get('search', 'rank_map_unf')
-        # kwargs['rank_map_unf_new'] = settings.get('search', 'rank_map_unf_new')
-        kwargs['allowed_ions'] = settings.get('search', 'allowed_ions')
-        kwargs['use_allowed_ions'] = settings.get('search', 'use_allowed_ions')
-    except:
-        kwargs['rank_map'] = False
-        kwargs['rank_map_unf'] = False
-        # kwargs['rank_map_unf_new'] = False
-        kwargs['allowed_ions'] = {('b', 1), ('y', 1)}
-        kwargs['use_allowed_ions'] = 1
 
     logger.info('Running the search ...')
     n = settings.getint('performance', 'processes')
