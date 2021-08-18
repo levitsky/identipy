@@ -70,7 +70,6 @@ def get_fragment_mass_tol(spectrum, peptide, settings, charge_state):
         dist_total = np.append(dist_total, dist[mask] / spectrum['m/z array'][ind[mask]] * 1e6)
         dist_total_tmp  = np.append(dist_total_tmp, dist[mask])
         match2[ion] = mask
-        matchI[ion] = spectrum['intensity array rank'][ind[mask]]
         # matchI[ion] = spectrum['intensity array'][ind[mask]]
         # dist_total = np.append(dist_total, dist[mask])
 
@@ -82,16 +81,12 @@ def get_fragment_mass_tol(spectrum, peptide, settings, charge_state):
         new_params['fmt_neutral'] = dist_total_tmp
         new_params['bions'] = bions
         new_params['yions'] = yions
-        new_params['bionsI'] = matchI[('b', 1)]
-        new_params['yionsI'] = matchI[('y', 1)]
         new_params['iall'] = int_array_total
     else:
         new_params['fmt'] = []
         new_params['fmt_neutral'] = []
         new_params['bions'] = []
         new_params['yions'] = []
-        new_params['bionsI'] = []
-        new_params['yionsI'] = []
         new_params['iall'] = []
     return new_params
 
@@ -144,7 +139,6 @@ def get_fragment_mass_tol_ppm(spectrum, peptide, settings, charge_state, acc_ppm
         dist_total = np.append(dist_total, dist[mask] / spectrum['m/z array'][ind[mask]] * 1e6)
         dist_total_tmp  = np.append(dist_total_tmp, dist[mask])
         match2[ion] = mask
-        matchI[ion] = spectrum['intensity array rank'][ind[mask]]
         # matchI[ion] = spectrum['intensity array'][ind[mask]]
         # dist_total = np.append(dist_total, dist[mask])
 
@@ -156,16 +150,12 @@ def get_fragment_mass_tol_ppm(spectrum, peptide, settings, charge_state, acc_ppm
         new_params['fmt_neutral'] = dist_total_tmp
         new_params['bions'] = bions
         new_params['yions'] = yions
-        new_params['bionsI'] = matchI[('b', 1)]
-        new_params['yionsI'] = matchI[('y', 1)]
         new_params['iall'] = int_array_total
     else:
         new_params['fmt'] = []
         new_params['fmt_neutral'] = []
         new_params['bions'] = []
         new_params['yions'] = []
-        new_params['bionsI'] = []
-        new_params['yionsI'] = []
         new_params['iall'] = []
     return new_params
 
@@ -419,7 +409,7 @@ def RNHS_fast(spectrum_fastset, spectrum_idict, theoretical_set, min_matched):
     else:
         return 0, 0
 
-def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False, bions_map=False, yions_map=False, xions_map=False):
+def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False):
     if 'norm' not in spectrum:
         spectrum['norm'] = spectrum['Isum']
     mz_array = spectrum['m/z array']
@@ -427,8 +417,6 @@ def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False, bions_map=Fa
     mult = []
     match = {}
     match2 = {}
-    matchI = {}
-    matchI2 = {}
     total_matched = 0
     sumI = 0
     if '__KDTree' not in spectrum:
@@ -455,8 +443,6 @@ def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False, bions_map=Fa
             dist_all.extend(dist[mask2])
         match[ion] = mask2
         match2[ion] = mask2
-        matchI[ion] = spectrum['intensity array rank'][ind[mask2]]
-        matchI2[ion] = spectrum['intensity array'][ind[mask2]]
 
     score = score / spectrum['norm']
 
@@ -480,55 +466,16 @@ def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False, bions_map=Fa
                 return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0, 'IPGF': 0, 'IPGF2': 0, 'RNHS': 0}
 
                 return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0, 'IPGF': 0, 'IPGF2': 0, 'RNHS': 0}
-    rscore2 = 0
-    rscore = 0
-    # rscore3 = 0
-    if bions_map:
-        for ion in match2:
-            idx2 = 0
-            for idx, bion in enumerate(match2[ion]):
-                if bion:
-                    dval = bions_map[matchI[ion][idx2]]
-                    if ion in dval:
-                        rscore += dval[ion]
-                    else:
-                        rscore += bions_map['m']
-                    idx2 += 1
 
-        for ion in match2:
-            idx2 = 0
-            for idx, bion in enumerate(match2[ion]):
-                if bion:
-                    i_r = matchI[ion][idx2]
-                    if i_r in yions_map:
-                        dval = yions_map[i_r]
-                        if ion in dval:
-                            rscore2 += dval[ion]
-                        else:
-                            rscore2 += yions_map['m']
-                    idx2 += 1
 
-        # for ion in match2:
-        #     idx2 = 0
-        #     for idx, bion in enumerate(match2[ion]):
-        #         if bion:
-        #             i_r = matchI[ion][idx2]
-        #             if i_r in xions_map:
-        #                 dval = xions_map[i_r]
-        #                 if ion in dval:
-        #                     rscore3 += dval[ion]
-        #                 else:
-        #                     rscore3 += xions_map['m']
-        #             idx2 += 1
     for m in mult:
         score *= m
 
     sumI = np.log10(sumI)
 
-    outscore = rscore if bions_map else score
+    outscore = score
 
-    return {'score': outscore, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched, 'score_std': 0,
-    'IPGF': rscore, 'IPGF2': rscore2, 'RNHS': score}#, 'IPGF3': rscore3}
+    return {'score': outscore, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched, 'score_std': 0, 'RNHS': score}
 
 def rank_cor(theoretical_list, experimental_list):
     n = len(theoretical_list)
@@ -559,7 +506,7 @@ def RNHS2_ultrafast(spectrum_idict, theoretical_set, min_matched, nm, best_res, 
 def RNHS2_fast(spectrum_fastset, spectrum_idict, theoretical_set, min_matched):
     return RNHS_fast(spectrum_fastset, spectrum_idict, theoretical_set, min_matched)
 
-def RNHS2(spectrum, theoretical, acc, acc_ppm=False, position=False, bions_map=False, yions_map=False):
+def RNHS2(spectrum, theoretical, acc, acc_ppm=False, position=False):
     mz_array = copy(spectrum['m/z array'])
     KDT = copy(spectrum['__KDTree'])
     s_ia = copy(spectrum['intensity array'])

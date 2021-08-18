@@ -674,10 +674,6 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
         return None
 
     spectrum['Isum'] = spectrum['intensity array'].sum()
-    # spectrum['intensity array rank'] = rankdata(-spectrum['intensity array'], method='ordinal')
-    spectrum['intensity array rank'] = ((rankdata(-spectrum['intensity array'], method='ordinal')-1)/5)+1
-    # if not fast_first_stage:
-    #     spectrum['intensity array'] = rankdata(-spectrum['intensity array'], method='ordinal')
 
     tmp2 = dict()
     tmp = spectrum['m/z array'] / acc
@@ -685,10 +681,7 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
     tmp = tmp.astype(int)
     #    tmp2 = tmp.astype(int)
     for idx, mt in enumerate(tmp):
-        if fast_first_stage:
-            i_val = spectrum['intensity array'][idx] / spectrum['Isum']
-        else:
-            i_val = spectrum['intensity array rank'][idx]
+        i_val = spectrum['intensity array'][idx] / spectrum['Isum']
         tmp2[mt] = max(tmp2.get(mt, 0), i_val)
         tmp2[mt-1] = max(tmp2.get(mt-1, 0), i_val)
         tmp2[mt+1] = max(tmp2.get(mt+1, 0), i_val)
