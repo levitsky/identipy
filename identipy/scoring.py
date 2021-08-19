@@ -81,13 +81,11 @@ def get_fragment_mass_tol(spectrum, peptide, settings, charge_state):
         new_params['fmt_neutral'] = dist_total_tmp
         new_params['bions'] = bions
         new_params['yions'] = yions
-        new_params['iall'] = int_array_total
     else:
         new_params['fmt'] = []
         new_params['fmt_neutral'] = []
         new_params['bions'] = []
         new_params['yions'] = []
-        new_params['iall'] = []
     return new_params
 
 def get_fragment_mass_tol_ppm(spectrum, peptide, settings, charge_state, acc_ppm):
@@ -150,13 +148,11 @@ def get_fragment_mass_tol_ppm(spectrum, peptide, settings, charge_state, acc_ppm
         new_params['fmt_neutral'] = dist_total_tmp
         new_params['bions'] = bions
         new_params['yions'] = yions
-        new_params['iall'] = int_array_total
     else:
         new_params['fmt'] = []
         new_params['fmt_neutral'] = []
         new_params['bions'] = []
         new_params['yions'] = []
-        new_params['iall'] = []
     return new_params
 
 def morpheusscore_fast(spectrum_fastset, spectrum_idict, theoretical_set, min_matched):

@@ -603,23 +603,18 @@ def deisotope(spectrum, acc, charge):
     spectrum['intensity array'] = intens
 
 
-def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, min_mz, settings):
+def preprocess_spectrum(spectrum, kwargs):
     spectrum = copy(spectrum)
-    maxpeaks = kwargs['maxpeaks']#settings.getint('scoring', 'maximum peaks')
-    minpeaks = kwargs['minpeaks']#settings.getint('scoring', 'minimum peaks')
-    dynrange = kwargs['dynrange']#settings.getfloat('scoring', 'dynamic range')
-    acc = kwargs['acc']#settings.getfloat('search', 'product accuracy')
-    dacc = kwargs['dacc']#settings.getfloat('search', 'product accuracy')
+    maxpeaks = kwargs['maxpeaks']
+    minpeaks = kwargs['minpeaks']
+    dynrange = kwargs['dynrange']
+    acc = kwargs['acc']
     tags = kwargs['tags']
-    try:
-        fast_first_stage = settings.getint('misc', 'fast first stage')  ## FIXME - NameError
-    except:
-        fast_first_stage = 0
 
     if 'm/z array' not in spectrum:
         return None
 
-    _, states = get_expmass(spectrum, kwargs)#, settings)
+    _, states = get_expmass(spectrum, kwargs)
     if not states:
         return None
 
@@ -636,6 +631,7 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
             spectrum[tmt_label] = tmt_intensity
 
     if kwargs['deisotope']:
+        dacc = kwargs['dacc']
         deisotope(spectrum, dacc, states[-1])
 
     mz_prec, _ = get_expmass(spectrum, kwargs)
@@ -643,7 +639,7 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
 
     mz = spectrum['m/z array']
 
-    idx = np.nonzero(mz >= kwargs['min_mz'])#settings.getfloat('search', 'product minimum m/z'))
+    idx = np.nonzero(mz >= kwargs['min_mz'])
     spectrum['intensity array'] = spectrum['intensity array'][idx]
     mz = mz[idx]
     spectrum['intensity array'] = spectrum['intensity array'].astype(np.float32)
@@ -677,9 +673,7 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
 
     tmp2 = dict()
     tmp = spectrum['m/z array'] / acc
-    #    tmp2 = spectrum['intensity array'] + 1
     tmp = tmp.astype(int)
-    #    tmp2 = tmp.astype(int)
     for idx, mt in enumerate(tmp):
         i_val = spectrum['intensity array'][idx] / spectrum['Isum']
         tmp2[mt] = max(tmp2.get(mt, 0), i_val)
@@ -687,7 +681,6 @@ def preprocess_spectrum(spectrum, kwargs):#minpeaks, maxpeaks, dynrange, acc, mi
         tmp2[mt+1] = max(tmp2.get(mt+1, 0), i_val)
     tmp = np.concatenate((tmp, tmp-1, tmp+1))
     spectrum['fastset'] = set(tmp.tolist())
-    #spectrum['Isum'] = spectrum['intensity array'].sum()
     spectrum['RT'] = get_RT(spectrum)
     spectrum['idict'] = tmp2
 
