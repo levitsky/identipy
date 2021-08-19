@@ -676,9 +676,11 @@ def preprocess_spectrum(spectrum, kwargs):
     tmp = tmp.astype(int)
     for idx, mt in enumerate(tmp):
         i_val = spectrum['intensity array'][idx] / spectrum['Isum']
-        tmp2[mt] = max(tmp2.get(mt, 0), i_val)
-        tmp2[mt-1] = max(tmp2.get(mt-1, 0), i_val)
-        tmp2[mt+1] = max(tmp2.get(mt+1, 0), i_val)
+        for mz_val_int in (mt-1, mt, mt+1):
+            if mz_val_int not in tmp2:
+                tmp2[mz_val_int] = i_val
+            else:
+                tmp2[mz_val_int] = max(i_val, tmp2[mz_val_int])
     tmp = np.concatenate((tmp, tmp-1, tmp+1))
     spectrum['fastset'] = set(tmp.tolist())
     spectrum['RT'] = get_RT(spectrum)
