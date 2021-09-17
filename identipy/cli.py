@@ -143,7 +143,8 @@ def run():
     parser.add_argument('-pmods',   help='variable protein terminal modifications')
     parser.add_argument('-tags',    help='Add quantitation tags to the pepXML output. Can be tmt10plex, tmt6plex, tmt11plex or custom format label1:mass1,label2:mass2...')
     parser.add_argument('-debug',   help='Print debugging messages', action='store_true')
-    parser.add_argument('-dino',    help='path to Dinosaur. Used for chimeric spectrum processing and MS1 Intensity calculation', default=False)
+    parser.add_argument('-dino',    help='path to Dinosaur JAR file or Biosaur executable. Used for chimeric spectrum processing and MS1 Intensity calculation', default=False)
+    parser.add_argument('-dinoargs', help='extra arguments to Dinosaur or Biosaur.', nargs='*', default=[])
     parser.add_argument('-demixing',help='Use demixing', action='store_true')
     parser.add_argument('-pif',     help='Calculate PIF', action='store_true')
 
@@ -220,35 +221,35 @@ def run():
     demixing = args['demixing']
     calc_PIF = args['pif']
     if dino_path or calc_PIF:
-        logger.info('Start mzML analysis...\n')
+        logger.info('Starting mzML analysis...')
         if os.path.splitext(inputfile)[1].lower() != '.mzml':
             if dino_path:
-                logger.info('Only mzml supported for Dinosaur!\n')
+                logger.error('Only mzML supported for Dinosaur!')
             elif calc_PIF:
-                logger.info('mzml required for PIF calculation!\n')
+                logger.error('mzML required for PIF calculation!')
         else:
             try:
                 if dino_path:
                     path_to_features = os.path.splitext(inputfile)[0] + os.extsep + 'features' + os.extsep + 'tsv'
                     if dino_path.endswith('.jar'):
                         advpath = '--advParams=' + os.path.join(os.path.dirname(os.path.realpath(__file__)), 'adv.txt')
-                        logger.info('Start Dinosaur...\n')
-                        subprocess.call(['java', '-Djava.awt.headless=true', '-jar', os.path.realpath(dino_path), advpath, '--concurrency=12', inputfile], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        logger.info('Starting Dinosaur...')
+                        subprocess.call(['java', '-Djava.awt.headless=true', '-jar', os.path.realpath(dino_path), advpath, '--concurrency=12', inputfile] + args['dinoargs'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                     elif 'dinosaur' in dino_path:
                         advpath = '--advParams=' + os.path.join(os.path.dirname(os.path.realpath(__file__)), 'adv.txt')
-                        logger.info('Start Dinosaur...\n')
-                        subprocess.call([os.path.realpath(dino_path), advpath, '--concurrency=12', inputfile], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        logger.info('Starting Dinosaur...')
+                        subprocess.call([os.path.realpath(dino_path), advpath, '--concurrency=12', inputfile] + args['dinoargs'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                     else:
-                        logger.info('Start Biosaur...\n')
-                        subprocess.call([os.path.realpath(dino_path), inputfile, '-out', path_to_features], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        logger.info('Starting Biosaur...')
+                        subprocess.call([os.path.realpath(dino_path), inputfile, '-out', path_to_features] + args['dinoargs'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                     if demixing:
-                        logger.info('Start demultiplexing...\n')
+                        logger.info('Starting demultiplexing...')
                 else:
                     path_to_features = False
                 path_to_mgf = utils.demix_chimeric(path_to_features, inputfile, demixing, calc_PIF)
-                logger.info('mgf was created...\n')
+                logger.info('MGF was created.')
                 if demixing:
-                    logger.info('Demultiplexing was finished...\n')
+                    logger.info('Demultiplexing has finished.')
                 utils.write_output(path_to_mgf, settings, main.process_file(path_to_mgf, settings))
                 return
             except Exception as e:
