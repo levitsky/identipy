@@ -10,7 +10,10 @@ import sys
 
 def get_version():
     try:
-        version = subprocess.check_output(['git', 'describe']).strip().decode('ascii').replace('-', '.').rsplit('.', 1)[0]
+        version = subprocess.check_output(['git', 'describe']).strip().decode('ascii').replace('-', '.')
+        head, tail = version.rsplit('.', 1)
+        if not tail.isdigit():
+            version = head
     except subprocess.CalledProcessError:
         version = open('VERSION').readline().strip()
     return version
