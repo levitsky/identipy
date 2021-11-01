@@ -349,8 +349,10 @@ def peptide_gen(settings, clear_seen_peptides=False):
     minlen = settings.getint('search', 'peptide minimum length')
     maxlen = settings.getint('search', 'peptide maximum length')
     snp = settings.getint('search', 'snp')
+    clip_M = settings.getboolean('search', 'clip N-terminal methionine')
     for prot in prot_gen(settings):
-        for pep, pos in prot_peptides(prot[1], enzyme, mc, minlen, maxlen, is_decoy=isdecoy(prot[0]), snp=snp, desc=prot[0], semitryptic=semitryptic, position=True):
+        for pep, pos in prot_peptides(prot[1], enzyme, mc, minlen, maxlen,
+            is_decoy=isdecoy(prot[0]), snp=snp, desc=prot[0], semitryptic=semitryptic, position=True, clip_M=clip_M):
             term = ''
             if pos == 0:
                 term += 'n'
@@ -433,10 +435,11 @@ def get_peptides(prot_seq, enzyme, mc, minlen, maxlen, semitryptic=False):
 
 seen_target = set()
 seen_decoy = set()
-def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy, dont_use_seen_peptides=False, snp=False, desc=False, position=False, semitryptic=False):
+def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy,
+    dont_use_seen_peptides=False, snp=False, desc=False, position=False, semitryptic=False, clip_M=True):
 
     dont_use_fast_valid = parser.fast_valid(prot_seq)
-    methionine_check = prot_seq[0] == 'M'
+    methionine_check = (clip_M and prot_seq[0] == 'M')
     if snp == 2:
         if desc:
             try:
@@ -1241,6 +1244,7 @@ def build_pept_prot(settings, results):
     minlen = settings.getint('search', 'peptide minimum length')
     maxlen = settings.getint('search', 'peptide maximum length')
     isdecoy = is_decoy_function(settings)
+    clip_M = settings.getboolean('search', 'clip N-terminal methionine')
 
     snp = settings.getint('search', 'snp')
     pept_prot = {}
@@ -1262,7 +1266,8 @@ def build_pept_prot(settings, results):
         if semitryptic:
             cl_positions = set(z for z in it.chain([x.end() for x in re.finditer(enzyme_rule, prot)],
                    [0, 1, len(prot)]))
-        for pep, startposition in prot_peptides(prot, enzyme_rule, mc, minlen, maxlen, isdecoy(desc), dont_use_seen_peptides=True, snp=snp, desc=desc, position=True, semitryptic=semitryptic):
+        for pep, startposition in prot_peptides(prot, enzyme_rule, mc, minlen, maxlen, isdecoy(desc),
+            dont_use_seen_peptides=True, snp=snp, desc=desc, position=True, semitryptic=semitryptic, clip_M=clip_M):
             if snp:
                 if 'snp' not in pep:
                     seqm = pep
