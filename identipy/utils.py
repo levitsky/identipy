@@ -33,7 +33,6 @@ try:
 except ImportError:
     from . import customparser as cparser
 from scipy.spatial import cKDTree
-from scipy.stats import rankdata
 import pkg_resources
 try:
     basestring
@@ -111,17 +110,25 @@ def get_tags(tags):
         return tags
 
 
-def get_child_for_mods(mods_str, settings, fixed=True):
+def get_child_for_mods(mods_str, settings, fixed=True, protein=False):
     if mods_str:
         for mod in re.split(r'[,;]\s*', mods_str):
             term = False
             if '-' not in mod:
+                child_mod = etree.Element('aminoacid_modification')
+
+                t = None
+                if '[' in mod:
+                    t = 'n'
+                elif ']' in mod:
+                    t = 'c'
+                if t:
+                    child_mod.set('protein_terminus' if protein else 'peptide_terminus', t)
                 mod = mod.replace('[', '').replace(']', '')
                 mod_label, mod_aa = parser._split_label(mod)
                 mod_mass = mass.std_aa_mass.get(mod_aa, 0)
                 mod_massdiff = settings.getfloat('modifications', mod_label)
 
-                child_mod = etree.Element('aminoacid_modification')
                 child_mod.set('aminoacid', mod_aa)
                 child_mod.set('massdiff', str(mod_massdiff))
                 child_mod.set('mass', str(mod_mass+mod_massdiff))
@@ -436,7 +443,7 @@ def get_peptides(prot_seq, enzyme, mc, minlen, maxlen, semitryptic=False):
 seen_target = set()
 seen_decoy = set()
 def prot_peptides(prot_seq, enzyme, mc, minlen, maxlen, is_decoy,
-    dont_use_seen_peptides=False, snp=False, desc=False, position=False, semitryptic=False, clip_M=True):
+        dont_use_seen_peptides=False, snp=False, desc=False, position=False, semitryptic=False, clip_M=True):
 
     dont_use_fast_valid = parser.fast_valid(prot_seq)
     methionine_check = (clip_M and prot_seq[0] == 'M')
@@ -708,6 +715,7 @@ def set_mod_dict(settings):
     pmods = settings.get('modifications', 'protein variable')
 
     settings.set('modifications', 'variable_original', mods)
+    settings.set('modifications', 'protein_original', pmods)
     i = None
     if isinstance(mods, basestring):
         mods = mods.strip(' ,')
@@ -1002,7 +1010,7 @@ def get_aa_mass(settings):
     aa_mass = mass.std_aa_mass.copy()
     aa_mass['-'] = 0.0
     for k, v in settings.items('modifications'):
-        if k not in {'fixed', 'variable', 'variable_original', 'protein variable'}:
+        if k not in {'fixed', 'variable', 'variable_original', 'protein variable', 'protein_original'}:
             aa_mass[k] = float(v)
     fmods = settings.get('modifications', 'fixed')
     if fmods:
@@ -1378,6 +1386,8 @@ def write_pepxml(inputfile, settings, results):
         for child_mod in get_child_for_mods(settings.get('modifications', 'fixed'), settings, fixed=True):
             child4.append(child_mod)
         for child_mod in get_child_for_mods(settings.get('modifications', 'variable_original'), settings, fixed=False):
+            child4.append(child_mod)
+        for child_mod in get_child_for_mods(settings.get('modifications', 'protein_original'), settings, fixed=False, protein=True):
             child4.append(child_mod)
 
         child1.append(child4)
