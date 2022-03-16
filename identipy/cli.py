@@ -93,7 +93,7 @@ def run():
     parser.add_argument('file',     help='input .mzML or .mgf file with MS/MS spectra')
     parser.add_argument('-db',      help='path to protein fasta file')
     parser.add_argument('-cfg',     help='path to file with parameters')
-    parser.add_argument('-out',     help='output path')
+    parser.add_argument('-out', '-o', help='output path')
     parser.add_argument('-of',      help='output format')
     parser.add_argument('-sep',     help='output column separator')
     parser.add_argument('-at',      help='Use auto-tuning of search parameters', action='store_true')
