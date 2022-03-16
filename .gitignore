@@ -1,5 +1,7 @@
-identipy/*.pyc
-identipy/*.so
+**.pyc
+**.so
 identipy/*.c
+**/__pycache__
 build/
 *.egg-info/
+test_data
