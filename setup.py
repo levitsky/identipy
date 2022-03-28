@@ -11,6 +11,8 @@ import sys
 def get_version():
     try:
         version = subprocess.check_output(['git', 'describe']).strip().decode('ascii').replace('-', '.')
+        if version[0] == 'v':
+            version = version[1:]
         head, tail = version.rsplit('.', 1)
         if not tail.isdigit():
             version = head
