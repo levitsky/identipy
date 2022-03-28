@@ -1,35 +1,11 @@
-from .utils import neutral_masses, get_aa_mass, custom_mass
+from .utils import get_aa_mass, custom_mass
 from .cutils import theor_spectrum
-from collections import Counter, defaultdict
 from scipy.spatial import cKDTree
 import numpy as np
 from math import factorial
 from copy import copy
-from scipy.stats import rankdata
 import logging
 logger = logging.getLogger(__name__)
-
-
-def simple_score(spectrum, peptide, settings):
-    acc = settings.getfloat('search', 'product accuracy')
-    int_array = spectrum['intensity array']
-    int_array = int_array / int_array.max() * 100
-    charge = max(c for _, c in neutral_masses(spectrum, settings))
-    cterm_mass = settings.getfloat('modifications', 'protein cterm cleavage')
-    nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage')
-    m = custom_mass(seqm, aa_mass=get_aa_mass(settings), nterm_mass = nterm_mass, cterm_mass = cterm_mass)
-    theor = theor_spectrum(peptide, maxcharge=charge, aa_mass=get_aa_mass(settings),
-        nterm_mass = nterm_mass, cterm_mass=cterm_mass, nm=m)
-    fragments = np.concatenate(theor.values())
-    if '__KDTree' not in spectrum:
-        spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape(
-            (spectrum['m/z array'].size, 1)))
-    dist, ind = spectrum['__KDTree'].query(fragments.reshape((fragments.size, 1)),
-            distance_upper_bound=acc)
-    mask = dist != np.inf
-    if mask.size < settings.getint('scoring', 'minimum matched'):
-        return -1
-    return spectrum['intensity array'][ind[mask]].sum()
 
 
 def get_fragment_mass_tol(spectrum, peptide, settings, charge_state):
@@ -46,7 +22,7 @@ def get_fragment_mass_tol(spectrum, peptide, settings, charge_state):
     nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage')
     m = custom_mass(peptide, aa_mass=get_aa_mass(settings), nterm_mass = nterm_mass, cterm_mass = cterm_mass)
 
-    
+
     theor, _ = theor_spectrum(peptide, maxcharge=maxfrag_charge, reshape=True, aa_mass=get_aa_mass(settings), acc_frag=acc,
         nterm_mass = nterm_mass, cterm_mass=cterm_mass, nm=m)
     if '__KDTree' not in spectrum:
@@ -55,7 +31,6 @@ def get_fragment_mass_tol(spectrum, peptide, settings, charge_state):
     dist_total, int_array_total = np.array([]), np.array([])
     dist_total_tmp = np.array([])
     match2 = {}
-    matchI = {}
     for ion, fragments in theor.items():
         n = fragments.size
         dist, ind = spectrum['__KDTree'].query(fragments.reshape((n, 1)), distance_upper_bound=acc)
@@ -115,7 +90,6 @@ def get_fragment_mass_tol_ppm(spectrum, peptide, settings, charge_state, acc_ppm
     dist_total, int_array_total = np.array([]), np.array([])
     dist_total_tmp = np.array([])
     match2 = {}
-    matchI = {}
     for ion, fragments in theor.items():
         n = fragments.size
         dist, ind = spectrum['__KDTree'].query(fragments.reshape((n, 1)), distance_upper_bound=acc)
