@@ -242,6 +242,9 @@ def run():
                         advpath = '--advParams=' + os.path.join(os.path.dirname(os.path.realpath(__file__)), 'adv.txt')
                         logger.info('Starting Dinosaur...')
                         subprocess.call([os.path.realpath(dino_path), advpath, '--concurrency=12', inputfile] + args['dinoargs'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    elif 'biosaur2' in dino_path:
+                        logger.info('Starting biosaur2...')
+                        subprocess.call([os.path.realpath(dino_path), inputfile, '-o', path_to_features] + args['dinoargs'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                     else:
                         logger.info('Starting Biosaur...')
                         subprocess.call([os.path.realpath(dino_path), inputfile, '-out', path_to_features] + args['dinoargs'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
