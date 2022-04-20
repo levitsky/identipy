@@ -3,6 +3,7 @@ import string
 import logging.config
 import os
 import subprocess
+import copy
 
 LOGGING = {
     'version': 1,
@@ -90,7 +91,7 @@ def run():
     ''',
         formatter_class=argparse.RawDescriptionHelpFormatter)
 
-    parser.add_argument('file',     help='input .mzML or .mgf file with MS/MS spectra')
+    parser.add_argument('file',     help='input mzML or MGF file with MS/MS spectra', nargs='+')
     parser.add_argument('-db',      help='path to protein FASTA file', metavar='FASTA')
     parser.add_argument('-cfg',     help='path to file with parameters', metavar='CONFIG_FILE')
     parser.add_argument('-out', '-o', help='output path', metavar='PATH')
@@ -218,50 +219,52 @@ def run():
         ao_setting = None
     _update(settings, 'misc', 'first stage', ao_setting)
 
-    inputfile = args['file']
-
     dino_path = args['dino']
     demixing = args['demixing']
     calc_PIF = args['pif']
-    if dino_path or calc_PIF:
-        logger.info('Starting mzML analysis...')
-        if os.path.splitext(inputfile)[1].lower() != '.mzml':
-            if dino_path:
-                logger.error('Only mzML supported for Dinosaur!')
-            elif calc_PIF:
-                logger.error('mzML required for PIF calculation!')
-        else:
-            try:
-                if dino_path:
-                    path_to_features = os.path.splitext(inputfile)[0] + os.extsep + 'features' + os.extsep + 'tsv'
-                    if dino_path.endswith('.jar'):
-                        advpath = '--advParams=' + os.path.join(os.path.dirname(os.path.realpath(__file__)), 'adv.txt')
-                        logger.info('Starting Dinosaur...')
-                        subprocess.call(['java', '-Djava.awt.headless=true', '-jar', os.path.realpath(dino_path), advpath, '--concurrency=12', inputfile] + args['dinoargs'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    elif 'dinosaur' in dino_path:
-                        advpath = '--advParams=' + os.path.join(os.path.dirname(os.path.realpath(__file__)), 'adv.txt')
-                        logger.info('Starting Dinosaur...')
-                        subprocess.call([os.path.realpath(dino_path), advpath, '--concurrency=12', inputfile] + args['dinoargs'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    elif 'biosaur2' in dino_path:
-                        logger.info('Starting biosaur2...')
-                        subprocess.call([os.path.realpath(dino_path), inputfile, '-o', path_to_features] + args['dinoargs'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    else:
-                        logger.info('Starting Biosaur...')
-                        subprocess.call([os.path.realpath(dino_path), inputfile, '-out', path_to_features] + args['dinoargs'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    if demixing:
-                        logger.info('Starting demultiplexing...')
-                else:
-                    path_to_features = False
-                path_to_mgf = utils.demix_chimeric(path_to_features, inputfile, demixing, calc_PIF)
-                logger.info('MGF was created.')
-                if demixing:
-                    logger.info('Demultiplexing has finished.')
-                utils.write_output(path_to_mgf, settings, main.process_file(path_to_mgf, settings))
-                return
-            except Exception as e:
-                logger.error(e)
 
-    utils.write_output(inputfile, settings, main.process_file(inputfile, settings))
+    for inputfile in args['file']:
+        csettings = copy.deepcopy(settings)
+
+        if dino_path or calc_PIF:
+            logger.info('Starting mzML analysis...')
+            if os.path.splitext(inputfile)[1].lower() != '.mzml':
+                if dino_path:
+                    logger.error('Only mzML supported for Dinosaur!')
+                elif calc_PIF:
+                    logger.error('mzML required for PIF calculation!')
+            else:
+                try:
+                    if dino_path:
+                        path_to_features = os.path.splitext(inputfile)[0] + os.extsep + 'features' + os.extsep + 'tsv'
+                        if dino_path.endswith('.jar'):
+                            advpath = '--advParams=' + os.path.join(os.path.dirname(os.path.realpath(__file__)), 'adv.txt')
+                            logger.info('Starting Dinosaur...')
+                            subprocess.call(['java', '-Djava.awt.headless=true', '-jar', os.path.realpath(dino_path), advpath, '--concurrency=12', inputfile] + args['dinoargs'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        elif 'dinosaur' in dino_path:
+                            advpath = '--advParams=' + os.path.join(os.path.dirname(os.path.realpath(__file__)), 'adv.txt')
+                            logger.info('Starting Dinosaur...')
+                            subprocess.call([os.path.realpath(dino_path), advpath, '--concurrency=12', inputfile] + args['dinoargs'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        elif 'biosaur2' in dino_path:
+                            logger.info('Starting biosaur2...')
+                            subprocess.call([os.path.realpath(dino_path), inputfile, '-o', path_to_features] + args['dinoargs'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        else:
+                            logger.info('Starting Biosaur...')
+                            subprocess.call([os.path.realpath(dino_path), inputfile, '-out', path_to_features] + args['dinoargs'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        if demixing:
+                            logger.info('Starting demultiplexing...')
+                    else:
+                        path_to_features = False
+                    path_to_mgf = utils.demix_chimeric(path_to_features, inputfile, demixing, calc_PIF)
+                    logger.info('MGF was created.')
+                    if demixing:
+                        logger.info('Demultiplexing has finished.')
+                    utils.write_output(path_to_mgf, csettings, main.process_file(path_to_mgf, csettings))
+                    return
+                except Exception as e:
+                    logger.error(e)
+
+        utils.write_output(inputfile, csettings, main.process_file(inputfile, csettings))
 
 
 if __name__ == '__main__':

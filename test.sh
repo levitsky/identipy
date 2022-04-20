@@ -1,7 +1,7 @@
 #!/bin/sh
 
 cd test_data
-find . -name '*.mgf' -print -exec identipy -cfg identipy.cfg -o . {} \;
+identipy -cfg identipy.cfg -o . *.mgf
 pyteomics pepxml info *.pep.xml
 
 echo "Reference values (1% FDR):"
