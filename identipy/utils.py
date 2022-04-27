@@ -13,6 +13,7 @@ except ImportError:
     from configparser import RawConfigParser
 import tempfile
 import os
+import platform
 import logging
 import itertools as it
 try:
@@ -1070,12 +1071,12 @@ def multimap(n, func, it, global_data, best_res_in=False, best_res_raw_in=False,
             n = cpu_count()
         except NotImplementedError:
             n = 1
-    if 0:#n == 1:
+    if n == 1 or platform.system() == 'Windows':
         cnt1 = 0
         for s in it:
             cnt1 += 1
             if cnt1 % 10000 == 0:
-                print(cnt1)
+                logger.debug(cnt1)
             result = func(s, best_res, global_data[0], **kw)
             if result:
                 for x in result:
