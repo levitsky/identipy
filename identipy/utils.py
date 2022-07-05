@@ -695,6 +695,7 @@ def preprocess_spectrum(spectrum, kwargs):
     tmp = np.concatenate((tmp, tmp-1, tmp+1))
     spectrum['fastset'] = set(tmp.tolist())
     spectrum['RT'] = get_RT(spectrum)
+    spectrum['comp_voltage'] = get_comp_voltage(spectrum)
     spectrum['idict'] = tmp2
 
     spectrum['__KDTree'] = cKDTree(spectrum['m/z array'].reshape((spectrum['m/z array'].size, 1)))
@@ -862,6 +863,7 @@ def get_info(spectrum, result, settings, aa_mass=None):
     if not aa_mass:
         aa_mass = get_aa_mass(settings)
     RT = spectrum['RT']#get_RT(spectrum)
+    comp_voltage = spectrum['comp_voltage']
 
     params = _charge_params(settings)
 
@@ -873,7 +875,7 @@ def get_info(spectrum, result, settings, aa_mass=None):
     cterm_mass = settings.getfloat('modifications', 'protein cterm cleavage')
 
     idx = find_nearest(masses, custom_mass(str(result['candidates'][0][1]), aa_mass=aa_mass, nterm_mass=nterm_mass, cterm_mass=cterm_mass))
-    return (masses[idx], states[idx], RT)
+    return (masses[idx], states[idx], RT, comp_voltage)
 
 
 def reshape_theor_spectrum(peaks):
@@ -1206,6 +1208,22 @@ def get_RT(spectrum):
         return 0
 
 
+
+def get_comp_voltage(spectrum):
+    """Return scan compensation_voltage"""
+    # MGF
+    if 'params' in spectrum:
+        try:
+            return float(spectrum['params']['FAIMS compensation voltage'])
+        except:
+            return 0
+    # mzML
+    try:
+        return spectrum['FAIMS compensation voltage']
+    except:
+        return 0
+
+
 def get_title(spectrum):
     if 'params' in spectrum:
         return spectrum['params']['title']
@@ -1441,11 +1459,13 @@ def write_pepxml(inputfile, settings, results):
                 tmp.set('end_scan', str(idx))  # ???
                 tmp.set('index', str(idx))  # ???
 
-                neutral_mass, charge_state, RT = get_info(spectrum, result, settings, aa_mass)
+                neutral_mass, charge_state, RT, comp_voltage = get_info(spectrum, result, settings, aa_mass)
                 tmp.set('precursor_neutral_mass', str(neutral_mass))
                 tmp.set('assumed_charge', str(int(charge_state)))
                 if RT:
                     tmp.set('retention_time_sec', str(RT))
+                if comp_voltage:
+                    tmp.set('compensation_voltage', str(comp_voltage))
 
                 tmp2 = etree.Element('search_result')
                 result['candidates'] = result['candidates'][:len(result['e-values'])]
@@ -1682,7 +1702,7 @@ def dataframe(inputfile, settings, results):
 
     enzyme = settings.get('search', 'enzyme')
     snp = settings.getint('search', 'snp')
-    columns = ['Title', 'Assumed charge', 'RT', 'Rank', 'Matched ions', 'Total ions', 'Calculated mass',
+    columns = ['Title', 'Assumed charge', 'RT', 'compensation_voltage', 'Rank', 'Matched ions', 'Total ions', 'Calculated mass',
                 'Mass difference', 'Missed cleavages', 'Proteins', '# proteins', 'Sequence', 'Modified sequence',
                 'Hyperscore', 'Expect', 'sumI', 'fragmentMT']
     rows = []
@@ -1691,9 +1711,10 @@ def dataframe(inputfile, settings, results):
             row = []
             spectrum = result['spectrum']
             row.append(get_title(spectrum))
-            neutral_mass, charge_state, RT = get_info(spectrum, result, settings, aa_mass)
+            neutral_mass, charge_state, RT, comp_voltage = get_info(spectrum, result, settings, aa_mass)
             row.append(charge_state)
             row.append(RT)
+            row.append(comp_voltage)
             result['candidates'] = result['candidates'][:len(result['e-values'])]
 
             flag = 1
