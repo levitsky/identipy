@@ -7,7 +7,7 @@ from .scoring import get_fragment_mass_tol, get_fragment_mass_tol_ppm
 import logging
 logger = logging.getLogger(__name__)
 import numpy as np
-from .utils import get_info, get_aa_mass, get_enzyme, calculate_RT, get_title
+from .utils import get_info, get_aa_mass, get_enzyme, calculate_RT, get_title, prepare_data_for_deeplc, calculate_RT_deeplc
 try:
     from pyteomics import cmass
 except ImportError:
@@ -18,6 +18,8 @@ from scipy.optimize import curve_fit
 from os import path
 import pandas as pd
 from deeplc import DeepLC, FeatExtractor
+
+
 
 def FDbinSize(X):
     """Calculates the Freedman-Diaconis bin size for
@@ -312,151 +314,60 @@ def rt_filtering(results, settings, unf):
     best_RT_l = scoreatpercentile(deltaRT, 0.05)
     best_RT_r = scoreatpercentile(deltaRT, 99.95)
 
-    def condition(spectrum, cand, _, stored_value=False):
+    # def condition(spectrum, cand, _, stored_value=False):
+    #     if not stored_value:
+    #         stored_value = calculate_RT(cand, RC_dict)
+    #     rtd = spectrum['RT'] - stored_value
+    #     return best_RT_l <= rtd <= best_RT_r, stored_value
+    # settings.set('scoring', 'condition', condition)
+
+
+
+    RTexp, seqs = zip(*[(utils.get_RT(res['spectrum']), res['candidates'][0][1]) for res in results])
+    newseqs, newmods = prepare_data_for_deeplc(seqs, settings, legend)
+    RTexp = [float(x) for x in RTexp]
+
+    df = pd.DataFrame()
+    df['seq'] = newseqs
+    df['modifications'] = newmods
+    df['tr'] = RTexp
+
+    df.to_csv('/home/mark/test.csv')
+
+    path_to_lib = '/tmp/test_library.csv'
+    if not path.isfile(path_to_lib):
+        lib_file = open(path_to_lib, 'w')
+        lib_file.close()
+
+    dlc = DeepLC(
+            verbose=True,
+            write_library=True,
+            use_library="/tmp/test_library.csv"
+        )
+
+    dlc.calibrate_preds(seq_df=df)
+    preds_cal = np.array(dlc.make_preds(seq_df=df))
+
+    rt_diff_tmp = preds_cal - df['tr'].values
+    RT_left = -min(rt_diff_tmp)
+    RT_right = max(rt_diff_tmp)
+
+    try:
+        start_width = (scoreatpercentile(rt_diff_tmp, 99) - scoreatpercentile(rt_diff_tmp, 1)) / 100
+        XRT_shift, XRT_sigma, covvalue = calibrate_mass(start_width, RT_left, RT_right, rt_diff_tmp)
+    except:
+        start_width = (scoreatpercentile(rt_diff_tmp, 95) - scoreatpercentile(rt_diff_tmp, 5)) / 50
+        XRT_shift, XRT_sigma, covvalue = calibrate_mass(start_width, RT_left, RT_right, rt_diff_tmp)
+    logger.info('First-stage calibrated RT shift: %.3f min', XRT_shift)
+    logger.info('First-stage calibrated RT sigma: %.3f min', XRT_sigma)
+
+    def condition(spectrum, cand, settings, stored_value=False):
         if not stored_value:
-            stored_value = calculate_RT(cand, RC_dict)
-        rtd = spectrum['RT'] - stored_value
-        return best_RT_l <= rtd <= best_RT_r, stored_value
-    settings.set('scoring', 'condition', condition)
-
-
-
-
-    # df2 = pd.read_table(path.join(path.dirname(path.realpath(__file__)), "monomass_to_name.csv"))
-    # df2 = df2.sort_values(by='monoisotopic_mass')
-    # all_mods_masses = df2['monoisotopic_mass'].values
-    # all_mods_uninames = df2['uniname'].values
-    # # uni_name_dict = dict(zip(df2.monoisotopic_mass, df2.uniname))
-    # uni_name_dict = {}
-    # aa_origin_dict = {}
-    # fmods = settings.get('modifications', 'fixed')
-    # nterm_fixed = False
-    # cterm_fixed = False
-    # if fmods:
-    #     for mod in re.split(r'[,;]\s*', fmods):
-    #         if '-' not in mod:
-    #             m, aa = parser._split_label(mod)
-    #         elif mod[0] == '-':
-    #             aa = 'N-term'
-    #             m = mod[1:]
-    #         elif mod[-1] == '-':
-    #             aa = 'C-term'
-    #             m = mod[:-1]
-            
-    #         mod_mass = settings.getfloat('modifications', m)
-    #         best_mod_match = (False, False)
-    #         idx_l = all_mods_masses.searchsorted(mod_mass-0.1, side='left')
-    #         idx_r = all_mods_masses.searchsorted(mod_mass+0.1, side='right')
-    #         for idx_cur in range(idx_l, idx_r):
-    #             mass_diff = abs(mod_mass - all_mods_masses[idx_cur])
-    #             if best_mod_match[0] is False or mass_diff < best_mod_match[1]:
-    #                 best_mod_match = (all_mods_uninames[idx_cur], mass_diff)
-    #         if best_mod_match[0] is False:
-    #             logger.warning('%s modification is missing in the database and will be skipped in DeepLC and MS2PIP, check the used mass' % (mod, ))
-    #         else:
-    #             if aa == 'N-term':
-    #                 nterm_fixed = best_mod_match[0]
-    #             elif aa == 'C-term':
-    #                 cterm_fixed = best_mod_match[0]
-    #             else:
-    #                 uni_name_dict[aa] = best_mod_match[0]
-    #         aa_origin_dict[aa] = aa
-    # if legend is not None:
-    #     for aa, v in legend.items():
-    #         if len(v) == 3:
-    #             m, aa_origin, term = v
-    #             mod_mass = settings.getfloat('modifications', m)
-    #             best_mod_match = (False, False)
-    #             idx_l = all_mods_masses.searchsorted(mod_mass-0.1, side='left')
-    #             idx_r = all_mods_masses.searchsorted(mod_mass+0.1, side='right')
-    #             for idx_cur in range(idx_l, idx_r):
-    #                 mass_diff = abs(mod_mass - all_mods_masses[idx_cur])
-    #                 if best_mod_match[0] is False or mass_diff < best_mod_match[1]:
-    #                     best_mod_match = (all_mods_uninames[idx_cur], mass_diff)
-    #             if best_mod_match[0] is False:
-    #                 logger.warning('%s modification is missing in the database and will be skipped in DeepLC and MS2PIP, check the used mass' % (str(mod_mass)+'@'+aa_origin, ))
-    #             else:
-    #                 if term:
-    #                     aa_origin = ''
-    #                 uni_name_dict[aa] = best_mod_match[0]
-    #             aa_origin_dict[aa] = aa_origin
-
-    # print(uni_name_dict)
-    
-    # RTexp, seqs = zip(*[(utils.get_RT(res['spectrum']), res['candidates'][0][1]) for res in results])
-    # if len(uni_name_dict):
-    #     newseqs = []
-    #     newmods = []
-    #     for s in seqs:
-    #         seq = []
-    #         # 0 is reserved for N-terminal modifications, -1 for C-terminal modifications.
-    #         mod_for_deeplc = []
-
-    #         if nterm_fixed:
-    #             mod_for_deeplc.append(nterm_fixed)
-
-    #         for aa_idx, c in enumerate(s):
-    #             if c not in uni_name_dict:
-    #                 seq.append(c)
-    #             else:
-    #                 mod_uni_name = uni_name_dict[c]
-    #                 if c in legend:
-    #                     _, res, term = legend[c]
-    #                 else:
-    #                     _, res, term = '', c, ''
-    #                 if res == '-':
-    #                     if term == '[':
-    #                         mod_for_deeplc.append('0|%s' % (mod_uni_name, ))
-    #                     else:
-    #                         mod_for_deeplc.append('-1|%s' % (mod_uni_name, ))
-    #                 else:
-    #                     seq.append(aa_origin_dict[res])
-    #                     mod_for_deeplc.append('%d|%s' % (aa_idx+1, mod_uni_name))
-    #         newseqs.append(''.join(seq))
-
-    #         if cterm_fixed:
-    #             mod_for_deeplc.append(cterm_fixed)
-
-    #         newmods.append('|'.join(mod_for_deeplc))
-    #     seqs = newseqs
-    # RTexp = [float(x) for x in RTexp]
-
-    # df = pd.DataFrame()
-    # df['seq'] = newseqs
-    # df['modifications'] = newmods
-    # df['tr'] = RTexp
-
-    # df.to_csv('/home/mark/test.csv')
-
-    # path_to_lib = '/tmp/test_library.csv'
-    # if not path.isfile(path_to_lib):
-    #     lib_file = open(path_to_lib, 'w')
-    #     lib_file.close()
-
-    # dlc = DeepLC(
-    #         verbose=True,
-    #         write_library=True,
-    #         use_library="/tmp/test_library.csv"
-    #     )
-
-    # dlc.calibrate_preds(seq_df=df)
-    # preds_cal = dlc.make_preds(seq_df=df)
-    # rt_diff_tmp = preds_cal - df['tr']
-    # RT_left = -min(rt_diff_tmp)
-    # RT_right = max(rt_diff_tmp)
-
-    # try:
-    #     start_width = (scoreatpercentile(rt_diff_tmp, 95) - scoreatpercentile(rt_diff_tmp, 5)) / 100
-    #     XRT_shift, XRT_sigma, covvalue = calibrate_mass(start_width, RT_left, RT_right, rt_diff_tmp)
-    # except:
-    #     start_width = (scoreatpercentile(rt_diff_tmp, 95) - scoreatpercentile(rt_diff_tmp, 5)) / 50
-    #     XRT_shift, XRT_sigma, covvalue = calibrate_mass(start_width, RT_left, RT_right, rt_diff_tmp)
-    # logger.info('First-stage calibrated RT shift: %.3f min', XRT_shift)
-    # logger.info('First-stage calibrated RT sigma: %.3f min', XRT_sigma)
-
-
-
-
+            stored_value = calculate_RT_deeplc(cand, dlc, settings)
+        # rtd = spectrum['RT'] - stored_value
+        rtd = stored_value - spectrum['RT']
+        return XRT_shift - 3 * XRT_sigma <= rtd <= XRT_shift + 3 * XRT_sigma, stored_value
+    settings.set('scoring', 'condition2', (dlc, XRT_shift, XRT_sigma))
 
     return settings
 

@@ -294,6 +294,7 @@ def peptide_processor(peptide, best_res, global_data_local, **kwargs):
             if end - start:
                 idx.update(range(start, end))
     if kwargs['cond']:
+        # print('HERE condition')
         idx2 = set()
         for i in idx:
             cond_val, stored_value = kwargs['cond'](spectra[i], seqm, settings, stored_value)

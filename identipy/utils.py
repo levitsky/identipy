@@ -22,6 +22,7 @@ except ImportError:
     etree = None
 from time import strftime
 from os import path
+from deeplc import DeepLC, FeatExtractor
 logger = logging.getLogger(__name__)
 
 try:
@@ -109,6 +110,113 @@ def get_tags(tags):
             return ctags
     else:
         return tags
+
+
+def prepare_data_for_deeplc(seqs, settings, legend):
+    df2 = pd.read_table(path.join(path.dirname(path.realpath(__file__)), "monomass_to_name.csv"))
+    df2 = df2.sort_values(by='monoisotopic_mass')
+    all_mods_masses = df2['monoisotopic_mass'].values
+    all_mods_uninames = df2['uniname'].values
+    # uni_name_dict = dict(zip(df2.monoisotopic_mass, df2.uniname))
+    uni_name_dict = {}
+    aa_origin_dict = {}
+    fmods = settings.get('modifications', 'fixed')
+    nterm_fixed = False
+    cterm_fixed = False
+    if fmods:
+        for mod in re.split(r'[,;]\s*', fmods):
+            if '-' not in mod:
+                m, aa = parser._split_label(mod)
+            elif mod[0] == '-':
+                aa = 'N-term'
+                m = mod[1:]
+            elif mod[-1] == '-':
+                aa = 'C-term'
+                m = mod[:-1]
+            
+            mod_mass = settings.getfloat('modifications', m)
+            best_mod_match = (False, False)
+            idx_l = all_mods_masses.searchsorted(mod_mass-0.1, side='left')
+            idx_r = all_mods_masses.searchsorted(mod_mass+0.1, side='right')
+            for idx_cur in range(idx_l, idx_r):
+                mass_diff = abs(mod_mass - all_mods_masses[idx_cur])
+                if best_mod_match[0] is False or mass_diff < best_mod_match[1]:
+                    best_mod_match = (all_mods_uninames[idx_cur], mass_diff)
+            if best_mod_match[0] is False:
+                logger.warning('%s modification is missing in the database and will be skipped in DeepLC and MS2PIP, check the used mass' % (mod, ))
+            else:
+                if aa == 'N-term':
+                    nterm_fixed = best_mod_match[0]
+                elif aa == 'C-term':
+                    cterm_fixed = best_mod_match[0]
+                else:
+                    uni_name_dict[aa] = best_mod_match[0]
+            aa_origin_dict[aa] = aa
+    if legend is not None:
+        for aa, v in legend.items():
+            if len(v) == 3:
+                m, aa_origin, term = v
+                mod_mass = settings.getfloat('modifications', m)
+                best_mod_match = (False, False)
+                idx_l = all_mods_masses.searchsorted(mod_mass-0.1, side='left')
+                idx_r = all_mods_masses.searchsorted(mod_mass+0.1, side='right')
+                for idx_cur in range(idx_l, idx_r):
+                    mass_diff = abs(mod_mass - all_mods_masses[idx_cur])
+                    if best_mod_match[0] is False or mass_diff < best_mod_match[1]:
+                        best_mod_match = (all_mods_uninames[idx_cur], mass_diff)
+                if best_mod_match[0] is False:
+                    logger.warning('%s modification is missing in the database and will be skipped in DeepLC and MS2PIP, check the used mass' % (str(mod_mass)+'@'+aa_origin, ))
+                else:
+                    if term:
+                        aa_origin = ''
+                    uni_name_dict[aa] = best_mod_match[0]
+                aa_origin_dict[aa] = aa_origin
+
+    print(uni_name_dict)
+    print(aa_origin_dict)
+    
+    newseqs = []
+    newmods = []
+    if len(uni_name_dict):
+        for s in seqs:
+            seq = []
+            # 0 is reserved for N-terminal modifications, -1 for C-terminal modifications.
+            mod_for_deeplc = []
+
+            if nterm_fixed:
+                mod_for_deeplc.append(nterm_fixed)
+
+            for aa_idx, c in enumerate(s):
+                if c not in uni_name_dict:
+                    seq.append(c)
+                else:
+                    mod_uni_name = uni_name_dict[c]
+                    if c in legend:
+                        _, res, term = legend[c]
+                    else:
+                        _, res, term = '', c, ''
+                    if res == '-':
+                        if term == '[':
+                            mod_for_deeplc.append('0|%s' % (mod_uni_name, ))
+                        else:
+                            mod_for_deeplc.append('-1|%s' % (mod_uni_name, ))
+                    else:
+                        seq.append(aa_origin_dict[c])
+                        mod_for_deeplc.append('%d|%s' % (aa_idx+1, mod_uni_name))
+            newseqs.append(''.join(seq))
+
+            if cterm_fixed:
+                mod_for_deeplc.append(cterm_fixed)
+
+            newmods.append('|'.join(mod_for_deeplc))
+        # seqs = newseqs
+    else:
+        newseqs = seqs
+        newmods = ['' for z in newseqs]
+
+
+    return newseqs, newmods
+
 
 
 def get_child_for_mods(mods_str, settings, fixed=True, protein=False):
@@ -264,6 +372,30 @@ def get_RCs_vary_lcp(sequences, RTs, term_aa=False, lcp_range=(-1.0, 1.0), **kwa
 
     return best_RC_dict
 
+
+def calculate_RT_deeplc(peptide, settings):
+
+    RTdict_deepLC = settings.get('scoring', 'RTdict_deepLC')
+    return RTdict_deepLC[peptide]
+
+    # if settings.has_option('misc', 'legend'):
+    #     legend = settings.get('misc', 'legend')
+    # else:
+    #     legend = None
+
+    # newseqs, newmods = prepare_data_for_deeplc([peptide, ], settings, legend)
+
+    # df = pd.DataFrame()
+    # df['seq'] = newseqs
+    # df['modifications'] = newmods
+    # print(newseqs)
+    # print(df)
+    # preds_cal = dlc.make_preds(seq_df=df, calibrate=False)
+    # print(preds_cal[0])
+    # # df['RT_pred'] = preds_cal
+    # # df['origseq'] = [peptide, ]
+    # # return dict(zip(df.origseq,df.RT_pred))
+    # return preds_cal[0]
 
 def calculate_RT(peptide, RC_dict, raise_no_mod=True):
     plen = len(peptide)
@@ -1051,7 +1183,7 @@ def get_aa_mass(settings):
 def multimap(n, func, it, global_data, best_res_in=False, best_res_raw_in=False, best_peptides=False, **kw):
     global best_res
 
-
+    settings = kw['settings']
     rel = kw['rel']
     nterm_mass = kw.get('nterm_mass')
     cterm_mass = kw.get('cterm_mass')
@@ -1092,30 +1224,6 @@ def multimap(n, func, it, global_data, best_res_in=False, best_res_raw_in=False,
 
     else:
 
-        def worker(qout, start, end, global_data_local):
-            # maxval = len(qin)
-            # start = 0
-
-            new_best_res = {}
-            new_best_res_raw = {}
-            best_pep_res = {}
-
-            while start < end:
-                item = qin[start]
-                result = func(item, best_res, global_data_local, **kw)
-
-                if result:
-                    for x in result:
-                        peptide, m, snp_label, res = x
-
-                        for score, spec_t, c, info in res:
-                            if -score <= new_best_res.get(spec_t, best_res.get(spec_t, 0)):
-                                new_best_res[spec_t] = -score
-                                best_res[spec_t] = -score
-                                new_best_res_raw[spec_t] = [peptide, m, snp_label, score, spec_t, c, info]
-                start += 1
-            qout.put(new_best_res_raw)
-            qout.put(None)
         qsize = kw.pop('qsize')
         qout = Queue(qsize)
         count = 0
@@ -1126,6 +1234,77 @@ def multimap(n, func, it, global_data, best_res_in=False, best_res_raw_in=False,
             qint = list(islice(it, 5000000))
             if not len(qint):
                 break
+
+            if settings.has_option('scoring', 'condition2'):
+                cond = settings.get('scoring', 'condition2')
+            else:
+                cond = None
+            if cond is not None:
+                print('Running DeepLC filtering')
+                dlc, XRT_shift, XRT_sigma = cond
+                if settings.has_option('misc', 'legend'):
+                    legend = settings.get('misc', 'legend')
+                else:
+                    legend = None
+                seqs = [seqm[0] for seqm in qint]
+                newseqs, newmods = prepare_data_for_deeplc(seqs, settings, legend)
+                # for seqm, mm in zip(seqs, newmods):
+                #     if mm and 'Carba' not in mm:
+                #         print(seqm, mm)
+
+                df = pd.DataFrame()
+                df['seq'] = newseqs
+                df['modifications'] = newmods
+                preds_cal = dlc.make_preds(seq_df=df)
+                RTdict_deepLC = {}
+                for seqm, rt_deep in zip(seqs, preds_cal):
+                    RTdict_deepLC[seqm] = rt_deep
+                def condition(spectrum, cand, settings, stored_value=False):
+                    if not stored_value:
+                        stored_value = calculate_RT_deeplc(cand, settings)
+                    # rtd = spectrum['RT'] - stored_value
+                    rtd = stored_value - spectrum['RT']
+                    return XRT_shift - 3 * XRT_sigma <= rtd <= XRT_shift + 3 * XRT_sigma, stored_value
+                settings.set('scoring', 'condition', condition)
+                settings.set('scoring', 'RTdict_deepLC', RTdict_deepLC)
+                if settings.has_option('scoring', 'condition'):
+                    cond = settings.get('scoring', 'condition')
+                else:
+                    cond = None
+                if isinstance(cond, str) and cond.strip():
+                    cond = utils.import_(cond)
+
+                kw['cond'] = cond
+                kw['settings'] = settings
+
+
+
+            def worker(qout, start, end, global_data_local):
+                # maxval = len(qin)
+                # start = 0
+
+                new_best_res = {}
+                new_best_res_raw = {}
+                best_pep_res = {}
+
+                while start < end:
+                    item = qin[start]
+                    result = func(item, best_res, global_data_local, **kw)
+
+                    if result:
+                        for x in result:
+                            peptide, m, snp_label, res = x
+
+                            for score, spec_t, c, info in res:
+                                if -score <= new_best_res.get(spec_t, best_res.get(spec_t, 0)):
+                                    new_best_res[spec_t] = -score
+                                    best_res[spec_t] = -score
+                                    new_best_res_raw[spec_t] = [peptide, m, snp_label, score, spec_t, c, info]
+                    start += 1
+                qout.put(new_best_res_raw)
+                qout.put(None)
+
+
 
             qin = []
             for seqm, aachange_pos, snp_label, m in qint:
