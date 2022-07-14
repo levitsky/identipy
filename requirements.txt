@@ -5,3 +5,4 @@ cython>=3.0a7
 lxml
 pyteomics
 pyteomics.cythonize
+deeplc
