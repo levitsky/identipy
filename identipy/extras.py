@@ -206,7 +206,7 @@ def fragment_mass_optimization(results, settings, results_unf):
 
     for res in results:
 
-        neutral_mass, charge_state, RT = get_info(res['spectrum'], res, settings, aa_mass)
+        neutral_mass, charge_state, RT, comp_voltage = get_info(res['spectrum'], res, settings, aa_mass)
         p_len = len(str(res['candidates'][0][1]))
         tres = get_fragment_mass_tol(res['spectrum'], str(res['candidates'][0][1]), settings, charge_state)
         fragmassdif.extend(tres['fmt'])
