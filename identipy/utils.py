@@ -1147,7 +1147,7 @@ def multimap(n, func, it, global_data, best_res_in=False, best_res_raw_in=False,
                 dm_l -= min(shifts_and_pime)
                 dm_r += max(shifts_and_pime)
                 start = qin_masses.searchsorted(min_mass + dm_l)
-                end = qin_masses.searchsorted(max_mass + dm_r)
+                end = qin_masses.searchsorted(max_mass + dm_r, side='right')
 
                 p = Process(target=worker, args=(qout, start, end, global_data[proc_num]))
                 p.start()
@@ -1861,7 +1861,7 @@ def demix_chimeric(path_to_features, path_to_mzml, demixing=False, calc_PIF=True
                     intensity_precursor = 0
 
                     idx_l = cur_ms1['m/z array'].searchsorted(pepmass - isolation_window_left)
-                    idx_r = cur_ms1['m/z array'].searchsorted(pepmass + isolation_window_right)
+                    idx_r = cur_ms1['m/z array'].searchsorted(pepmass + isolation_window_right, side='right')
 
                     if not ch:
                         tch = 2

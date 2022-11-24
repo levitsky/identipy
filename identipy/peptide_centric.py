@@ -290,7 +290,7 @@ def peptide_processor(peptide, best_res, global_data_local, **kwargs):
     for shift in shifts_and_pime:
         if int((m + shift)/max_prec_acc_Da) in nmasses_set:
             start = nmasses.searchsorted(m + shift - dm_l)
-            end = nmasses.searchsorted(m + shift + dm_r)
+            end = nmasses.searchsorted(m + shift + dm_r, side='right')
             if end - start:
                 idx.update(range(start, end))
     if kwargs['cond']:
