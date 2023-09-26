@@ -129,7 +129,7 @@ def run():
     parser.add_argument('-prefix',  help='decoy prefix')
     parser.add_argument('-infix',   help='decoy infix')
     parser.add_argument('-method',  help='decoy method; reverse or shuffle', choices=['reverse', 'shuffle'])
-    parser.add_argument('-deis',    help='use MS/MS deisotoping', action='store_true')
+    parser.add_argument('-nodeis',  help='do not use MS/MS deisotoping', action='store_true')
     parser.add_argument('-deistol', help='deisotope mass accuracy', type=float)
     parser.add_argument('-score',   help='used scoring function', choices=['RNHS2', 'RNHS', 'hyperscore', 'morpheusscore'])
     parser.add_argument('-minp',    help='minumum peaks in MS/MS spectra', type=int, metavar='N')
@@ -194,8 +194,8 @@ def run():
     _update(settings, 'input',  'decoy prefix', args['prefix'])
     _update(settings, 'input',  'decoy infix', args['infix'])
     _update(settings, 'input',  'decoy method', args['method'])
-    if args['deis']:
-        _update(settings, 'input',  'deisotope', 'yes')
+    if args['nodeis']:
+        _update(settings, 'input',  'deisotope', 'no')
     _update(settings, 'input',  'deisotoping mass tolerance', args['deistol'])
     if args['score']:
         _update(settings, 'scoring', 'score', 'identipy.scoring.' + args['score'])

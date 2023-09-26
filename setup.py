@@ -78,6 +78,7 @@ def do_setup(cext=True):
         ext_modules      = make_extensions() if cext else None,
         classifiers      = ['Intended Audience :: Science/Research',
                             'Programming Language :: Python :: 2.7',
+                            'Programming Language :: Python :: 3',
                             'Topic :: Scientific/Engineering :: Bio-Informatics',
                             'Topic :: Software Development :: Libraries'],
         license          = 'License :: OSI Approved :: Apache Software License',
