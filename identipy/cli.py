@@ -266,11 +266,12 @@ def run():
                     if demixing:
                         logger.info('Demultiplexing has finished.')
                     utils.write_output(path_to_mgf, csettings, main.process_file(path_to_mgf, csettings))
-                    return
                 except Exception as e:
                     logger.error(e)
+                    break
 
-        utils.write_output(inputfile, csettings, main.process_file(inputfile, csettings))
+        else:
+            utils.write_output(inputfile, csettings, main.process_file(inputfile, csettings))
 
 
 if __name__ == '__main__':
