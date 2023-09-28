@@ -224,6 +224,7 @@ def run():
     dino_path = args['dino']
     demixing = args['demixing']
     calc_PIF = args['pif']
+    logger.debug('Args: %s', args)
 
     for inputfile in args['file']:
         csettings = copy.deepcopy(settings)
@@ -239,23 +240,23 @@ def run():
                 try:
                     if dino_path:
                         path_to_features = os.path.splitext(inputfile)[0] + os.extsep + 'features' + os.extsep + 'tsv'
-                        if not args['skipdino'] or not os.path.exists(path_to_features):
+                        if not args['sd'] or not os.path.exists(path_to_features):
                             if dino_path.endswith('.jar'):
                                 advpath = '--advParams=' + os.path.join(os.path.dirname(os.path.realpath(__file__)), 'adv.txt')
                                 logger.info('Starting Dinosaur...')
-                                subprocess.call(['java', '-Djava.awt.headless=true', '-jar', os.path.realpath(dino_path), advpath, '--concurrency=12', inputfile] + args['dinoargs'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                                subprocess.run(['java', '-Djava.awt.headless=true', '-jar', os.path.realpath(dino_path), advpath, '--concurrency=12', inputfile] + args['dinoargs'])
                             elif 'dinosaur' in dino_path:
                                 advpath = '--advParams=' + os.path.join(os.path.dirname(os.path.realpath(__file__)), 'adv.txt')
                                 logger.info('Starting Dinosaur...')
-                                subprocess.call([os.path.realpath(dino_path), advpath, '--concurrency=12', inputfile] + shlex.split(args['dinoargs']), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                                subprocess.run([os.path.realpath(dino_path), advpath, '--concurrency=12', inputfile] + shlex.split(args['dinoargs']))
                             elif 'biosaur2' in dino_path:
                                 logger.info('Starting biosaur2...')
                                 cmd = [os.path.realpath(dino_path), inputfile, '-o', path_to_features] + shlex.split(args['dinoargs'])
                                 logger.debug('Running command: %s', cmd)
-                                subprocess.call(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                                subprocess.run(cmd)
                             else:
                                 logger.info('Starting Biosaur...')
-                                subprocess.call([os.path.realpath(dino_path), inputfile, '-out', path_to_features] + shlex.split(args['dinoargs']), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                                subprocess.run([os.path.realpath(dino_path), inputfile, '-out', path_to_features] + shlex.split(args['dinoargs']))
                         if demixing:
                             logger.info('Starting demultiplexing...')
                     else:
