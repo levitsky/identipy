@@ -26,8 +26,10 @@ def process_file(fname, settings, initial_run=True):
     if stage1:
         return double_run(fname, settings, utils.import_(stage1))
     else:
+        logger.debug('Starting one-stage search.')
         utils.seen_target.clear()
         utils.seen_decoy.clear()
+        logger.debug((peptide_centric.process_peptides, fname, settings))
         return peptide_centric.process_peptides(fname, settings)
 
 

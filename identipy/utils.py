@@ -329,9 +329,21 @@ def iterate_spectra(fname):
         raise ValueError('Unrecognized file type: {}'.format(ftype))
 
 
+def get_nprocesses(settings):
+    if platform.system() == 'Windows':
+        return 1
+    n = settings.getint('performance', 'processes')
+    if n == 0:
+        try:
+            n = cpu_count()
+        except NotImplementedError:
+            n = 1
+    return n
+
+
 def iterate_and_preprocess(fname, params, settings):
     it = iterate_spectra(fname)
-    n = settings.getint('performance', 'processes')
+    n = get_nprocesses(settings)
     return multimap(n, preprocess_spectrum, it, kwargs=params)
 
 
@@ -1068,12 +1080,8 @@ def multimap(n, func, it, global_data, best_res_in=False, best_res_raw_in=False,
         best_res_raw = {}
     best_res_pep = {}
 
-    if n == 0:
-        try:
-            n = cpu_count()
-        except NotImplementedError:
-            n = 1
-    if n == 1 or platform.system() == 'Windows':
+
+    if n == 1:
         cnt1 = 0
         for s in it:
             cnt1 += 1

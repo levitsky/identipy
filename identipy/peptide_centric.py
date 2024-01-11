@@ -27,12 +27,8 @@ from .cutils import RNHS_ultrafast
 def prepare_peptide_processor(fname, settings):
 
     global_data = list()
-    n_proc = settings.getint('performance', 'processes')
-    if n_proc == 0:
-        try:
-            n_proc = cpu_count()
-        except NotImplementedError:
-            n_proc = 1
+    n_proc = utils.get_nprocesses(settings)
+
     for _ in range(n_proc):
         global_data.append({
             'spectra': [],
@@ -365,6 +361,7 @@ def peptide_processor(peptide, best_res, global_data_local, **kwargs):
 
 
 def process_peptides(fname, settings):
+    logger.debug('Started process_peptides.')
     spec_results = defaultdict(dict)
     peps = utils.peptide_isoforms(settings)
     kwargs, global_data = prepare_peptide_processor(fname, settings)
