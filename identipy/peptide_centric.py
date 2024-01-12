@@ -4,7 +4,6 @@ from collections import defaultdict
 import random
 from pyteomics import mass
 from . import utils
-from multiprocessing import cpu_count
 import logging
 logger = logging.getLogger(__name__)
 try:
@@ -373,7 +372,7 @@ def process_peptides(fname, settings):
     kwargs['qsize'] = settings.getint('performance', 'out queue size')
 
     logger.info('Running the search ...')
-    n = settings.getint('performance', 'processes')
+    n = utils.get_nprocesses(settings)
     leg = {}
     if settings.has_option('misc', 'legend'):
         leg = settings.get('misc', 'legend').copy()
