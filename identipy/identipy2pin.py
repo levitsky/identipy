@@ -163,8 +163,8 @@ def run():
     dft = df00.reindex(columns=df00_col)
     dft['Proteins'] = dft['Proteins'].apply(lambda x: 'proteinsplittmp'.join(x))
     dft.to_csv(path_or_buf=outfile, index=False, sep='\t')
-
-    lines = list(open(outfile, 'r').readlines())
+    with open(outfile, 'r') as f :
+        lines = list(f.readlines())
     outf = open(outfile, 'w')
     for l in lines:
         tmp = l.split('\t')
