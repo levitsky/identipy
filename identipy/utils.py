@@ -1518,7 +1518,7 @@ def write_pepxml(inputfile, settings, results):
                         tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
                         tmp3.set('massdiff', str(candidate[4]['mzdiff']['Da']))
                         tmp3.set('num_tol_term', str(pept_ntts.get(sequence, {}).get(proteins[0], '?')))
-                        tmp3.set('num_missed_cleavages', str(len(parser.cleave(sequence, get_enzyme(enzyme), 0)) - 1))
+                        tmp3.set('num_missed_cleavages', str(parser.num_sites(sequence, get_enzyme(enzyme))))
                         tmp3.set('is_rejected', '0')  # ???
 
                         if num_tot_proteins > 1 and (not snp or 'wild' not in prots[proteins[0]].split(' ', 1)[0]):
