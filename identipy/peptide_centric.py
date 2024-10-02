@@ -67,6 +67,7 @@ def prepare_peptide_processor(fname, settings):
     params['dacc'] = settings.getfloat('input', 'deisotoping mass tolerance')
     params['deisotope'] = settings.getboolean('input', 'deisotope')
     params['tags'] = utils.get_tags(settings.get('output', 'tags'))
+    params['maxcharges'] = maxcharges
     rapid_check = settings.getint('search', 'rapid_check')
 
     ptol_unit = settings.get('search', 'precursor accuracy unit')

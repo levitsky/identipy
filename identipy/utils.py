@@ -589,12 +589,17 @@ def remove_precursor(mz_prec, spectrum, acc):
     spectrum['intensity array'] = intens[idx]
 
 
-def deisotope(spectrum, acc, charge):
+def deisotope(spectrum, acc, charge, maxcharges=False):
     #   acc = 0.3
     mz = spectrum['m/z array']
     intens = spectrum['intensity array']
 
-    h = 1.0057
+    if maxcharges is not False:
+        charge_max = maxcharges[charge]
+    else:
+        charge_max = charge
+
+    h = 1.0072765
     i = mz.size-2
     skip = set()
     add = []
@@ -606,7 +611,7 @@ def deisotope(spectrum, acc, charge):
                 if d > 1.5*h:
                     j -= 1
                     continue
-                for z in range(1, charge+1):
+                for z in range(1, charge_max+1):
                     if abs(d - 1./z) < acc:
                         skip.add(j)
                         if z > 1:
@@ -614,14 +619,12 @@ def deisotope(spectrum, acc, charge):
                             add.append((i, z))
             j -= 1
         i -= 1
-    ix = np.delete(np.arange(mz.size, dtype=int), list(skip))
-    newmz, newint = [], []
     for i, z in add:
-        newmz.append(mz[i]*z - (z-1)*h)
-        newint.append(intens[i])
-    #   print len(skip), len(add)
-    mz = np.hstack((mz[ix], newmz))
-    intens = np.hstack((intens[ix], newint))
+        mz[i] = mz[i]*z - (z-1)*h
+    if len(skip):
+        ix = list(set(range(mz.size)).difference(skip))
+        mz = mz[ix]
+        intens = intens[ix]
     spectrum['m/z array'] = mz
     spectrum['intensity array'] = intens
 
@@ -655,7 +658,7 @@ def preprocess_spectrum(spectrum, kwargs):
 
     if kwargs['deisotope']:
         dacc = kwargs['dacc']
-        deisotope(spectrum, dacc, states[-1])
+        deisotope(spectrum, dacc, states[-1], kwargs['maxcharges'])
 
     mz_prec, _ = get_expmass(spectrum, kwargs)
     remove_precursor(mz_prec, spectrum, acc)
