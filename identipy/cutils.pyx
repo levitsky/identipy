@@ -33,6 +33,52 @@ ion_shift_dict = {
 }
 
 
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.wraparound(True)
+def cdeisotope(np.ndarray mz, np.ndarray intens, float acc, int charge, int charge_max=False):
+
+    cdef int i, j
+    cdef set skip
+    cdef list add, c_range, ix
+    cdef float h, c13, search_limit, d
+
+    if charge_max is False:
+        charge_max = charge
+
+    h = 1.0072765
+    c13 = 1.00335
+    i = mz.size-2
+    skip = set()
+    add = []
+    c_range = list(range(1, charge+1))
+    search_limit = c13 + acc * 1.1
+
+    while i >= 0:
+        j = min(mz.size-1, mz.searchsorted(mz[i] + search_limit, side='right'))
+        while j > i:
+            if intens[i] > intens[j]:
+                d = mz[j] - mz[i]
+                if d > search_limit:
+                    j -= 1
+                    continue
+                for z in c_range:
+                    if abs(d - 1./z) < acc:
+                        skip.add(j)
+                        if z > 1:
+                            add.append((i, z))
+                        break
+            j -= 1
+        i -= 1
+    for i, z in add:
+        mz[i] = mz[i]*z - (z-1)*h
+    if len(skip):
+        ix = list(set(range(mz.size)).difference(skip))
+        mz = mz[ix]
+        intens = intens[ix]
+    return mz, intens
+
+
 
 @cython.cdivision(True)
 @cython.boundscheck(False)

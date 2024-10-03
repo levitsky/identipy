@@ -588,15 +588,20 @@ def remove_precursor(mz_prec, spectrum, acc):
     spectrum['m/z array'] = mz[idx]
     spectrum['intensity array'] = intens[idx]
 
+def deisotope_runner(mz, intens, acc, charge, charge_max=False):
+    try:
+        from .cutils import cdeisotope
+        return cdeisotope(mz, intens, acc, charge, charge_max)
+    except:
+        return deisotope(mz, intens, acc, charge, charge_max)
 
-def deisotope(spectrum, acc, charge, maxcharges=False):
+
+def deisotope(mz, intens, acc, charge, charge_max=False):
     #   acc = 0.3
-    mz = spectrum['m/z array']
-    intens = spectrum['intensity array']
+    # mz = spectrum['m/z array']
+    # intens = spectrum['intensity array']
 
-    if maxcharges is not False:
-        charge_max = maxcharges[charge]
-    else:
+    if charge_max is False:
         charge_max = charge
 
     h = 1.0072765
@@ -630,9 +635,9 @@ def deisotope(spectrum, acc, charge, maxcharges=False):
         ix = list(set(range(mz.size)).difference(skip))
         mz = mz[ix]
         intens = intens[ix]
-    spectrum['m/z array'] = mz
-    spectrum['intensity array'] = intens
-
+    # spectrum['m/z array'] = mz
+    # spectrum['intensity array'] = intens
+    return mz, intens
 
 def preprocess_spectrum(spectrum, kwargs):
     spectrum = copy(spectrum)
@@ -663,7 +668,11 @@ def preprocess_spectrum(spectrum, kwargs):
 
     if kwargs['deisotope']:
         dacc = kwargs['dacc']
-        deisotope(spectrum, dacc, states[-1], kwargs['maxcharges'])
+        # new_mz, new_intensity = cdeisotope(spectrum, dacc, states[-1], kwargs['maxcharges'][states[-1]])
+        new_mz, new_intensity = deisotope_runner(spectrum['m/z array'], spectrum['intensity array'], dacc, states[-1], kwargs['maxcharges'][states[-1]])
+        spectrum['m/z array'] = new_mz
+        spectrum['intensity array'] = new_intensity
+        # deisotope(spectrum, dacc, states[-1], kwargs['maxcharges'])
 
     mz_prec, _ = get_expmass(spectrum, kwargs)
     remove_precursor(mz_prec, spectrum, acc)
