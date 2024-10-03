@@ -314,6 +314,12 @@ def custom_split_label(mod):
             return mod[:j], mod[j:], ''
 
 
+class MS2OnlyMzML(mzml.MzML): 
+    _default_iter_path = '//spectrum[./*[local-name()="cvParam" and @name="ms level" and @value="2"]]' 
+    _use_index = False 
+    _iterative = False
+
+
 def iterate_spectra(fname):
     ftype = fname.rsplit('.', 1)[-1].lower()
     if ftype == 'mgf':
@@ -321,10 +327,11 @@ def iterate_spectra(fname):
             for x in f:
                 yield x
     elif ftype == 'mzml':
-        with mzml.read(fname, use_index=False) as f:
-            for x in f:
-                if x['ms level'] > 1:
-                    yield x
+        for x in MS2OnlyMzML(source=fname):
+        # with mzml.read(fname, use_index=False) as f:
+            # for x in f:
+            #     if x['ms level'] > 1:
+            yield x
     else:
         raise ValueError('Unrecognized file type: {}'.format(ftype))
 
