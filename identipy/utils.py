@@ -1485,8 +1485,7 @@ def write_pepxml(inputfile, settings, results):
                         break
                     tmp3 = etree.Element('search_hit')
                     tmp3.set('hit_rank', str(i + 1))
-                    mod_sequence = str(candidate[1])
-                    mod_sequence = normalize_mods(mod_sequence, settings)
+                    mod_sequence = normalize_mods(str(candidate[1]), settings)
                     sequence = re.sub(r'[^A-Z]', '', mod_sequence)
                     if sequence not in pept_prot:
                         flag = 0
@@ -1513,7 +1512,7 @@ def write_pepxml(inputfile, settings, results):
                         tmp3.set('num_tot_proteins', str(num_tot_proteins))
                         tmp3.set('num_matched_ions', str(sum(v.sum() for v in match.values())))
                         tmp3.set('tot_num_ions', str((len(sequence) - 1) * 2))
-                        neutral_mass_theor = custom_mass(sequence, aa_mass=aa_mass, nterm_mass=nterm_mass, cterm_mass=cterm_mass)
+                        neutral_mass_theor = custom_mass(str(candidate[1]), aa_mass=aa_mass, nterm_mass=nterm_mass, cterm_mass=cterm_mass)
                         # neutral_mass_theor = cmass.fast_mass(sequence, aa_mass=aa_mass)
                         tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
                         tmp3.set('massdiff', str(candidate[4]['mzdiff']['Da']))
@@ -1738,11 +1737,11 @@ def dataframe(inputfile, settings, results):
                     logger.error('Unaccounted sequence! %s (%s)', sequence, mod_sequence)
                     break
                 else:
-                    allproteins = pept_prot[re.sub(r'[^A-Z]', '', sequence)]
+                    allproteins = pept_prot[sequence]
 
                     row.append(sum(v.sum() for v in match.values()))
                     row.append((len(sequence) - 1) * 2)
-                    neutral_mass_theor = custom_mass(sequence, aa_mass=aa_mass, nterm_mass = nterm_mass, cterm_mass = cterm_mass)
+                    neutral_mass_theor = custom_mass(candidate[1], aa_mass=aa_mass, nterm_mass = nterm_mass, cterm_mass = cterm_mass)
                     row.append(neutral_mass_theor)
                     row.append(candidate[4]['mzdiff']['Da'])
                     row.append(parser.num_sites(sequence, get_enzyme(enzyme)))
