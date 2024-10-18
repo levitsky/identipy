@@ -21,7 +21,7 @@ from .cutils import theor_spectrum
 #     from .utils import theor_spectrum
 from .utils import reshape_theor_spectrum
 # from .scoring import RNHS_ultrafast
-from .cutils import RNHS_ultrafast
+# from .cutils import RNHS_ultrafast
 
 def prepare_peptide_processor(fname, settings):
 
@@ -73,9 +73,10 @@ def prepare_peptide_processor(fname, settings):
     ptol_unit = settings.get('search', 'precursor accuracy unit')
     lptol = settings.getfloat('search', 'precursor accuracy left')
     rptol = settings.getfloat('search', 'precursor accuracy right')
-    prec_acc_Da = max(abs(lptol), abs(rptol))
-    if ptol_unit != 'Da' or prec_acc_Da < 1.0:
-        prec_acc_Da = False
+    prec_acc_Da = False
+    # prec_acc_Da = max(abs(lptol), abs(rptol))
+    # if ptol_unit != 'Da' or prec_acc_Da < 1.0:
+    #     prec_acc_Da = False
 
     logger.info('Reading spectra ...')
     if not rapid_check:
@@ -150,7 +151,7 @@ def prepare_peptide_processor(fname, settings):
         global_data[global_data_index]['nmasses_set'].update(tmp-1)
 
         if prec_acc_Da:
-            nmasses_conv = global_data[global_data_index]['nmasses'] / prec_acc_Da
+            nmasses_conv = global_data[global_data_index]['nmasses'] / max_prec_acc_Da
             nmasses_conv = nmasses_conv.astype(int)
 
             tmp_dict = {}
@@ -311,14 +312,14 @@ def peptide_processor(peptide, best_res, global_data_local, **kwargs):
     # for ind in cand_idx:
     ind = cand_idx
     # reshaped = False
-    if kwargs['prec_acc_Da']:
-        fulls_global_charge = fulls_global
-        nm_key = int(m / kwargs['prec_acc_Da'])
-        cur_idict = fulls_global_charge.get(nm_key, dict())
-        fc_max = max(theor.keys())
-        idx_new = RNHS_ultrafast(cur_idict, theoretical_set[fc_max], kwargs['min_matched'], best_res, ind, kwargs['max_v'])
-    else:
-        idx_new = ind
+    idx_new = ind
+    # if idx_new and kwargs['prec_acc_Da']:
+    #     fulls_global_charge = fulls_global
+    #     nm_key = int(m / max_prec_acc_Da)
+    #     cur_idict = fulls_global_charge.get(nm_key, dict())
+    #     fc_max = max(theor.keys())
+    #     idx_new = RNHS_ultrafast(cur_idict, theoretical_set[fc_max], kwargs['min_matched'], best_res, ind, kwargs['max_v'])
+            
     if idx_new:
         # logger.info(len(idx_new))
         for i in idx_new:
