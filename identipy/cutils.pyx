@@ -43,9 +43,6 @@ def cdeisotope(np.ndarray mz, np.ndarray intens, float acc, int charge, int char
     cdef list add, c_range, ix
     cdef float h, c13, search_limit, d
 
-    if charge_max is False:
-        charge_max = charge
-
     h = 1.0072765
     c13 = 1.00335
     i = mz.size-2
@@ -63,7 +60,7 @@ def cdeisotope(np.ndarray mz, np.ndarray intens, float acc, int charge, int char
                     j -= 1
                     continue
                 for z in c_range:
-                    if abs(d - 1./z) < acc:
+                    if abs(d - c13/z) < acc:
                         skip.add(j)
                         if z > 1:
                             add.append((i, z))

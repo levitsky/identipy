@@ -608,9 +608,6 @@ def deisotope(mz, intens, acc, charge, charge_max=False):
     # mz = spectrum['m/z array']
     # intens = spectrum['intensity array']
 
-    if charge_max is False:
-        charge_max = charge
-
     h = 1.0072765
     c13 = 1.00335
     i = mz.size-2
@@ -628,10 +625,9 @@ def deisotope(mz, intens, acc, charge, charge_max=False):
                     j -= 1
                     continue
                 for z in c_range:
-                    if abs(d - 1./z) < acc:
+                    if abs(d - c13/z) < acc:
                         skip.add(j)
                         if z > 1:
-    #                         skip.add(i)
                             add.append((i, z))
                         break
             j -= 1
@@ -1902,7 +1898,7 @@ def demix_chimeric(path_to_features, path_to_mzml, demixing=False, calc_PIF=True
 
                     abs_error = pepmass * mass_acc * 1e-6
                     for mz, intensity in zip(cur_ms1['m/z array'][idx_l:idx_r], cur_ms1['intensity array'][idx_l:idx_r]):
-                        if any(abs(mz - (pepmass + (k * 1.007825) / tch)) <= abs_error for k in [-2, -1, 0, 1, 2, 3, 4]):
+                        if any(abs(mz - (pepmass + (k * 1.00335) / tch)) <= abs_error for k in [-2, -1, 0, 1, 2, 3, 4]):
                             intensity_precursor += intensity
                         intensity_full_ms2 += intensity
                     if intensity_full_ms2:
