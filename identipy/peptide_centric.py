@@ -67,6 +67,7 @@ def prepare_peptide_processor(fname, settings):
     params['dacc'] = settings.getfloat('input', 'deisotoping mass tolerance')
     params['deisotope'] = settings.getboolean('input', 'deisotope')
     params['tags'] = utils.get_tags(settings.get('output', 'tags'))
+    params['maxcharges'] = maxcharges
     rapid_check = settings.getint('search', 'rapid_check')
 
     ptol_unit = settings.get('search', 'precursor accuracy unit')
@@ -150,7 +151,7 @@ def prepare_peptide_processor(fname, settings):
         global_data[global_data_index]['nmasses_set'].update(tmp-1)
 
         if prec_acc_Da:
-            nmasses_conv = global_data[global_data_index]['nmasses'] / prec_acc_Da
+            nmasses_conv = global_data[global_data_index]['nmasses'] / max_prec_acc_Da
             nmasses_conv = nmasses_conv.astype(int)
 
             tmp_dict = {}
@@ -311,14 +312,14 @@ def peptide_processor(peptide, best_res, global_data_local, **kwargs):
     # for ind in cand_idx:
     ind = cand_idx
     # reshaped = False
-    # if kwargs['prec_acc_Da']:
+    idx_new = ind
+    # if idx_new and kwargs['prec_acc_Da']:
     #     fulls_global_charge = fulls_global
-    #     nm_key = int(m / kwargs['prec_acc_Da'])
+    #     nm_key = int(m / max_prec_acc_Da)
     #     cur_idict = fulls_global_charge.get(nm_key, dict())
     #     fc_max = max(theor.keys())
     #     idx_new = RNHS_ultrafast(cur_idict, theoretical_set[fc_max], kwargs['min_matched'], best_res, ind, kwargs['max_v'])
-    # else:
-    idx_new = ind
+            
     if idx_new:
         # logger.info(len(idx_new))
         for i in idx_new:

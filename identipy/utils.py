@@ -315,9 +315,9 @@ def custom_split_label(mod):
 
 
 class MS2OnlyMzML(mzml.MzML): 
-     _default_iter_path = '//spectrum[./*[local-name()="cvParam" and @name="ms level" and @value="2"]]' 
-     _use_index = False 
-     _iterative = False
+    _default_iter_path = '//spectrum[./*[local-name()="cvParam" and @name="ms level" and @value="2"]]' 
+    _use_index = False 
+    _iterative = False
 
 
 def iterate_spectra(fname):
@@ -328,11 +328,10 @@ def iterate_spectra(fname):
                 yield x
     elif ftype == 'mzml':
         for x in MS2OnlyMzML(source=fname):
-            yield x
         # with mzml.read(fname, use_index=False) as f:
-        #     for x in f:
-        #         if x['ms level'] > 1:
-        #             yield x
+            # for x in f:
+            #     if x['ms level'] > 1:
+            yield x
     else:
         raise ValueError('Unrecognized file type: {}'.format(ftype))
 
@@ -596,43 +595,52 @@ def remove_precursor(mz_prec, spectrum, acc):
     spectrum['m/z array'] = mz[idx]
     spectrum['intensity array'] = intens[idx]
 
+def deisotope_runner(mz, intens, acc, charge, charge_max=False):
+    try:
+        from .cutils import cdeisotope
+        return cdeisotope(mz, intens, acc, charge, charge_max)
+    except:
+        return deisotope(mz, intens, acc, charge, charge_max)
 
-def deisotope(spectrum, acc, charge):
+
+def deisotope(mz, intens, acc, charge, charge_max=False):
     #   acc = 0.3
-    mz = spectrum['m/z array']
-    intens = spectrum['intensity array']
+    # mz = spectrum['m/z array']
+    # intens = spectrum['intensity array']
 
-    h = 1.0057
+    h = 1.0072765
+    c13 = 1.00335
     i = mz.size-2
     skip = set()
     add = []
+    c_range = list(range(1, charge+1))
+    search_limit = c13 + acc * 1.1
+
     while i >= 0:
-        j = min(mz.size-1, mz.searchsorted(mz[i] + 1.5, side='right'))
+        j = min(mz.size-1, mz.searchsorted(mz[i] + search_limit, side='right'))
         while j > i:
             if intens[i] > intens[j]:
                 d = mz[j] - mz[i]
-                if d > 1.5*h:
+                if d > search_limit:
                     j -= 1
                     continue
-                for z in range(1, charge+1):
-                    if abs(d - 1./z) < acc:
+                for z in c_range:
+                    if abs(d - c13/z) < acc:
                         skip.add(j)
                         if z > 1:
-    #                         skip.add(i)
                             add.append((i, z))
+                        break
             j -= 1
         i -= 1
-    ix = np.delete(np.arange(mz.size, dtype=int), list(skip))
-    newmz, newint = [], []
     for i, z in add:
-        newmz.append(mz[i]*z - (z-1)*h)
-        newint.append(intens[i])
-    #   print len(skip), len(add)
-    mz = np.hstack((mz[ix], newmz))
-    intens = np.hstack((intens[ix], newint))
-    spectrum['m/z array'] = mz
-    spectrum['intensity array'] = intens
-
+        mz[i] = mz[i]*z - (z-1)*h
+    if len(skip):
+        ix = list(set(range(mz.size)).difference(skip))
+        mz = mz[ix]
+        intens = intens[ix]
+    # spectrum['m/z array'] = mz
+    # spectrum['intensity array'] = intens
+    return mz, intens
 
 def preprocess_spectrum(spectrum, kwargs):
     spectrum = copy(spectrum)
@@ -663,7 +671,11 @@ def preprocess_spectrum(spectrum, kwargs):
 
     if kwargs['deisotope']:
         dacc = kwargs['dacc']
-        deisotope(spectrum, dacc, states[-1])
+        # new_mz, new_intensity = cdeisotope(spectrum, dacc, states[-1], kwargs['maxcharges'][states[-1]])
+        new_mz, new_intensity = deisotope_runner(spectrum['m/z array'], spectrum['intensity array'], dacc, states[-1], kwargs['maxcharges'][states[-1]])
+        spectrum['m/z array'] = new_mz
+        spectrum['intensity array'] = new_intensity
+        # deisotope(spectrum, dacc, states[-1], kwargs['maxcharges'])
 
     mz_prec, _ = get_expmass(spectrum, kwargs)
     remove_precursor(mz_prec, spectrum, acc)
@@ -1327,12 +1339,15 @@ def build_pept_prot(settings, results):
                         prot[startposition + len(seqm)] if startposition + len(seqm) < len(prot) else '-')
 
                 if not semitryptic:
-                    pept_prot.setdefault(seqm, []).append(dbinfo)
+                    pept_prot.setdefault(seqm, set()).add(dbinfo)
                     pept_ntts[seqm][dbinfo] = 2
                 else:
                     ntt = (startposition in cl_positions) + ((startposition + len(seqm)) in cl_positions)
                     pept_ntts[seqm][dbinfo] = ntt
-                    pept_prot.setdefault(seqm, []).append(dbinfo)
+                    pept_prot.setdefault(seqm, set()).add(dbinfo)
+
+    for k in list(pept_prot.keys()):
+        pept_prot[k] = list(pept_prot[k])
 
     return pept_prot, prots, pept_neighbors, pept_ntts
 
@@ -1885,7 +1900,7 @@ def demix_chimeric(path_to_features, path_to_mzml, demixing=False, calc_PIF=True
 
                     abs_error = pepmass * mass_acc * 1e-6
                     for mz, intensity in zip(cur_ms1['m/z array'][idx_l:idx_r], cur_ms1['intensity array'][idx_l:idx_r]):
-                        if any(abs(mz - (pepmass + (k * 1.007825) / tch)) <= abs_error for k in [-2, -1, 0, 1, 2, 3, 4]):
+                        if any(abs(mz - (pepmass + (k * 1.00335) / tch)) <= abs_error for k in [-2, -1, 0, 1, 2, 3, 4]):
                             intensity_precursor += intensity
                         intensity_full_ms2 += intensity
                     if intensity_full_ms2:
