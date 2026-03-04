@@ -34,7 +34,7 @@ try:
 except ImportError:
     from . import customparser as cparser
 from scipy.spatial import cKDTree
-import pkg_resources
+from importlib.metadata import version
 try:
     basestring
 except NameError:
@@ -314,9 +314,9 @@ def custom_split_label(mod):
             return mod[:j], mod[j:], ''
 
 
-class MS2OnlyMzML(mzml.MzML): 
-    _default_iter_path = '//spectrum[./*[local-name()="cvParam" and @name="ms level" and @value="2"]]' 
-    _use_index = False 
+class MS2OnlyMzML(mzml.MzML):
+    _default_iter_path = '//spectrum[./*[local-name()="cvParam" and @name="ms level" and @value="2"]]'
+    _use_index = False
     _iterative = False
 
 
@@ -1428,7 +1428,7 @@ def write_pepxml(inputfile, settings, results):
         child4 = etree.Element('search_summary')
         child4.set('base_name', base_name)
         child4.set('search_engine', search_engine)
-        child4.set("search_engine_version", get_version())
+        child4.set("search_engine_version", version('identipy'))
         child4.set('precursor_mass_type', 'monoisotopic')
         child4.set('fragment_mass_type', 'monoisotopic')
         child4.set('search_id', '1')
@@ -2134,6 +2134,3 @@ def generate_database(settings, outname=None):
     else:
         logger.debug('Skipping database generation. add_decoy = %s, target_only = %s', add_decoy, target_only)
 
-
-def get_version():
-    return pkg_resources.get_distribution('identipy').version
