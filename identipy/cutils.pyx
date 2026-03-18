@@ -185,6 +185,29 @@ def RNHS_fast(set spectrum_fastset, dict spectrum_idict , dict theoretical_set, 
 @cython.cdivision(True)
 @cython.boundscheck(False)
 @cython.wraparound(True)
+def RNHS3_fast_basic(set spectrum_fastset, dict spectrum_idict , dict theoretical_set, int min_matched):
+    cdef int matched_approx_b, matched_approx_y, matched_approx
+    cdef set matched_b, matched_y
+    cdef float isum
+    cdef list all_matched
+    isum = 0
+
+    all_matched = []
+    for ion in theoretical_set:
+        matched_tmp = spectrum_fastset.intersection(theoretical_set[ion])
+        all_matched.append(matched_tmp)
+    matched_approx = sum(len(z) for z in all_matched)
+    if matched_approx >= min_matched:
+        isum += 1
+        for matched_tmp in all_matched:
+            isum *= factorial(len(matched_tmp))
+        return matched_approx, isum
+    else:
+        return 0, 0
+
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.wraparound(True)
 def RNHS_fast_basic(set spectrum_fastset, dict spectrum_idict , dict theoretical_set, int min_matched):
     cdef int matched_approx_b, matched_approx_y, matched_approx
     cdef set matched_b, matched_y
