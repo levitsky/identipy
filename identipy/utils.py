@@ -677,8 +677,9 @@ def preprocess_spectrum(spectrum, kwargs):
         spectrum['intensity array'] = new_intensity
         # deisotope(spectrum, dacc, states[-1], kwargs['maxcharges'])
 
-    mz_prec, _ = get_expmass(spectrum, kwargs)
-    remove_precursor(mz_prec, spectrum, acc)
+    if kwargs['remove_precursor']:
+        mz_prec, _ = get_expmass(spectrum, kwargs)
+        remove_precursor(mz_prec, spectrum, acc)
 
     mz = spectrum['m/z array']
 
@@ -1089,6 +1090,7 @@ def multimap(n, func, it, global_data, best_res_in=False, best_res_raw_in=False,
     cterm_mass = kw.get('cterm_mass')
     acc_l = kw['acc_l']
     acc_r = kw['acc_r']
+    outallcandidates = kw['outallcandidates']
 
     shifts_and_pime = kw['sapime']
 
@@ -1113,6 +1115,10 @@ def multimap(n, func, it, global_data, best_res_in=False, best_res_raw_in=False,
                     peptide, m, snp_label, res = x
 
                     for score, spec_t, c, info in res:
+
+                        if outallcandidates:
+                            spec_t = spec_t + ';PEPTIDE=' + peptide + str(m) + str(snp_label)
+
                         if -score <= best_res.get(spec_t, 0):
                             best_res_raw[spec_t] = [peptide, m, snp_label, score, spec_t, c, info]
                             best_res[spec_t] = -score
@@ -1137,6 +1143,10 @@ def multimap(n, func, it, global_data, best_res_in=False, best_res_raw_in=False,
                         peptide, m, snp_label, res = x
 
                         for score, spec_t, c, info in res:
+
+                            if outallcandidates:
+                                spec_t = spec_t + ';PEPTIDE=' + peptide + str(m) + str(snp_label)
+
                             if -score <= new_best_res.get(spec_t, best_res.get(spec_t, 0)):
                                 new_best_res[spec_t] = -score
                                 best_res[spec_t] = -score

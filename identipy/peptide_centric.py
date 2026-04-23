@@ -66,6 +66,7 @@ def prepare_peptide_processor(fname, settings):
     params.update(utils._charge_params(settings))
     params['dacc'] = settings.getfloat('input', 'deisotoping mass tolerance')
     params['deisotope'] = settings.getboolean('input', 'deisotope')
+    params['remove_precursor'] = settings.getboolean('input', 'remove_precursor')
     params['tags'] = utils.get_tags(settings.get('output', 'tags'))
     params['maxcharges'] = maxcharges
     rapid_check = settings.getint('search', 'rapid_check')
@@ -372,6 +373,8 @@ def process_peptides(fname, settings):
     kwargs['nterm_mass'] = settings.getfloat('modifications', 'protein nterm cleavage')
     kwargs['cterm_mass'] = settings.getfloat('modifications', 'protein cterm cleavage')
     kwargs['qsize'] = settings.getint('performance', 'out queue size')
+    outallcandidates = settings.getboolean('scoring', 'outallcandidates')
+    kwargs['outallcandidates'] = outallcandidates
 
     logger.info('Running the search ...')
     n = utils.get_nprocesses(settings)
@@ -394,7 +397,10 @@ def process_peptides(fname, settings):
 
     for spec_t, v in best_res_raw.items():
         peptide, m, snp_label, score, st, c, info = v
-        spec_results[spec_t]['spectrum'] = t2s_global[spec_t]
+        if outallcandidates:
+            spec_results[spec_t]['spectrum'] = t2s_global[spec_t.split(';PEPTIDE')[0]]
+        else:
+            spec_results[spec_t]['spectrum'] = t2s_global[spec_t]
         info['pep_nm'] = m
         info['charge'] = c
         spec_results[spec_t]['top_scores'] = -score
