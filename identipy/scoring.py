@@ -392,10 +392,14 @@ def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False):
     if '__KDTree' not in spectrum:
         spectrum['__KDTree'] = cKDTree(mz_array.reshape((mz_array.size, 1)))
 
+
+    ind_dict = {}
+
     dist_all = []
     for ion, fragments in theoretical.items():
         dist, ind = spectrum['__KDTree'].query(fragments, distance_upper_bound=acc)
         mask1 = (dist != np.inf)
+        ind_dict[ion] = ind
         if acc_ppm:
             ind = ind.clip(max=mz_array.size-1)
             nacc = np.where(dist / mz_array[ind] * 1e6 > acc_ppm)[0]
@@ -417,25 +421,25 @@ def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False):
     score = score / spectrum['norm']
 
     if not total_matched:
-        return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0, 'IPGF': 0, 'IPGF2': 0, 'RNHS': 0}
+        return {'i_matched': [], 'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0, 'IPGF': 0, 'IPGF2': 0, 'RNHS': 0}
     if position:
         yions = match2[('y', 1)]
         bions = match2[('b', 1)]
         plen = len(yions)
         if position > plen + 1:
 #           print 'Something wrong with aachange position'
-            return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0, 'IPGF': 0, 'IPGF2': 0, 'RNHS': 0}
+            return {'i_matched': [], 'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0, 'IPGF': 0, 'IPGF2': 0, 'RNHS': 0}
         if position == 1:
             if not bions[0]:
-                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0, 'IPGF': 0, 'IPGF2': 0, 'RNHS': 0}
+                return {'i_matched': [], 'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0, 'IPGF': 0, 'IPGF2': 0, 'RNHS': 0}
         elif position == plen + 1:
             if not yions[0]:
-                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0, 'IPGF': 0, 'IPGF2': 0, 'RNHS': 0}
+                return {'i_matched': [], 'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0, 'IPGF': 0, 'IPGF2': 0, 'RNHS': 0}
         else:
             if not (yions[plen - position + 1] and yions[plen - position]):
-                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0, 'IPGF': 0, 'IPGF2': 0, 'RNHS': 0}
+                return {'i_matched': [], 'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0, 'IPGF': 0, 'IPGF2': 0, 'RNHS': 0}
 
-                return {'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0, 'IPGF': 0, 'IPGF2': 0, 'RNHS': 0}
+                return {'i_matched': [], 'score': 0, 'match': None, 'sumI': 0, 'dist': [], 'total_matched': 0, 'score_std': 0, 'IPGF': 0, 'IPGF2': 0, 'RNHS': 0}
 
 
     for m in mult:
@@ -445,7 +449,17 @@ def RNHS(spectrum, theoretical, acc, acc_ppm=False, position=False):
 
     outscore = score
 
-    return {'score': outscore, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched, 'score_std': 0, 'RNHS': score}
+    i_matched = []
+    i_array = np.append(spectrum['intensity array'], 0)
+    for ion in [('b', 1), ('y', 1)]:
+        ind = ind_dict[ion]
+        # i_matched.extend(i_array[ind][::-1])
+        i_matched.extend(i_array[ind])
+
+    i_matched = np.array(i_matched)
+    i_matched = np.log2(i_matched/i_matched.sum() + 0.001)
+
+    return {'i_matched': i_matched, 'score': outscore, 'match': match, 'sumI': sumI, 'dist': dist_all, 'total_matched': total_matched, 'score_std': 0, 'RNHS': score}
 
 def rank_cor(theoretical_list, experimental_list):
     n = len(theoretical_list)

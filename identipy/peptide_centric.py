@@ -19,7 +19,7 @@ from .cutils import theor_spectrum
 # except:
 #     logger.info('Cython modules were not loaded...')
 #     from .utils import theor_spectrum
-from .utils import reshape_theor_spectrum
+from .utils import reshape_theor_spectrum, get_outpath
 # from .scoring import RNHS_ultrafast
 # from .cutils import RNHS_ultrafast
 
@@ -250,6 +250,90 @@ def peptide_processor_iter_isoforms(peptide, best_res, global_data_local, **kwar
     #     if res:
     #         return [res, ]
 
+def peptide_processor_mini_check(peptide, global_data_local, **kwargs):
+    spectra = global_data_local['spectra']
+    titles = global_data_local['titles']
+    nmasses = global_data_local['nmasses']
+    nmasses_set = global_data_local['nmasses_set']
+    t2s = global_data_local['t2s']
+    charges = global_data_local['charges']
+    effcharges = global_data_local['effcharges']
+    fulls_global = global_data_local['fulls_global']
+    seqm, aachange_pos, snp_label, m = peptide
+
+    max_prec_acc_Da = kwargs.get('max_prec_acc_Da')
+
+    nterm_mass = kwargs.get('nterm_mass')
+    cterm_mass = kwargs.get('cterm_mass')
+    rel = kwargs['rel']
+    acc_l = kwargs['acc_l']
+    acc_r = kwargs['acc_r']
+    settings = kwargs['settings']
+
+    shifts_and_pime = kwargs['sapime']
+    theor = {}
+    theoretical_set = {}
+    cand_idx = {}
+    stored_value = False
+    if rel:
+        dm_l = acc_l * m / 1.0e6
+        dm_r = acc_r * m / 1.0e6
+    elif not rel:
+        dm_l = acc_l
+        dm_r = acc_r
+    # for c in spectra:
+
+    idx = set()
+    for shift in shifts_and_pime:
+        if int((m + shift)/max_prec_acc_Da) in nmasses_set:
+            start = nmasses.searchsorted(m + shift - dm_l)
+            end = nmasses.searchsorted(m + shift + dm_r, side='right')
+            if end - start:
+                idx.update(range(start, end))
+    if kwargs['cond']:
+        idx2 = set()
+        for i in idx:
+            cond_val, stored_value = kwargs['cond'](spectra[i], seqm, settings, stored_value)
+            if cond_val:
+                idx2.add(i)
+        idx = idx2
+
+    if idx:
+        cand_idx = idx
+        reshaped = {}
+        for c in set(effcharges[i] for i in idx):
+            theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=False,
+                                                            acc_frag=kwargs['acc_frag'], nterm_mass = nterm_mass,
+                                                            cterm_mass = cterm_mass, nm=m)
+            reshaped[c] = False
+
+    # results = set()
+    results = defaultdict(list)
+    ind = cand_idx
+    idx_new = ind
+
+    if idx_new:
+        for i in idx_new:
+            spcharge = charges[i]
+            if (peptide, spcharge) not in results:
+                fc = effcharges[i]
+                s = spectra[i]
+                st = titles[i]
+                s_rt = s['RT']
+                chim = ('params' in s and 'isowidthdiff' in s['params'] and abs(float(s['params']['isowidthdiff'])) >= 0.1)
+                hf = kwargs['score_fast_basic'](s['fastset'], s['idict'], theoretical_set[fc], kwargs['min_matched'])
+                if hf[0]:
+                    if not reshaped[fc]:
+                        theor[fc] = reshape_theor_spectrum(theor[fc])
+                        reshaped[fc] = True
+                    score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos) # FIXME (?)
+                    sc = score.pop('score')
+                    tm = score.pop('total_matched')
+                    if tm >= kwargs['min_matched']:
+                        results[(peptide, spcharge)].append((s_rt, sc, i))
+                        # results.add((peptide, spcharge))
+    if len(results):
+        return results
 
 def peptide_processor(peptide, best_res, global_data_local, **kwargs):
     spectra = global_data_local['spectra']
@@ -321,6 +405,10 @@ def peptide_processor(peptide, best_res, global_data_local, **kwargs):
     #     fc_max = max(theor.keys())
     #     idx_new = RNHS_ultrafast(cur_idict, theoretical_set[fc_max], kwargs['min_matched'], best_res, ind, kwargs['max_v'])
             
+    use_ms2pip = kwargs.get('ms2pip_threshold', 0)
+    if use_ms2pip:
+        dict_i_predicted = kwargs['pred_i_dict']
+
     if idx_new:
         # logger.info(len(idx_new))
         for i in idx_new:
@@ -347,8 +435,42 @@ def peptide_processor(peptide, best_res, global_data_local, **kwargs):
                                     reshaped[fc] = True
                                 score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos) # FIXME (?)
                                 sc = score.pop('score')
+
                             if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
-                                results.append((sc, st, charges[i], score))
+
+                                if use_ms2pip:
+
+                                    # Add modifications here
+                                    # peptide_seq_for_ms2pip = seqm + '/' + str(int(spcharge))
+                                    i_matched = score.pop('i_matched')
+
+                                    # if peptide_seq_for_ms2pip not in dict_i_predicted:
+                                    #     pr = ms2pip.predict_single(peptide_seq_for_ms2pip)
+                                    #     i_predicted = np.append(pr.predicted_intensity['b'], pr.predicted_intensity['y'])
+                                    #     dict_i_predicted[peptide_seq_for_ms2pip] = i_predicted
+                                    #     print('MS2PIP calculated')
+                                    # else:
+                                    #     i_predicted = dict_i_predicted[peptide_seq_for_ms2pip]
+
+                                    i_predicted = dict_i_predicted[(seqm, int(spcharge))]
+                                    ms2pip_corr = np.corrcoef(i_matched, i_predicted)[0][1]
+
+                                    # print(i_matched)
+                                    # print(i_predicted)
+                                    # print(ms2pip_corr)
+
+                                    if ms2pip_corr >= use_ms2pip:
+                                        # print(ms2pip_corr)
+                                        score['ms2pip_corr'] = ms2pip_corr
+
+                                        dict_rt_predicted = kwargs.get('pred_rt_dict', False)
+                                        if dict_rt_predicted is not False:
+                                            s_rt = s['RT']
+                                            score['deeplc_diff'] = s_rt - dict_rt_predicted[seqm]
+
+                                        results.append((sc, st, charges[i], score))
+                                else:
+                                    results.append((sc, st, charges[i], score))
             else:
                 if not reshaped[fc]:
                     theor[fc] = reshape_theor_spectrum(theor[fc])
@@ -375,6 +497,12 @@ def process_peptides(fname, settings):
     kwargs['qsize'] = settings.getint('performance', 'out queue size')
     outallcandidates = settings.getboolean('scoring', 'outallcandidates')
     kwargs['outallcandidates'] = outallcandidates
+    kwargs['ms2pip_threshold'] = settings.getfloat('scoring', 'ms2pip_threshold')
+    kwargs['use_deeplc'] = settings.getfloat('scoring', 'use_deeplc')
+    if kwargs['ms2pip_threshold']:
+        kwargs['func2'] = peptide_processor_mini_check
+        kwargs['filepath_for_ms2pip'] = get_outpath(fname, settings, 'peprec')
+        print(kwargs['filepath_for_ms2pip'])
 
     logger.info('Running the search ...')
     n = utils.get_nprocesses(settings)
@@ -411,7 +539,7 @@ def process_peptides(fname, settings):
     maxlen = settings.getint('search', 'peptide maximum length')
     dtype = np.dtype([('score', np.float64),
         ('seq', np.str_, maxlen + 2), ('note', np.str_, 1),
-        ('charge', np.int8), ('info', np.object_), ('sumI', np.float64), ('fragmentMT', np.float64), ('snp_label', np.str_, 15), ('nextscore_std', np.float64)])
+        ('charge', np.int8), ('info', np.object_), ('sumI', np.float64), ('fragmentMT', np.float64), ('snp_label', np.str_, 15), ('nextscore_std', np.float64), ('ms2pip_corr', np.float64), ('deeplc_diff', np.float64)])
     for spec_name, val in spec_results.items():
         s = val['spectrum']
         c = []
@@ -427,7 +555,7 @@ def process_peptides(fname, settings):
             seq = seq.replace(x, repl)
         pnm = info['pep_nm']
         c.append((-score, mseq, 't' if seq in utils.seen_target else 'd',
-            info['charge'], info, info.pop('sumI'), np.median(info.pop('dist')), val['snp_label'], info.pop('score_std')))
+            info['charge'], info, info.pop('sumI'), np.median(info.pop('dist')), val['snp_label'], info.pop('score_std'), info.get('ms2pip_corr', 0), info.get('deeplc_diff', 0)))
         c[-1][4]['mzdiff'] = {'Da': s['nm'][info['charge']] - pnm}
         c[-1][4]['mzdiff']['ppm'] = 1e6 * c[-1][4]['mzdiff']['Da'] / pnm
         evalues.append(-1./score if -score else 1e6)

@@ -6,7 +6,7 @@ from collections import defaultdict, Counter
 import numpy as np
 from multiprocessing import Queue, Process, cpu_count
 import string
-from copy import copy
+from copy import copy, deepcopy
 try:
     from ConfigParser import RawConfigParser
 except ImportError:
@@ -16,6 +16,8 @@ import os
 import platform
 import logging
 import itertools as it
+from scipy.optimize import curve_fit
+from scipy.stats import scoreatpercentile
 try:
     from lxml import etree
 except ImportError:
@@ -39,6 +41,50 @@ try:
     basestring
 except NameError:
     basestring = (str, bytes)
+
+def noisygaus(x, a, x0, sigma, b):
+    return a * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2)) + b
+
+def calibrate_mass(bwidth, mass_left, mass_right, true_md):
+
+    bbins = np.arange(-mass_left, mass_right, bwidth)
+    H1, b1 = np.histogram(true_md, bins=bbins)
+    b1 = b1 + bwidth
+    b1 = b1[:-1]
+
+
+    popt, pcov = curve_fit(noisygaus, b1, H1, p0=[1, np.median(true_md), 1, 1])
+    mass_shift, mass_sigma = popt[1], abs(popt[2])
+    return mass_shift, mass_sigma, pcov[0][0]
+
+def calibrate_RT_gaus(bwidth, mass_left, mass_right, true_md):
+
+    bbins = np.arange(-mass_left, mass_right, bwidth)
+    H1, b1 = np.histogram(true_md, bins=bbins)
+    b1 = b1 + bwidth
+    b1 = b1[:-1]
+
+
+    popt, pcov = curve_fit(noisygaus, b1, H1, p0=[1, np.median(true_md), bwidth * 5, 1])
+    mass_shift, mass_sigma = popt[1], abs(popt[2])
+    return mass_shift, mass_sigma, pcov[0][0]
+
+def calibrate_RT_gaus_full(rt_diff_tmp, bin_if_inf=0.1):
+    RT_left = -min(rt_diff_tmp)
+    RT_right = max(rt_diff_tmp)
+
+    try:
+        start_width = (scoreatpercentile(rt_diff_tmp, 95) - scoreatpercentile(rt_diff_tmp, 5)) / 100
+        XRT_shift, XRT_sigma, covvalue = calibrate_RT_gaus(start_width, RT_left, RT_right, rt_diff_tmp)
+    except:
+        start_width = (scoreatpercentile(rt_diff_tmp, 95) - scoreatpercentile(rt_diff_tmp, 5)) / 50
+        XRT_shift, XRT_sigma, covvalue = calibrate_RT_gaus(start_width, RT_left, RT_right, rt_diff_tmp)
+    if np.isinf(covvalue):
+        XRT_shift, XRT_sigma, covvalue = calibrate_RT_gaus(bin_if_inf, RT_left, RT_right, rt_diff_tmp)
+    if np.isinf(covvalue):
+        XRT_shift, XRT_sigma, covvalue = calibrate_RT_gaus(1.0, RT_left, RT_right, rt_diff_tmp)
+    return XRT_shift, XRT_sigma, covvalue
+
 
 default_tags = {
     'tmt10plex': {
@@ -94,7 +140,6 @@ default_tags = {
     }
 }
 default_tags['tmt16plex'] = default_tags['tmt_pro']
-
 
 def get_tags(tags):
     logger.debug('Tags: %s', tags)
@@ -1080,9 +1125,63 @@ def get_aa_mass(settings):
                     aa_mass[mod+aa] = aa_mass[mod] + aa_mass[aa]
     return aa_mass
 
+mods_custom_dict = {
+    'Oxidation': 15.994915,
+    'Carbamidomethyl': 57.021464,
+    'TMT6plex': 229.162932,
+}
+
+def get_aa_mass_with_fixed_mods(fmods, fmods_legend):
+
+    if fmods_legend:
+        for mod in fmods_legend.split(','):
+            psiname, m = mod.split('@')
+            mods_custom_dict[psiname] = float(m)
+
+        print(mods_custom_dict)
+
+    aa_mass = deepcopy(mass.std_aa_mass)
+    aa_to_psi = dict()
+
+    mass_h2o = mass.calculate_mass('H2O')
+    for k in list(aa_mass.keys()):
+        aa_mass[k] = round(mass.calculate_mass(sequence=k) - mass_h2o, 7)
+
+    if fmods:
+        for mod in fmods.split(','):
+            psiname, aa = mod.split('@')
+            if psiname not in mods_custom_dict:
+                logger.error('PSI Name for modification %s is missing in the modification legend' % (psiname, ))
+                raise Exception('Exception: missing PSI Name for modification')
+            if aa == '[':
+                aa_mass['Nterm'] = float(mods_custom_dict[psiname])#float(m)
+                aa_to_psi['Nterm'] = psiname
+            elif aa == ']':
+                aa_mass['Cterm'] = float(mods_custom_dict[psiname])#float(m)
+                aa_to_psi['Cterm'] = psiname
+            else:
+                aa_mass[aa] += float(mods_custom_dict[psiname])#float(m)
+                aa_to_psi[aa] = psiname
+
+    logger.debug(aa_mass)
+
+    return aa_mass, aa_to_psi
+
+
+def mods_for_deepLC(seq, aa_to_psi):
+    if 'Nterm' in aa_to_psi:
+        mods_list = ['0|%s' % (aa_to_psi['Nterm'], ), ]
+    else:
+        mods_list = []
+    mods_list.extend([str(idx+1)+'|%s' % (aa_to_psi[aa]) for idx, aa in enumerate(seq) if aa in aa_to_psi])
+    if 'Cterm' in aa_to_psi:
+        mods_list.append(['-1|%s' % (aa_to_psi['Cterm'], ), ])
+    return '|'.join(mods_list)
+
 
 def multimap(n, func, it, global_data, best_res_in=False, best_res_raw_in=False, best_peptides=False, **kw):
     global best_res
+    # global pred_i_dict
 
 
     rel = kw['rel']
@@ -1102,6 +1201,213 @@ def multimap(n, func, it, global_data, best_res_in=False, best_res_raw_in=False,
         best_res_raw = {}
     best_res_pep = {}
 
+    if kw.get('ms2pip_threshold', 0):
+        func2 = kw['func2']
+        aa_mass_X, aa_to_psi = get_aa_mass_with_fixed_mods('Carbamidomethyl@C', '')
+
+        it2 = set()
+        peps_for_ms2pip = []
+
+        ns2 = []
+        nr2 = []
+        nscore2 = []
+        sp_index = []
+
+        if n == 1:
+            for global_data_local in global_data:
+                cnt1 = 0
+                for s in it:
+                    cnt1 += 1
+                    if cnt1 % 10000 == 0:
+                        logger.debug(cnt1)
+                    result = func2(s, global_data_local, **kw)
+                    if result:
+                        for x, rts in result.items():
+                            it2.add(x[0])
+                            peps_for_ms2pip.append([x[0][0], x[1]])
+                            for rt_val in rts:
+                                ns2.append(x[0][0])
+                                nr2.append(rt_val[0])
+                                nscore2.append(rt_val[1])
+                                sp_index.append(rt_val[2])
+        else:
+
+
+            def worker_mini(qout, start, end, global_data_local):
+
+                it2 = set()
+                peps_for_ms2pip = []
+
+                ns2 = []
+                nr2 = []
+                nscore2 = []
+                sp_index = []
+
+                while start < end:
+                    item = qin2[start]
+                    result = func2(item, global_data_local, **kw)
+
+                    if result:
+                        for x, rts in result.items():
+                            it2.add(x[0])
+                            peps_for_ms2pip.append([x[0][0], x[1]])
+                            for rt_val in rts:
+                                ns2.append(x[0][0])
+                                nr2.append(rt_val[0])
+                                nscore2.append(rt_val[1])
+                                sp_index.append(rt_val[2])
+                    start += 1
+
+
+                qout.put([it2, peps_for_ms2pip, ns2, nr2, nscore2, sp_index])
+                qout.put(None)
+
+            qsize = kw['qsize']
+            qout = Queue(qsize)
+            count = 0
+
+            global qin2
+
+            while True:
+                qint = list(islice(it, 5000000))
+                if not len(qint):
+                    break
+
+                qin2 = []
+                for seqm, aachange_pos, snp_label, m in qint:
+                    qin2.append((seqm, aachange_pos, snp_label, m))
+                qin2 = sorted(qin2, key=lambda x: x[3])
+                qin_masses = np.array([z[3] for z in qin2])
+
+                procs = []
+                for proc_num in range(n):
+
+                    min_mass = min(global_data[proc_num]['nmasses'])
+                    max_mass = max(global_data[proc_num]['nmasses'])
+                    if rel:
+                        dm_l = acc_l * max_mass / 1.0e6
+                        dm_r = acc_r * max_mass / 1.0e6
+                    elif not rel:
+                        dm_l = acc_l
+                        dm_r = acc_r
+                    dm_l -= min(shifts_and_pime)
+                    dm_r += max(shifts_and_pime)
+                    start = qin_masses.searchsorted(min_mass + dm_l)
+                    end = qin_masses.searchsorted(max_mass + dm_r, side='right')
+
+                    p = Process(target=worker_mini, args=(qout, start, end, global_data[proc_num]))
+                    p.start()
+                    procs.append(p)
+
+                count = len(qin2)
+
+                for _ in range(n):
+                    for it2_local, peps_for_ms2pip_local, ns2_local, nr2_local, nscore2_local, sp_index_local in iter(qout.get, None):
+                        it2.update(it2_local)
+                        peps_for_ms2pip.extend(peps_for_ms2pip_local)
+                        ns2.extend(ns2_local)
+                        nr2.extend(nr2_local)
+                        nscore2.extend(nscore2_local)
+                        sp_index.extend(sp_index_local)
+
+                logger.debug('HERE1')
+                print(len(it2))
+
+                for p in procs:
+                    p.join()
+
+                logger.debug('HERE2')
+
+
+
+
+
+        if kw.get('use_deeplc', 0):
+
+            if len(set(sp_index)) <= 2000:
+                print('Low number of matched spectra. Skipping DeepLC prediction')
+
+
+                print(len(it2))
+                it = (z for z in it2)
+                print(peps_for_ms2pip[:10])
+
+            else:
+
+                print('Start DeepLC prediction')
+                from deeplc import DeepLC
+                logging.getLogger('deeplc').setLevel(logging.ERROR)
+                dlc = DeepLC(verbose=False, pygam_calibration=False, batch_num=100000)
+
+                df_for_check = pd.DataFrame({
+                    'seq': ns2,
+                    'modifications': [mods_for_deepLC(seq, aa_to_psi) for seq in ns2],
+                    'tr': nr2,
+                    'score': nscore2,
+                    'sp_index': sp_index,
+                })
+
+
+                try:
+                    df_for_calib = df_for_check.sort_values(by='score', ascending=False).drop_duplicates(subset='sp_index').drop_duplicates(subset='seq').reset_index(drop=True)[:2000].copy()
+                    print(df_for_calib[:10])
+                    dlc.calibrate_preds(seq_df=df_for_calib)
+
+
+
+                    df_for_calib['pr'] =  dlc.make_preds(seq_df=df_for_calib)
+                    rt_diff_tmp = df_for_calib['pr'] - df_for_calib['tr']
+                    try:
+                        XRT_shift, XRT_sigma, covvalue = calibrate_RT_gaus_full(rt_diff_tmp)
+                    except:
+                        XTR_shift = 0
+                        XRT_sigma = 1e6
+                except:
+                    XTR_shift = 0
+                    XRT_sigma = 1e6
+
+
+                df_for_check_short = df_for_check.drop_duplicates(subset='seq')
+                df_for_check_short['pr'] =  dlc.make_preds(seq_df=df_for_check_short)
+                pepdict = df_for_check_short.set_index('seq')['pr'].to_dict()
+
+                df_for_check['pr'] =  df_for_check['seq'].map(pepdict)
+                df_for_check['rt_diff'] = (df_for_check['pr'] - df_for_check['tr'] - XRT_shift) / XRT_sigma
+                df_for_check = df_for_check[df_for_check['rt_diff'].abs() <= 3.0]
+                rt_set = set(df_for_check['seq'])
+                print(XRT_shift, XRT_sigma)
+                print(len(it2))
+                it = (z for z in it2 if z[0] in rt_set)
+                peps_for_ms2pip = [z for z in peps_for_ms2pip if z[0] in rt_set]
+                print(peps_for_ms2pip[:10])
+                print('DeepLC prediction was finished')
+                kw['pred_rt_dict'] = pepdict
+
+        else:
+            print(len(it2))
+            it = (z for z in it2)
+            print(peps_for_ms2pip[:10])
+
+
+    
+        import ms2pip
+        dfx = pd.DataFrame()
+        dfx['peptide'] = [x[0] for x in peps_for_ms2pip]
+        dfx['charge'] = [int(x[1]) for x in peps_for_ms2pip]
+        dfx = dfx.drop_duplicates(subset=['peptide', 'charge'])
+        dfx['spec_id'] = range(1, len(dfx)+1)
+        dfx['spec_id'] = dfx['spec_id'].astype(str)
+        dfx['modifications'] = [mods_for_deepLC(seq, aa_to_psi) for seq in dfx['peptide'].values]
+        dfx[['spec_id', 'modifications', 'peptide', 'charge']].to_csv(kw['filepath_for_ms2pip'], index=False, sep='\t')
+        print('Start MS2PIP prediction')
+        out_fragments = ms2pip.predict_batch(kw['filepath_for_ms2pip'], model='HCD2019')
+        pred_i_dict = {}
+        for pepseq, pepch, pr in zip(dfx['peptide'].values, dfx['charge'].values, out_fragments):
+            i_predicted = np.append(pr.predicted_intensity['b'], pr.predicted_intensity['y'])
+            pred_i_dict[(pepseq, pepch)] = i_predicted
+
+        kw['pred_i_dict'] = pred_i_dict
+        print('MS2PIP prediction was finished')
 
     if n == 1:
         cnt1 = 0
@@ -1120,6 +1426,7 @@ def multimap(n, func, it, global_data, best_res_in=False, best_res_raw_in=False,
                             spec_t = spec_t + ';PEPTIDE=' + peptide + str(m) + str(snp_label)
 
                         if -score <= best_res.get(spec_t, 0):
+
                             best_res_raw[spec_t] = [peptide, m, snp_label, score, spec_t, c, info]
                             best_res[spec_t] = -score
         return best_res_raw, best_res
@@ -1632,6 +1939,17 @@ def write_pepxml(inputfile, settings, results):
                         tmp4 = etree.Element('search_score')
                         tmp4.set('name', 'nextscore_std')
                         tmp4.set('value', str(candidate[8]))
+                        tmp3.append(copy(tmp4))
+
+
+                        tmp4 = etree.Element('search_score')
+                        tmp4.set('name', 'ms2pip_corr')
+                        tmp4.set('value', str(candidate[9]))
+                        tmp3.append(copy(tmp4))
+
+                        tmp4 = etree.Element('search_score')
+                        tmp4.set('name', 'deeplc_diff')
+                        tmp4.set('value', str(candidate[10]))
                         tmp3.append(copy(tmp4))
 
                         if 'params' in spectrum:

@@ -153,6 +153,8 @@ def run():
     parser.add_argument('-sd', '-skipdino', action='store_true', help='Skip feature detection if a feature file is found.')
     parser.add_argument('-demixing',help='Use demixing', action='store_true')
     parser.add_argument('-pif',     help='Calculate PIF', action='store_true')
+    parser.add_argument('-ms2pip_threshold', help='Experimental. ms2pip correlation threshold. 0 means Turn-off MS2PIP. Default: 0.', type=float)
+    parser.add_argument('-use_deeplc', help='Experimental. Use DeepLC model? 0 means Turn-off DeepLC. Default: 0.', type=int)
 
     args = vars(parser.parse_args())
     if args['debug']:
@@ -210,6 +212,8 @@ def run():
     _update(settings, 'scoring', 'minimum peaks', args['minp'])
     _update(settings, 'scoring', 'maximum peaks', args['maxp'])
     _update(settings, 'scoring', 'dynamic range', args['dyn'])
+    _update(settings, 'scoring', 'ms2pip_threshold', args['ms2pip_threshold'])
+    _update(settings, 'scoring', 'use_deeplc', args['use_deeplc'])
     _update(settings, 'scoring', 'maximum fragment charge', args['mfc'])
     _update(settings, 'performance', 'processes', args['nproc'])
     _update(settings, 'modifications', 'maximum variable mods', args['maxmods'])
