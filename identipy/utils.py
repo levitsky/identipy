@@ -42,6 +42,65 @@ try:
 except NameError:
     basestring = (str, bytes)
 
+glyco_block_dict = {
+    'HexNAc': 203.079373,
+    'Hex': 162.052824,
+    'Fuc': 146.057909,
+    'NeuAc': 291.095417,
+    'NeuGc': 307.090331,
+}
+
+
+
+def prepare_ox_ions_theor(acc_frag):
+
+    h_mass = 1.007276
+    h2o_mass = mass.calculate_mass('H2O')
+
+    ox_ions_full = sorted([
+        glyco_block_dict['HexNAc'] + h_mass,
+        glyco_block_dict['HexNAc'] + h_mass - h2o_mass,
+        glyco_block_dict['HexNAc'] + h_mass - 2 * h2o_mass,
+        glyco_block_dict['HexNAc'] + h_mass - mass.calculate_mass('C2H6O3'),
+        glyco_block_dict['HexNAc'] + h_mass - mass.calculate_mass('CH6O3'),
+        glyco_block_dict['HexNAc'] + h_mass - mass.calculate_mass('C2H4O2'),
+        glyco_block_dict['HexNAc'] + h_mass + glyco_block_dict['Hex'],
+        glyco_block_dict['HexNAc'] + h_mass + glyco_block_dict['Hex'] * 2,
+        glyco_block_dict['Hex'] + h_mass,
+        glyco_block_dict['Hex'] + h_mass - h2o_mass,
+        glyco_block_dict['NeuAc'] + h_mass,
+        glyco_block_dict['NeuAc'] + h_mass - h2o_mass,
+        glyco_block_dict['NeuGc'] + h_mass,
+        glyco_block_dict['NeuGc'] + h_mass - h2o_mass,
+        glyco_block_dict['HexNAc'] + h_mass + glyco_block_dict['Hex'] +  + glyco_block_dict['NeuAc'],
+        glyco_block_dict['HexNAc'] + h_mass + glyco_block_dict['Hex'] +  + glyco_block_dict['NeuGc'],
+    ])
+
+    peaks = {}
+    theoretical_set = {}
+
+    for ion_type, charge in [('b', 1), ('y', 1)]:
+        if ion_type[0] == 'b':
+            marr = ox_ions_full[8:]
+        else:
+            marr = ox_ions_full[:8]
+        iname = (ion_type, charge)
+        ions_scaled = [int(x / acc_frag) for x in marr]
+        if iname in theoretical_set:
+            theoretical_set[iname].extend(ions_scaled)
+        else:
+            theoretical_set[iname] = ions_scaled                
+
+        marr_storage = np.array(marr)
+        marr_storage.sort()
+        n = marr_storage.size
+        marr_storage = marr_storage.reshape((n, 1))
+
+        peaks[iname] = marr_storage
+
+    return peaks, theoretical_set
+    
+
 def noisygaus(x, a, x0, sigma, b):
     return a * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2)) + b
 
@@ -409,7 +468,7 @@ def is_decoy_function(settings):
     logger.error('No decoy label specified. One of "decoy prefix" or "decoy infix" is needed.')
 
 
-def peptide_gen(settings, clear_seen_peptides=False):
+def peptide_gen(settings, clear_seen_peptides=False, glyco=False):
     if clear_seen_peptides:
         seen_target.clear()
         seen_decoy.clear()
@@ -430,7 +489,15 @@ def peptide_gen(settings, clear_seen_peptides=False):
                 term += 'n'
             if pos + len(pep) == len(prot[1]):
                 term += 'c'
-            yield pep, term
+
+            if not glyco:
+                yield pep, term
+            # Add N-X-T/S motif!
+            elif (glyco == 'N' or glyco == 'NO') and 'N' in pep:
+                yield pep, term
+            elif (glyco == 'O' or glyco == 'NO') and ('S' in pep or 'T' in pep):
+                yield pep, term
+
 
 
 def peptide_isoforms(settings, clear_seen_peptides=False):
@@ -454,7 +521,9 @@ def peptide_isoforms(settings, clear_seen_peptides=False):
     aa_mass = get_aa_mass(settings)
     nterm_mass = settings.getfloat('modifications', 'protein nterm cleavage')
     cterm_mass = settings.getfloat('modifications', 'protein cterm cleavage')
-    for peptide, term in peptide_gen(settings, clear_seen_peptides):
+    glyco = settings.get('search', 'glyco')
+    print('glyco', glyco)
+    for peptide, term in peptide_gen(settings, clear_seen_peptides, glyco):
         mods = nmods[:]
         if 'n' in term:
             mods += pmods_n
@@ -694,6 +763,7 @@ def preprocess_spectrum(spectrum, kwargs):
     dynrange = kwargs['dynrange']
     acc = kwargs['acc']
     tags = kwargs['tags']
+    glyco = kwargs['glyco']
 
     if 'm/z array' not in spectrum:
         return None
@@ -701,6 +771,10 @@ def preprocess_spectrum(spectrum, kwargs):
     _, states = get_expmass(spectrum, kwargs)
     if not states:
         return None
+
+    # if glyco:
+        # print('glyco spectrum', glyco)
+        # print(ttt)
 
     if tags:
         # TODO optimize performance
@@ -1608,7 +1682,59 @@ def get_shifts_and_pime(settings):
     shifts_and_pime = shifts[:]
     for i in range(pime):
         shifts_and_pime += [x + (i + 1) * dM for x in shifts]
-    return shifts_and_pime
+
+    if settings.get('search', 'glyco'):
+        # This line below exclude non-glycan results
+        shifts_and_pime_and_glyco = []
+        glyco_lbls_for_shifts = []
+
+
+        def label_to_str(cur_val, gl_labels):
+            out = ''
+            for idx, val in enumerate(cur_val):
+                if val > 0:
+                    out += '%s(%d)' % (gl_labels[idx], val)
+            return out
+
+        gl_labels = np.array(list(glyco_block_dict.keys()))
+        gl_masses = np.array(list(glyco_block_dict.values()))
+
+        glycolbls = []
+        glycomasses = []
+        glycolbls_str = []
+
+        def calc_mass(cur_val):
+            return sum([gl_masses[idx] * z for idx, z in enumerate(cur_val)])
+
+        possible_values = range(36)
+        def get_combinations():
+            for combo in it.product(possible_values, repeat=5):
+                if sum(combo) <= 35:
+                    yield combo
+
+        cnt = 0
+        for cur_val in get_combinations():
+            if cur_val[0] >= 1:
+                cur_mass = calc_mass(cur_val)
+                if cur_mass <= 5000:
+                    glycolbls.append(cur_val)
+                    glycomasses.append(cur_mass)
+                    glycolbls_str.append(label_to_str(cur_val, gl_labels))
+                    cnt += 1
+        print('%d glycans in the search space' % (cnt, ))
+            
+        for gl_lbl, gl_mass in zip(glycolbls_str, glycomasses):
+            shifts_and_pime_and_glyco += [x + gl_mass for x in shifts_and_pime]
+            glyco_lbls_for_shifts += [gl_lbl for _ in shifts_and_pime]
+
+        print(len(shifts_and_pime_and_glyco))
+
+
+        return shifts_and_pime_and_glyco, glyco_lbls_for_shifts
+
+    else:
+
+        return shifts_and_pime
 
 
 def build_pept_prot(settings, results):
@@ -1950,6 +2076,11 @@ def write_pepxml(inputfile, settings, results):
                         tmp4 = etree.Element('search_score')
                         tmp4.set('name', 'deeplc_diff')
                         tmp4.set('value', str(candidate[10]))
+                        tmp3.append(copy(tmp4))
+
+                        tmp4 = etree.Element('search_score')
+                        tmp4.set('name', 'glyco_label')
+                        tmp4.set('value', str(candidate[11]))
                         tmp3.append(copy(tmp4))
 
                         if 'params' in spectrum:

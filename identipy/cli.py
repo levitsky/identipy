@@ -155,6 +155,8 @@ def run():
     parser.add_argument('-pif',     help='Calculate PIF', action='store_true')
     parser.add_argument('-ms2pip_threshold', help='Experimental. ms2pip correlation threshold. 0 means Turn-off MS2PIP. Default: 0.', type=float)
     parser.add_argument('-use_deeplc', help='Experimental. Use DeepLC model? 0 means Turn-off DeepLC. Default: 0.', type=int)
+    parser.add_argument('-glyco',  help='Experimental. glyco')
+    parser.add_argument('-ox_tic',  help='minimal fraction of oxonium ions in MS/MS to be considered for glycosearch. Default: 0.05', type=float)
 
     args = vars(parser.parse_args())
     if args['debug']:
@@ -193,6 +195,8 @@ def run():
     _update(settings, 'search', 'shifts', args['shifts'])
     _update(settings, 'search', 'snp', args['snp'])
     _update(settings, 'output', 'minimum matched', args['mm'])
+    _update(settings, 'search', 'glyco', args['glyco'])
+    _update(settings, 'search', 'glyco_oxonium_ion_tic', args['ox_tic'])
     if args['ad']:
         _update(settings, 'input', 'add decoy', 'yes')
     if args['rapid']:

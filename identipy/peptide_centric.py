@@ -69,6 +69,7 @@ def prepare_peptide_processor(fname, settings):
     params['remove_precursor'] = settings.getboolean('input', 'remove_precursor')
     params['tags'] = utils.get_tags(settings.get('output', 'tags'))
     params['maxcharges'] = maxcharges
+    params['glyco'] = settings.get('search', 'glyco')
     rapid_check = settings.getint('search', 'rapid_check')
 
     ptol_unit = settings.get('search', 'precursor accuracy unit')
@@ -78,6 +79,28 @@ def prepare_peptide_processor(fname, settings):
     # prec_acc_Da = max(abs(lptol), abs(rptol))
     # if ptol_unit != 'Da' or prec_acc_Da < 1.0:
     #     prec_acc_Da = False
+
+
+    aa_mass = utils.get_aa_mass(settings)
+    score = utils.import_(settings.get('scoring', 'score'))
+    try:
+        score_fast_name = settings.get('scoring', 'score') + '_fast'
+        logger.debug('Fast score name: %s', score_fast_name)
+        if score_fast_name in {'identipy.scoring.RNHS_fast', 'RNHS_fast'}:
+            try:
+                from .cutils import RNHS_fast as score_fast
+                from .cutils import RNHS_fast_basic as score_fast_basic
+            except ImportError as e:
+                logger.warning('Could not import from cutils: %s', e.args)
+                score_fast = utils.import_(settings.get('scoring', 'score') + '_fast')
+                score_fast_basic = utils.import_(settings.get('scoring', 'score') + '_fast_basic')
+        else:
+            score_fast = utils.import_(settings.get('scoring', 'score') + '_fast')
+            score_fast_basic = utils.import_(settings.get('scoring', 'score') + '_fast_basic')
+    except Exception as e:
+        score_fast = False
+        logging.debug('No fast score imported: %s', e)
+
 
     logger.info('Reading spectra ...')
     if not rapid_check:
@@ -94,14 +117,44 @@ def prepare_peptide_processor(fname, settings):
     charges_tmp = []
     global_data_index_map = {}
 
+
+    glyco = params['glyco']
+
+    if glyco:
+        print('glyco spectrum', glyco)
+        ttt = utils.prepare_ox_ions_theor(params['acc'])
+        ox_tic_threshold = settings.getfloat('search', 'glyco_oxonium_ion_tic')
+        print(ox_tic_threshold)
+
+
     for spec in tmp_spec:
         ps = utils.preprocess_spectrum(spec, params)
         if ps is not None:
 
-            tmp_spec2.append(ps)
-            for m, c in utils.neutral_masses(ps, params):
-                nmasses_tmp.append(m)
-                charges_tmp.append(c)
+
+            if glyco:
+
+                hf = score_fast_basic(ps['fastset'], ps['idict'], ttt[1], 1)
+                if hf[0]:
+                    if hf[1] >= ox_tic_threshold:
+                        score_current = score(ps, ttt[0], settings.getfloat('search', 'product accuracy'), acc_ppm=False, position=False)
+                        sc = score_current.pop('score')
+                        sumI = score_current.pop('sumI')
+                        ox_ions_i_fraction = ((10**sumI) / ps['Isum'])
+                        if ox_ions_i_fraction >= ox_tic_threshold:
+                            # print(sc, ox_ions_i_fraction)
+
+
+                            tmp_spec2.append(ps)
+                            for m, c in utils.neutral_masses(ps, params):
+                                nmasses_tmp.append(m)
+                                charges_tmp.append(c)
+
+            else:
+                tmp_spec2.append(ps)
+                for m, c in utils.neutral_masses(ps, params):
+                    nmasses_tmp.append(m)
+                    charges_tmp.append(c)
 
     nmasses_tmp = np.array(nmasses_tmp)
     idx_t = np.argsort(nmasses_tmp)
@@ -183,25 +236,6 @@ def prepare_peptide_processor(fname, settings):
 
     utils.set_mod_dict(settings)
 
-    aa_mass = utils.get_aa_mass(settings)
-    score = utils.import_(settings.get('scoring', 'score'))
-    try:
-        score_fast_name = settings.get('scoring', 'score') + '_fast'
-        logger.debug('Fast score name: %s', score_fast_name)
-        if score_fast_name in {'identipy.scoring.RNHS_fast', 'RNHS_fast'}:
-            try:
-                from .cutils import RNHS_fast as score_fast
-                from .cutils import RNHS_fast_basic as score_fast_basic
-            except ImportError as e:
-                logger.warning('Could not import from cutils: %s', e.args)
-                score_fast = utils.import_(settings.get('scoring', 'score') + '_fast')
-                score_fast_basic = utils.import_(settings.get('scoring', 'score') + '_fast_basic')
-        else:
-            score_fast = utils.import_(settings.get('scoring', 'score') + '_fast')
-            score_fast_basic = utils.import_(settings.get('scoring', 'score') + '_fast_basic')
-    except Exception as e:
-        score_fast = False
-        logging.debug('No fast score imported: %s', e)
     acc_l = settings.getfloat('search', 'precursor accuracy left')
     acc_r = settings.getfloat('search', 'precursor accuracy right')
     acc_frag = settings.getfloat('search', 'product accuracy')
@@ -232,7 +266,12 @@ def prepare_peptide_processor(fname, settings):
 
 
 def peptide_processor_iter_isoforms(peptide, best_res, global_data_local, **kwargs):
-    res = peptide_processor(peptide, best_res, global_data_local, **kwargs)
+    if not kwargs['glyco']:
+        res = peptide_processor(peptide, best_res, global_data_local, **kwargs)
+    else:
+        print('GLYCO!')
+        res = peptide_processor_glyco(peptide, best_res, global_data_local, **kwargs)
+
     if res:
         return [res, ]
 
@@ -335,6 +374,132 @@ def peptide_processor_mini_check(peptide, global_data_local, **kwargs):
     if len(results):
         return results
 
+
+def peptide_processor_glyco(peptide, best_res, global_data_local, **kwargs):
+    spectra = global_data_local['spectra']
+    titles = global_data_local['titles']
+    nmasses = global_data_local['nmasses']
+    nmasses_set = global_data_local['nmasses_set']
+    t2s = global_data_local['t2s']
+    charges = global_data_local['charges']
+    effcharges = global_data_local['effcharges']
+    fulls_global = global_data_local['fulls_global']
+    seqm, aachange_pos, snp_label, m = peptide
+
+    max_prec_acc_Da = kwargs.get('max_prec_acc_Da')
+
+    nterm_mass = kwargs.get('nterm_mass')
+    cterm_mass = kwargs.get('cterm_mass')
+    rel = kwargs['rel']
+    acc_l = kwargs['acc_l']
+    acc_r = kwargs['acc_r']
+    settings = kwargs['settings']
+
+    shifts_and_pime, glyco_lbls_for_shifts = kwargs['sapime']
+    theor = {}
+    theoretical_set = {}
+    cand_idx = {}
+    stored_value = False
+    if rel:
+        dm_l = acc_l * m / 1.0e6
+        dm_r = acc_r * m / 1.0e6
+    elif not rel:
+        dm_l = acc_l
+        dm_r = acc_r
+
+    # dm_r = dm_r + 5000
+
+    # print(shifts_and_pime)
+    idx = set()
+    idx_to_glycolbl = dict()
+    for glyco_lbl, shift in zip(glyco_lbls_for_shifts, shifts_and_pime):
+        # if int((m + shift)/max_prec_acc_Da) in nmasses_set:
+        start = nmasses.searchsorted(m + shift - dm_l)
+        end = nmasses.searchsorted(m + shift + dm_r, side='right')
+        if end - start:
+            rng_tmp = list(range(start, end))
+            idx.update(rng_tmp)
+            for idval in rng_tmp:
+                idx_to_glycolbl[idval] = glyco_lbl
+    if kwargs['cond']:
+        idx2 = set()
+        for i in idx:
+            cond_val, stored_value = kwargs['cond'](spectra[i], seqm, settings, stored_value)
+            if cond_val:
+                idx2.add(i)
+        idx = idx2
+
+    if idx:
+        cand_idx = idx
+        reshaped = {}
+        reshaped_glyco = {}
+        for c in set(effcharges[i] for i in idx):
+            theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=False,
+                                                            acc_frag=kwargs['acc_frag'], nterm_mass = nterm_mass,
+                                                            cterm_mass = cterm_mass, nm=m, glyco=True)
+            reshaped[c] = False
+        # reshaped = False
+
+    results = []
+    # for ind in cand_idx:
+    ind = cand_idx
+    # reshaped = False
+    idx_new = ind
+    # if idx_new and kwargs['prec_acc_Da']:
+    #     fulls_global_charge = fulls_global
+    #     nm_key = int(m / max_prec_acc_Da)
+    #     cur_idict = fulls_global_charge.get(nm_key, dict())
+    #     fc_max = max(theor.keys())
+    #     idx_new = RNHS_ultrafast(cur_idict, theoretical_set[fc_max], kwargs['min_matched'], best_res, ind, kwargs['max_v'])
+            
+    use_ms2pip = kwargs.get('ms2pip_threshold', 0)
+    if use_ms2pip:
+        dict_i_predicted = kwargs['pred_i_dict']
+
+    if idx_new:
+        # logger.info(len(idx_new))
+        for i in idx_new:
+            glyco_lbl = idx_to_glycolbl[i]
+            # st = utils.get_title(s)
+            # if idx_new.count(st) >= kwargs['min_matched']:#st in idx_new:
+            # if i in idx_new:
+            fc = effcharges[i]
+            s = spectra[i]
+            st = titles[i]
+            chim = ('params' in s and 'isowidthdiff' in s['params'] and abs(float(s['params']['isowidthdiff'])) >= 0.1)
+            spcharge = charges[i]
+            # neutral_mass, charge_state, RT = get_info(res['spectrum'], res, settings, aa_mass)
+            if kwargs['score_fast']:
+                if 1:
+                    hf = kwargs['score_fast_basic'](s['fastset'], s['idict'], theoretical_set[fc], kwargs['min_matched'])
+                    if hf[0]:
+                        if -hf[1] <= best_res.get(st, 0):
+                            if kwargs['fast first stage']:
+                                sc = hf[1]
+                                score = {'match': [], 'sumI': 1, 'dist': [], 'total_matched': 999, 'score_std': 0}
+                            else:
+                                if not reshaped[fc]:
+                                    theor[fc] = reshape_theor_spectrum(theor[fc])
+                                    reshaped[fc] = True
+                                score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos) # FIXME (?)
+                                sc = score.pop('score')
+                                score['glyco_label'] = glyco_lbl
+
+                            if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
+                                results.append((sc, st, charges[i], score))
+            else:
+                if not reshaped[fc]:
+                    theor[fc] = reshape_theor_spectrum(theor[fc])
+                    reshaped[fc] = True
+                score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos) # FIXME (?)
+                sc = score.pop('score')
+                score['glyco_label'] = glyco_lbl
+                if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
+                    results.append((sc, st, charges[i], score))
+
+    if results:
+        return seqm, m, snp_label, results
+
 def peptide_processor(peptide, best_res, global_data_local, **kwargs):
     spectra = global_data_local['spectra']
     titles = global_data_local['titles']
@@ -386,6 +551,7 @@ def peptide_processor(peptide, best_res, global_data_local, **kwargs):
     if idx:
         cand_idx = idx
         reshaped = {}
+        reshaped_glyco = {}
         for c in set(effcharges[i] for i in idx):
             theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=False,
                                                             acc_frag=kwargs['acc_frag'], nterm_mass = nterm_mass,
@@ -492,6 +658,7 @@ def process_peptides(fname, settings):
     func = peptide_processor_iter_isoforms
     kwargs['min_matched'] = settings.getint('output', 'minimum matched')
     kwargs['snp'] = settings.getint('search', 'snp')
+    kwargs['glyco'] = settings.get('search', 'glyco')
     kwargs['nterm_mass'] = settings.getfloat('modifications', 'protein nterm cleavage')
     kwargs['cterm_mass'] = settings.getfloat('modifications', 'protein cterm cleavage')
     kwargs['qsize'] = settings.getint('performance', 'out queue size')
@@ -539,7 +706,7 @@ def process_peptides(fname, settings):
     maxlen = settings.getint('search', 'peptide maximum length')
     dtype = np.dtype([('score', np.float64),
         ('seq', np.str_, maxlen + 2), ('note', np.str_, 1),
-        ('charge', np.int8), ('info', np.object_), ('sumI', np.float64), ('fragmentMT', np.float64), ('snp_label', np.str_, 15), ('nextscore_std', np.float64), ('ms2pip_corr', np.float64), ('deeplc_diff', np.float64)])
+        ('charge', np.int8), ('info', np.object_), ('sumI', np.float64), ('fragmentMT', np.float64), ('snp_label', np.str_, 15), ('nextscore_std', np.float64), ('ms2pip_corr', np.float64), ('deeplc_diff', np.float64), ('glyco_label', np.str_, 40)])
     for spec_name, val in spec_results.items():
         s = val['spectrum']
         c = []
@@ -555,7 +722,7 @@ def process_peptides(fname, settings):
             seq = seq.replace(x, repl)
         pnm = info['pep_nm']
         c.append((-score, mseq, 't' if seq in utils.seen_target else 'd',
-            info['charge'], info, info.pop('sumI'), np.median(info.pop('dist')), val['snp_label'], info.pop('score_std'), info.get('ms2pip_corr', 0), info.get('deeplc_diff', 0)))
+            info['charge'], info, info.pop('sumI'), np.median(info.pop('dist')), val['snp_label'], info.pop('score_std'), info.get('ms2pip_corr', 0), info.get('deeplc_diff', 0), info.get('glyco_label', '')))
         c[-1][4]['mzdiff'] = {'Da': s['nm'][info['charge']] - pnm}
         c[-1][4]['mzdiff']['ppm'] = 1e6 * c[-1][4]['mzdiff']['Da'] / pnm
         evalues.append(-1./score if -score else 1e6)
