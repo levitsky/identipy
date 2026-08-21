@@ -494,6 +494,7 @@ def peptide_gen(settings, clear_seen_peptides=False, glyco=False):
                 yield pep, term
             # Add N-X-T/S motif!
             elif (glyco == 'N' or glyco == 'NO') and 'N' in pep:
+                # N_positions = [idx for idx, char in enumerate(pep) if char == target_char]
                 yield pep, term
             elif (glyco == 'O' or glyco == 'NO') and ('S' in pep or 'T' in pep):
                 yield pep, term
@@ -1669,6 +1670,16 @@ def is_db_target_only(settings):
     return bool(balance)
 
 
+def label_to_str(cur_val, gl_labels):
+    out = ''
+    for idx, val in enumerate(cur_val):
+        if val > 0:
+            out += '%s(%d)' % (gl_labels[idx], val)
+    return out
+
+def calc_mass_glyco(cur_val, gl_masses):
+    return sum([gl_masses[idx] * z for idx, z in enumerate(cur_val)])
+
 def get_shifts_and_pime(settings):
     # try:
     #     fast_first_stage = settings.getint('misc', 'fast first stage')
@@ -1689,22 +1700,14 @@ def get_shifts_and_pime(settings):
         glyco_lbls_for_shifts = []
 
 
-        def label_to_str(cur_val, gl_labels):
-            out = ''
-            for idx, val in enumerate(cur_val):
-                if val > 0:
-                    out += '%s(%d)' % (gl_labels[idx], val)
-            return out
 
-        gl_labels = np.array(list(glyco_block_dict.keys()))
-        gl_masses = np.array(list(glyco_block_dict.values()))
+        gl_labels = list(glyco_block_dict.keys())
+        gl_masses = list(glyco_block_dict.values())
 
         glycolbls = []
         glycomasses = []
         glycolbls_str = []
 
-        def calc_mass(cur_val):
-            return sum([gl_masses[idx] * z for idx, z in enumerate(cur_val)])
 
         possible_values = range(36)
         def get_combinations():
@@ -1715,22 +1718,22 @@ def get_shifts_and_pime(settings):
         cnt = 0
         for cur_val in get_combinations():
             if cur_val[0] >= 1:
-                cur_mass = calc_mass(cur_val)
+                cur_mass = calc_mass_glyco(cur_val, gl_masses)
                 if cur_mass <= 5000:
                     glycolbls.append(cur_val)
                     glycomasses.append(cur_mass)
-                    glycolbls_str.append(label_to_str(cur_val, gl_labels))
+                    # glycolbls_str.append(label_to_str(cur_val, gl_labels))
                     cnt += 1
         print('%d glycans in the search space' % (cnt, ))
             
-        for gl_lbl, gl_mass in zip(glycolbls_str, glycomasses):
+        for gl_lbl, gl_mass in zip(glycolbls, glycomasses):
             shifts_and_pime_and_glyco += [x + gl_mass for x in shifts_and_pime]
             glyco_lbls_for_shifts += [gl_lbl for _ in shifts_and_pime]
 
         print(len(shifts_and_pime_and_glyco))
 
 
-        return shifts_and_pime_and_glyco, glyco_lbls_for_shifts
+        return shifts_and_pime_and_glyco, glyco_lbls_for_shifts, (gl_masses, gl_labels)
 
     else:
 
