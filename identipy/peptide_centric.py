@@ -269,7 +269,6 @@ def peptide_processor_iter_isoforms(peptide, best_res, global_data_local, **kwar
     if not kwargs['glyco']:
         res = peptide_processor(peptide, best_res, global_data_local, **kwargs)
     else:
-        print('GLYCO!')
         res = peptide_processor_glyco(peptide, best_res, global_data_local, **kwargs)
 
     if res:
@@ -411,14 +410,15 @@ def peptide_processor_glyco(peptide, best_res, global_data_local, **kwargs):
     idx = set()
     idx_to_glycolbl = dict()
     for glyco_lbl, shift in zip(glyco_lbls_for_shifts, shifts_and_pime):
-        # if int((m + shift)/max_prec_acc_Da) in nmasses_set:
-        start = nmasses.searchsorted(m + shift - dm_l)
-        end = nmasses.searchsorted(m + shift + dm_r, side='right')
-        if end - start:
-            rng_tmp = list(range(start, end))
-            idx.update(rng_tmp)
-            for idval in rng_tmp:
-                idx_to_glycolbl[idval] = glyco_lbl
+        m_plus_shift = m + shift
+        if int((m_plus_shift)/max_prec_acc_Da) in nmasses_set:
+            start = nmasses.searchsorted(m_plus_shift - dm_l)
+            end = nmasses.searchsorted(m_plus_shift + dm_r, side='right')
+            if end - start:
+                rng_tmp = list(range(start, end))
+                idx.update(rng_tmp)
+                for idval in rng_tmp:
+                    idx_to_glycolbl[idval] = glyco_lbl
     if kwargs['cond']:
         idx2 = set()
         for i in idx:
@@ -427,22 +427,40 @@ def peptide_processor_glyco(peptide, best_res, global_data_local, **kwargs):
                 idx2.add(i)
         idx = idx2
 
+    theors_by_idx_history = dict()
 
     if idx:
+
+
+        peptide_noglyco = seqm.replace('}', 'T').replace('/', 'N').replace('|', 'S')
+        num_glyco_sites = seqm.count('}') + seqm.count('/') + seqm.count('|')
+
         cand_idx = idx
 
         theors_by_idx = dict()
 
         for idval in idx:
+
             theor = {}
             theoretical_set = {}
             reshaped = {}
             glyco_lbl = idx_to_glycolbl[idval]
+
             for c in set(effcharges[i] for i in idx):
-                theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=False,
-                                                                acc_frag=kwargs['acc_frag'], nterm_mass = nterm_mass,
-                                                                cterm_mass = cterm_mass, nm=m, glyco=True, glyco_val=glyco_lbl, gl_masses=gl_masses)
-                reshaped[c] = False
+
+                theor_key = str(glyco_lbl) + str(c)
+                if theor_key not in theors_by_idx_history:
+
+                    theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=False,
+                                                                    acc_frag=kwargs['acc_frag'], nterm_mass = nterm_mass,
+                                                                    cterm_mass = cterm_mass, nm=m, glyco=True, glyco_val=glyco_lbl, gl_masses=gl_masses, glyco_charge=charges[idval], peptide_noglyco=peptide_noglyco, num_glyco_sites=num_glyco_sites)
+                    reshaped[c] = False
+
+                    theors_by_idx_history[theor_key] = (theor, theoretical_set, reshaped)
+                else:
+                    theor, theoretical_set, reshaped = theors_by_idx_history[theor_key]
+
+
             theors_by_idx[idval] = (theor, theoretical_set, reshaped)
         # reshaped = False
 
@@ -492,7 +510,8 @@ def peptide_processor_glyco(peptide, best_res, global_data_local, **kwargs):
                                     reshaped[fc] = True
                                 score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos) # FIXME (?)
                                 sc = score.pop('score')
-                                score['glyco_label'] = utils.label_to_str(glyco_lbl, gl_labels)
+                                score['glyco_label'] = utils.label_to_str(seqm, glyco_lbl, gl_labels)
+                                score['glyco_mass_extra'] = utils.calc_mass_glyco(glyco_lbl, gl_masses)
 
                             if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
                                 results.append((sc, st, charges[i], score))
@@ -502,7 +521,8 @@ def peptide_processor_glyco(peptide, best_res, global_data_local, **kwargs):
                     reshaped[fc] = True
                 score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos) # FIXME (?)
                 sc = score.pop('score')
-                score['glyco_label'] = utils.label_to_str(glyco_lbl, gl_labels)
+                score['glyco_label'] = utils.label_to_str(seqm, glyco_lbl, gl_labels)
+                score['glyco_mass_extra'] = utils.calc_mass_glyco(glyco_lbl, gl_masses)
                 if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
                     results.append((sc, st, charges[i], score))
 
@@ -714,7 +734,7 @@ def process_peptides(fname, settings):
     maxlen = settings.getint('search', 'peptide maximum length')
     dtype = np.dtype([('score', np.float64),
         ('seq', np.str_, maxlen + 2), ('note', np.str_, 1),
-        ('charge', np.int8), ('info', np.object_), ('sumI', np.float64), ('fragmentMT', np.float64), ('snp_label', np.str_, 15), ('nextscore_std', np.float64), ('ms2pip_corr', np.float64), ('deeplc_diff', np.float64), ('glyco_label', np.str_, 40)])
+        ('charge', np.int8), ('info', np.object_), ('sumI', np.float64), ('fragmentMT', np.float64), ('snp_label', np.str_, 15), ('nextscore_std', np.float64), ('ms2pip_corr', np.float64), ('deeplc_diff', np.float64), ('glyco_label', np.str_, 40), ('glyco_mass_extra', np.float64)])
     for spec_name, val in spec_results.items():
         s = val['spectrum']
         c = []
@@ -730,7 +750,7 @@ def process_peptides(fname, settings):
             seq = seq.replace(x, repl)
         pnm = info['pep_nm']
         c.append((-score, mseq, 't' if seq in utils.seen_target else 'd',
-            info['charge'], info, info.pop('sumI'), np.median(info.pop('dist')), val['snp_label'], info.pop('score_std'), info.get('ms2pip_corr', 0), info.get('deeplc_diff', 0), info.get('glyco_label', '')))
+            info['charge'], info, info.pop('sumI'), np.median(info.pop('dist')), val['snp_label'], info.pop('score_std'), info.get('ms2pip_corr', 0), info.get('deeplc_diff', 0), info.get('glyco_label', ''), info.get('glyco_mass_extra', 0)))
         c[-1][4]['mzdiff'] = {'Da': s['nm'][info['charge']] - pnm}
         c[-1][4]['mzdiff']['ppm'] = 1e6 * c[-1][4]['mzdiff']['Da'] / pnm
         evalues.append(-1./score if -score else 1e6)

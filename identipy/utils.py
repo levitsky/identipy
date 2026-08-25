@@ -50,6 +50,7 @@ glyco_block_dict = {
     'NeuGc': 307.090331,
 }
 
+base_punctuation = """'!"#$%&'()*+,-.:;<=>?@[]^_{`~"""
 
 
 def prepare_ox_ions_theor(acc_frag):
@@ -482,20 +483,24 @@ def peptide_gen(settings, clear_seen_peptides=False, glyco=False):
     snp = settings.getint('search', 'snp')
     clip_M = settings.getboolean('search', 'clip N-terminal methionine')
     for prot in prot_gen(settings):
+        prot_len = len(prot[1])
         for pep, pos in prot_peptides(prot[1], enzyme, mc, minlen, maxlen,
             is_decoy=isdecoy(prot[0]), snp=snp, desc=prot[0], semitryptic=semitryptic, position=True, clip_M=clip_M):
             term = ''
             if pos == 0:
                 term += 'n'
-            if pos + len(pep) == len(prot[1]):
+            if pos + len(pep) == prot_len:
                 term += 'c'
 
             if not glyco:
                 yield pep, term
             # Add N-X-T/S motif!
             elif (glyco == 'N' or glyco == 'NO') and 'N' in pep:
-                # N_positions = [idx for idx, char in enumerate(pep) if char == target_char]
-                yield pep, term
+                N_positions = [idx for idx, char in enumerate(pep) if char == 'N']
+                for cur_pos in N_positions:
+                    if cur_pos + 2 < prot_len:
+                        if prot[1][cur_pos + pos] == 'N' and prot[1][cur_pos + pos + 1] != 'P' and prot[1][cur_pos + pos + 2] in ('S', 'T'):
+                            yield pep, term
             elif (glyco == 'O' or glyco == 'NO') and ('S' in pep or 'T' in pep):
                 yield pep, term
 
@@ -547,8 +552,9 @@ def peptide_isoforms(settings, clear_seen_peptides=False):
                 aachange_pos = False
                 snp_label = False
 
-            m = custom_mass(seqm, aa_mass=aa_mass, nterm_mass=nterm_mass, cterm_mass=cterm_mass)
-            yield (seqm, aachange_pos, snp_label, m)
+            if not glyco or ('}' in seqm or '|' in seqm or '/' in seqm):
+                m = custom_mass(seqm, aa_mass=aa_mass, nterm_mass=nterm_mass, cterm_mass=cterm_mass)
+                yield (seqm, aachange_pos, snp_label, m)
 
 
 def prot_gen(settings):
@@ -880,9 +886,20 @@ def set_mod_dict(settings):
         if mods:
             mods = [custom_split_label(l) for l in re.split(r',\s*', mods)]
             mods.sort(key=lambda x: len(x[0]), reverse=True)
-            for i, (mod, char) in enumerate(zip(mods, string.punctuation), 1):
-                legend[''.join(mod)] = char
-                legend[char] = mod
+            for i, (mod, char) in enumerate(zip(mods, base_punctuation), 1):
+                if mod[0] == 'hexnac':
+                    if mod[1] == 'N':
+                        legend[''.join(mod)] = '/'
+                        legend['/'] = mod
+                    elif mod[1] == 'S':
+                        legend[''.join(mod)] = '|'
+                        legend['|'] = mod
+                    elif mod[1] == 'T':
+                        legend[''.join(mod)] = '}'
+                        legend['}'] = mod
+                else:
+                    legend[''.join(mod)] = char
+                    legend[char] = mod
             assert all(len(m) == 3 for m in mods), 'unmodified residue given'
             for mod, aa, term in mods:
                 mod_dict.setdefault(mod, []).append(aa)
@@ -896,7 +913,7 @@ def set_mod_dict(settings):
         if pmods:
             pmods = [custom_split_label(l) for l in re.split(r',\s*', pmods)]
             pmods.sort(key=lambda x: len(x[0]), reverse=True)
-            for mod, char in zip(pmods, string.punctuation[i:]):
+            for mod, char in zip(pmods, base_punctuation[i:]):
                 plegend[''.join(mod)] = char
                 plegend[char] = mod
             assert all(len(m) == 3 for m in pmods), 'unmodified residue given'
@@ -1670,11 +1687,13 @@ def is_db_target_only(settings):
     return bool(balance)
 
 
-def label_to_str(cur_val, gl_labels):
+def label_to_str(peptide, cur_val, gl_labels):
+    num_glyco_sites = peptide.count('}') + peptide.count('/') + peptide.count('|')
+    # cur_val[0] += num_glyco_sites
     out = ''
     for idx, val in enumerate(cur_val):
         if val > 0:
-            out += '%s(%d)' % (gl_labels[idx], val)
+            out += '%s(%d)' % (gl_labels[idx], val+(num_glyco_sites if idx == 0 else 0))
     return out
 
 def calc_mass_glyco(cur_val, gl_masses):
@@ -1713,13 +1732,15 @@ def get_shifts_and_pime(settings):
         def get_combinations():
             for combo in it.product(possible_values, repeat=5):
                 if sum(combo) <= 35:
-                    yield combo
+                    yield list(combo)
 
         cnt = 0
         for cur_val in get_combinations():
-            if cur_val[0] >= 1:
+            # if cur_val[0] >= 1:
+            if 1:
                 cur_mass = calc_mass_glyco(cur_val, gl_masses)
                 if cur_mass <= 5000:
+                    # cur_val[0] += 1
                     glycolbls.append(cur_val)
                     glycomasses.append(cur_mass)
                     # glycolbls_str.append(label_to_str(cur_val, gl_labels))
@@ -1984,7 +2005,7 @@ def write_pepxml(inputfile, settings, results):
                         neutral_mass_theor = custom_mass(str(candidate[1]), aa_mass=aa_mass, nterm_mass=nterm_mass, cterm_mass=cterm_mass)
                         # neutral_mass_theor = cmass.fast_mass(sequence, aa_mass=aa_mass)
                         tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
-                        tmp3.set('massdiff', str(candidate[4]['mzdiff']['Da']))
+                        tmp3.set('massdiff', str(candidate[4]['mzdiff']['Da'] - candidate[12]))
                         tmp3.set('num_tol_term', str(pept_ntts.get(sequence, {}).get(proteins[0], '?')))
                         tmp3.set('num_missed_cleavages', str(parser.num_sites(sequence, get_enzyme(enzyme))))
                         tmp3.set('is_rejected', '0')  # ???
@@ -2279,6 +2300,25 @@ def write_pickle(inputfile, settings, results):
 
 
 def write_output(inputfile, settings, results):
+    glyco = settings.get('search', 'glyco')
+    if glyco:
+        vmods = settings.get('modifications', 'variable')
+        if not vmods:
+            vmods = ''
+        # print(vmods)
+        if 'N' in glyco:
+            if len(vmods):
+                vmods += ',hexnacN'
+            else:
+                vmods = 'hexnacN'
+        if 'O' in glyco:
+            if len(vmods):
+                vmods += ',hexnacS,hexnacT'
+            else:
+                vmods = 'hexnacS,hexnacT'
+        # print(vmods)
+        settings.set('modifications', 'variable', vmods)
+
     formats = {'pepxml': write_pepxml, 'csv': write_csv, 'tsv': write_csv, 'pickle': write_pickle}
     of = settings.get('output', 'format')
     writer = formats[re.sub(r'[^a-z]', '', of.lower())]

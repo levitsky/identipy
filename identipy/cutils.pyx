@@ -336,7 +336,7 @@ cdef tuple ctheor_spectrum(str peptide, double acc_frag, double nterm_mass, doub
 @cython.boundscheck(False)
 @cython.wraparound(True)
 cdef tuple ctheor_spectrum_glyco(str peptide, double acc_frag, double nterm_mass, double cterm_mass, tuple types,
-                           int maxcharge, bint reshape, tuple possible_values, list gl_masses, dict kwargs):
+                           int maxcharge, bint reshape, list possible_values, list gl_masses, int glyco_charge, str peptide_noglyco, int num_glyco_sites, dict kwargs):
     cdef int pl, charge, i, n, i_type, n_types
     cdef bint nterminal
     cdef str ion_type, maxpart, part
@@ -344,7 +344,7 @@ cdef tuple ctheor_spectrum_glyco(str peptide, double acc_frag, double nterm_mass
     cdef dict peaks, theoretical_set
     cdef dict aa_mass, ion_comp, mass_data
     cdef list theoretical_set_item
-    cdef list ions_scaled, marr
+    cdef list ions_scaled, marr, marr2
     cdef object marr_storage
     cdef tuple cur_val
 
@@ -360,23 +360,31 @@ cdef tuple ctheor_spectrum_glyco(str peptide, double acc_frag, double nterm_mass
     nm = kwargs.get("nm")
     if nm is None:
         nm = cmass.fast_mass(peptide, **kwargs) + (nterm_mass - 1.007825) + (cterm_mass - 17.002735)
+    nm_base = nm - num_glyco_sites * 203.079373
     peaks = {}
     theoretical_set = dict()
 
     pl = len(peptide) - 1
     n_types = len(types)
-    for charge in range(1, maxcharge + 1):
+    for charge in range(1, max(glyco_charge, maxcharge) + 1):
         for i_type in range(n_types):
             ion_type = <str>PyTuple_GetItem(types, i_type)
 
             if ion_type[0] == 'Y':
-                marr = [nm, ]
-                for cur_val in itertools.product(range(1,possible_values[0]+1), range(0,possible_values[1]+1), range(0,possible_values[2]+1), range(0,possible_values[3]+1), range(0,possible_values[4]+1)):
-                    marr.append(nm + sum([gl_masses[idx] * z for idx, z in enumerate(cur_val)]))
+
+                if charge > glyco_charge:
+                    continue
+
+                marr = [nm_base, ]
+                for cur_val in itertools.product(range(1,possible_values[0]+1+num_glyco_sites), range(0,possible_values[1]+1), range(0,possible_values[2]+1), range(0,possible_values[3]+1), range(0,possible_values[4]+1)):
+                    marr.append(nm_base + sum([gl_masses[idx] * z for idx, z in enumerate(cur_val)]))
 
                 marr = [((nmi + 1.0072764667700085 * charge) / charge) for nmi in marr]
 
             else:
+
+                if charge > maxcharge:
+                    continue
 
                 nterminal = ion_type[0] in 'abc'
                 if nterminal:
@@ -388,11 +396,16 @@ cdef tuple ctheor_spectrum_glyco(str peptide, double acc_frag, double nterm_mass
                                     aa_mass=kwargs['aa_mass'], cterm_mass=cterm_mass, nterm_mass=nterm_mass)
                     marr = get_c_ions(peptide, maxmass, pl, charge, kwargs['aa_mass'])
 
+                if nterminal:
+                    maxmass = calc_ions_from_neutral_mass(peptide_noglyco, nm_base, ion_type=ion_type, charge=charge,
+                                    aa_mass=kwargs['aa_mass'], cterm_mass=cterm_mass, nterm_mass=nterm_mass)
+                    marr2 = get_n_ions(peptide, maxmass, pl, charge, kwargs['aa_mass'])
+                else:
+                    maxmass = calc_ions_from_neutral_mass(peptide_noglyco, nm_base, ion_type=ion_type, charge=charge,
+                                    aa_mass=kwargs['aa_mass'], cterm_mass=cterm_mass, nterm_mass=nterm_mass)
+                    marr2 = get_c_ions(peptide, maxmass, pl, charge, kwargs['aa_mass'])
 
-
-                marr.extend([z + 203.079373 for z in marr])
-
-
+                marr.extend(marr2)
 
             iname = (ion_type, charge)
             ions_scaled = [<int>(x / acc_frag) for x in marr]
@@ -417,12 +430,12 @@ cdef tuple ctheor_spectrum_glyco(str peptide, double acc_frag, double nterm_mass
 
 
 
-def theor_spectrum(peptide, acc_frag, nterm_mass, cterm_mass, types=('b', 'y'), maxcharge=None, reshape=False, glyco=False, glyco_val=False, gl_masses=False, **kwargs):
+def theor_spectrum(peptide, acc_frag, nterm_mass, cterm_mass, types=('b', 'y'), maxcharge=None, reshape=False, glyco=False, glyco_val=False, gl_masses=False, glyco_charge=False, peptide_noglyco=False, num_glyco_sites=False, **kwargs):
     if not maxcharge:
         maxcharge = 1 + int(ec.charge(peptide, pH=2))
     if not glyco:
         return ctheor_spectrum(peptide, acc_frag, nterm_mass, cterm_mass, tuple(types), maxcharge, reshape, kwargs)
     else:
-        return ctheor_spectrum_glyco(peptide, acc_frag, nterm_mass, cterm_mass, ('Y', 'b', 'y'), maxcharge, reshape, glyco_val, gl_masses, kwargs)
+        return ctheor_spectrum_glyco(peptide, acc_frag, nterm_mass, cterm_mass, ('Y', 'b', 'y'), maxcharge, reshape, glyco_val, gl_masses, glyco_charge, peptide_noglyco, num_glyco_sites, kwargs)
 
 
