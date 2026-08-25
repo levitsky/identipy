@@ -385,149 +385,151 @@ def peptide_processor_glyco(peptide, best_res, global_data_local, **kwargs):
     fulls_global = global_data_local['fulls_global']
     seqm, aachange_pos, snp_label, m = peptide
 
-    max_prec_acc_Da = kwargs.get('max_prec_acc_Da')
+    num_glyco_sites = seqm.count('}') + seqm.count('/') + seqm.count('|')
+    if num_glyco_sites:
 
-    nterm_mass = kwargs.get('nterm_mass')
-    cterm_mass = kwargs.get('cterm_mass')
-    rel = kwargs['rel']
-    acc_l = kwargs['acc_l']
-    acc_r = kwargs['acc_r']
-    settings = kwargs['settings']
+        max_prec_acc_Da = kwargs.get('max_prec_acc_Da')
 
-    shifts_and_pime, glyco_lbls_for_shifts, (gl_masses, gl_labels) = kwargs['sapime']
-    cand_idx = {}
-    stored_value = False
-    if rel:
-        dm_l = acc_l * m / 1.0e6
-        dm_r = acc_r * m / 1.0e6
-    elif not rel:
-        dm_l = acc_l
-        dm_r = acc_r
+        nterm_mass = kwargs.get('nterm_mass')
+        cterm_mass = kwargs.get('cterm_mass')
+        rel = kwargs['rel']
+        acc_l = kwargs['acc_l']
+        acc_r = kwargs['acc_r']
+        settings = kwargs['settings']
 
-    # dm_r = dm_r + 5000
+        shifts_and_pime, glyco_lbls_for_shifts, (gl_masses, gl_labels) = kwargs['sapime']
+        cand_idx = {}
+        stored_value = False
+        if rel:
+            dm_l = acc_l * m / 1.0e6
+            dm_r = acc_r * m / 1.0e6
+        elif not rel:
+            dm_l = acc_l
+            dm_r = acc_r
 
-    # print(shifts_and_pime)
-    idx = set()
-    idx_to_glycolbl = dict()
-    for glyco_lbl, shift in zip(glyco_lbls_for_shifts, shifts_and_pime):
-        m_plus_shift = m + shift
-        if int((m_plus_shift)/max_prec_acc_Da) in nmasses_set:
-            start = nmasses.searchsorted(m_plus_shift - dm_l)
-            end = nmasses.searchsorted(m_plus_shift + dm_r, side='right')
-            if end - start:
-                rng_tmp = list(range(start, end))
-                idx.update(rng_tmp)
-                for idval in rng_tmp:
-                    idx_to_glycolbl[idval] = glyco_lbl
-    if kwargs['cond']:
-        idx2 = set()
-        for i in idx:
-            cond_val, stored_value = kwargs['cond'](spectra[i], seqm, settings, stored_value)
-            if cond_val:
-                idx2.add(i)
-        idx = idx2
+        # dm_r = dm_r + 5000
 
-    theors_by_idx_history = dict()
+        # print(shifts_and_pime)
+        idx = set()
+        idx_to_glycolbl = dict()
+        for glyco_lbl, shift in zip(glyco_lbls_for_shifts, shifts_and_pime):
+            m_plus_shift = m + shift
+            if int((m_plus_shift)/max_prec_acc_Da) in nmasses_set:
+                start = nmasses.searchsorted(m_plus_shift - dm_l)
+                end = nmasses.searchsorted(m_plus_shift + dm_r, side='right')
+                if end - start:
+                    rng_tmp = list(range(start, end))
+                    idx.update(rng_tmp)
+                    for idval in rng_tmp:
+                        idx_to_glycolbl[idval] = glyco_lbl
+        if kwargs['cond']:
+            idx2 = set()
+            for i in idx:
+                cond_val, stored_value = kwargs['cond'](spectra[i], seqm, settings, stored_value)
+                if cond_val:
+                    idx2.add(i)
+            idx = idx2
 
-    if idx:
+        theors_by_idx_history = dict()
 
-
-        peptide_noglyco = seqm.replace('}', 'T').replace('/', 'N').replace('|', 'S')
-        num_glyco_sites = seqm.count('}') + seqm.count('/') + seqm.count('|')
-
-        cand_idx = idx
-
-        theors_by_idx = dict()
-
-        for idval in idx:
-
-            theor = {}
-            theoretical_set = {}
-            reshaped = {}
-            glyco_lbl = idx_to_glycolbl[idval]
-
-            for c in set(effcharges[i] for i in idx):
-
-                theor_key = str(glyco_lbl) + str(c)
-                if theor_key not in theors_by_idx_history:
-
-                    theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=False,
-                                                                    acc_frag=kwargs['acc_frag'], nterm_mass = nterm_mass,
-                                                                    cterm_mass = cterm_mass, nm=m, glyco=True, glyco_val=glyco_lbl, gl_masses=gl_masses, glyco_charge=charges[idval], peptide_noglyco=peptide_noglyco, num_glyco_sites=num_glyco_sites)
-                    reshaped[c] = False
-
-                    theors_by_idx_history[theor_key] = (theor, theoretical_set, reshaped)
-                else:
-                    theor, theoretical_set, reshaped = theors_by_idx_history[theor_key]
+        if idx:
 
 
-            theors_by_idx[idval] = (theor, theoretical_set, reshaped)
+            peptide_noglyco = seqm.replace('}', 'T').replace('/', 'N').replace('|', 'S')
+
+            cand_idx = idx
+
+            theors_by_idx = dict()
+
+            for idval in idx:
+
+                theor = {}
+                theoretical_set = {}
+                reshaped = {}
+                glyco_lbl = idx_to_glycolbl[idval]
+
+                for c in set(effcharges[i] for i in idx):
+
+                    theor_key = str(glyco_lbl) + str(c)
+                    if theor_key not in theors_by_idx_history:
+
+                        theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=False,
+                                                                        acc_frag=kwargs['acc_frag'], nterm_mass = nterm_mass,
+                                                                        cterm_mass = cterm_mass, nm=m, glyco=True, glyco_val=glyco_lbl, gl_masses=gl_masses, glyco_charge=charges[idval], peptide_noglyco=peptide_noglyco, num_glyco_sites=num_glyco_sites)
+                        reshaped[c] = False
+
+                        theors_by_idx_history[theor_key] = (theor, theoretical_set, reshaped)
+                    else:
+                        theor, theoretical_set, reshaped = theors_by_idx_history[theor_key]
+
+
+                theors_by_idx[idval] = (theor, theoretical_set, reshaped)
+            # reshaped = False
+
+        results = []
+        # for ind in cand_idx:
+        ind = cand_idx
         # reshaped = False
+        idx_new = ind
+        # if idx_new and kwargs['prec_acc_Da']:
+        #     fulls_global_charge = fulls_global
+        #     nm_key = int(m / max_prec_acc_Da)
+        #     cur_idict = fulls_global_charge.get(nm_key, dict())
+        #     fc_max = max(theor.keys())
+        #     idx_new = RNHS_ultrafast(cur_idict, theoretical_set[fc_max], kwargs['min_matched'], best_res, ind, kwargs['max_v'])
+                
+        use_ms2pip = kwargs.get('ms2pip_threshold', 0)
+        if use_ms2pip:
+            dict_i_predicted = kwargs['pred_i_dict']
 
-    results = []
-    # for ind in cand_idx:
-    ind = cand_idx
-    # reshaped = False
-    idx_new = ind
-    # if idx_new and kwargs['prec_acc_Da']:
-    #     fulls_global_charge = fulls_global
-    #     nm_key = int(m / max_prec_acc_Da)
-    #     cur_idict = fulls_global_charge.get(nm_key, dict())
-    #     fc_max = max(theor.keys())
-    #     idx_new = RNHS_ultrafast(cur_idict, theoretical_set[fc_max], kwargs['min_matched'], best_res, ind, kwargs['max_v'])
-            
-    use_ms2pip = kwargs.get('ms2pip_threshold', 0)
-    if use_ms2pip:
-        dict_i_predicted = kwargs['pred_i_dict']
+        if idx_new:
+            # logger.info(len(idx_new))
+            for i in idx_new:
 
-    if idx_new:
-        # logger.info(len(idx_new))
-        for i in idx_new:
+                theor, theoretical_set, reshaped = theors_by_idx[i]
 
-            theor, theoretical_set, reshaped = theors_by_idx[i]
+                glyco_lbl = idx_to_glycolbl[i]
+                # st = utils.get_title(s)
+                # if idx_new.count(st) >= kwargs['min_matched']:#st in idx_new:
+                # if i in idx_new:
+                fc = effcharges[i]
+                s = spectra[i]
+                st = titles[i]
+                chim = ('params' in s and 'isowidthdiff' in s['params'] and abs(float(s['params']['isowidthdiff'])) >= 0.1)
+                spcharge = charges[i]
+                # neutral_mass, charge_state, RT = get_info(res['spectrum'], res, settings, aa_mass)
+                if kwargs['score_fast']:
+                    if 1:
+                        hf = kwargs['score_fast_basic'](s['fastset'], s['idict'], theoretical_set[fc], kwargs['min_matched'])
+                        if hf[0]:
+                            if -hf[1] <= best_res.get(st, 0):
+                                if kwargs['fast first stage']:
+                                    sc = hf[1]
+                                    score = {'match': [], 'sumI': 1, 'dist': [], 'total_matched': 999, 'score_std': 0}
+                                else:
+                                    if not reshaped[fc]:
+                                        theor[fc] = reshape_theor_spectrum(theor[fc])
+                                        reshaped[fc] = True
+                                    score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos) # FIXME (?)
+                                    sc = score.pop('score')
+                                    score['glyco_label'] = utils.label_to_str(seqm, glyco_lbl, gl_labels)
+                                    score['glyco_mass_extra'] = utils.calc_mass_glyco(glyco_lbl, gl_masses)
 
-            glyco_lbl = idx_to_glycolbl[i]
-            # st = utils.get_title(s)
-            # if idx_new.count(st) >= kwargs['min_matched']:#st in idx_new:
-            # if i in idx_new:
-            fc = effcharges[i]
-            s = spectra[i]
-            st = titles[i]
-            chim = ('params' in s and 'isowidthdiff' in s['params'] and abs(float(s['params']['isowidthdiff'])) >= 0.1)
-            spcharge = charges[i]
-            # neutral_mass, charge_state, RT = get_info(res['spectrum'], res, settings, aa_mass)
-            if kwargs['score_fast']:
-                if 1:
-                    hf = kwargs['score_fast_basic'](s['fastset'], s['idict'], theoretical_set[fc], kwargs['min_matched'])
-                    if hf[0]:
-                        if -hf[1] <= best_res.get(st, 0):
-                            if kwargs['fast first stage']:
-                                sc = hf[1]
-                                score = {'match': [], 'sumI': 1, 'dist': [], 'total_matched': 999, 'score_std': 0}
-                            else:
-                                if not reshaped[fc]:
-                                    theor[fc] = reshape_theor_spectrum(theor[fc])
-                                    reshaped[fc] = True
-                                score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos) # FIXME (?)
-                                sc = score.pop('score')
-                                score['glyco_label'] = utils.label_to_str(seqm, glyco_lbl, gl_labels)
-                                score['glyco_mass_extra'] = utils.calc_mass_glyco(glyco_lbl, gl_masses)
+                                if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
+                                    results.append((sc, st, charges[i], score))
+                else:
+                    if not reshaped[fc]:
+                        theor[fc] = reshape_theor_spectrum(theor[fc])
+                        reshaped[fc] = True
+                    score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos) # FIXME (?)
+                    sc = score.pop('score')
+                    score['glyco_label'] = utils.label_to_str(seqm, glyco_lbl, gl_labels)
+                    score['glyco_mass_extra'] = utils.calc_mass_glyco(glyco_lbl, gl_masses)
+                    if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
+                        results.append((sc, st, charges[i], score))
 
-                            if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
-                                results.append((sc, st, charges[i], score))
-            else:
-                if not reshaped[fc]:
-                    theor[fc] = reshape_theor_spectrum(theor[fc])
-                    reshaped[fc] = True
-                score = kwargs['score'](s, theor[fc], kwargs['acc_frag'], kwargs['acc_frag_ppm'], position=aachange_pos) # FIXME (?)
-                sc = score.pop('score')
-                score['glyco_label'] = utils.label_to_str(seqm, glyco_lbl, gl_labels)
-                score['glyco_mass_extra'] = utils.calc_mass_glyco(glyco_lbl, gl_masses)
-                if -sc <= best_res.get(st, 0) and score.pop('total_matched') >= kwargs['min_matched']:
-                    results.append((sc, st, charges[i], score))
-
-    if results:
-        return seqm, m, snp_label, results
+        if results:
+            return seqm, m, snp_label, results
 
 def peptide_processor(peptide, best_res, global_data_local, **kwargs):
     spectra = global_data_local['spectra']
