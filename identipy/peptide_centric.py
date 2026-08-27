@@ -434,7 +434,6 @@ def peptide_processor_glyco(peptide, best_res, global_data_local, **kwargs):
 
         if idx:
 
-
             peptide_noglyco = seqm.replace('}', 'T').replace('/', 'N').replace('|', 'S')
 
             cand_idx = idx
@@ -448,19 +447,20 @@ def peptide_processor_glyco(peptide, best_res, global_data_local, **kwargs):
                 reshaped = {}
                 glyco_lbl = idx_to_glycolbl[idval]
 
-                for c in set(effcharges[i] for i in idx):
+                # for c in set(effcharges[i] for i in idx):
+                c = effcharges[idval]
 
-                    theor_key = str(glyco_lbl) + str(c)
-                    if theor_key not in theors_by_idx_history:
+                theor_key = str(glyco_lbl) + str(c)
+                if theor_key not in theors_by_idx_history:
 
-                        theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=False,
-                                                                        acc_frag=kwargs['acc_frag'], nterm_mass = nterm_mass,
-                                                                        cterm_mass = cterm_mass, nm=m, glyco=True, glyco_val=glyco_lbl, gl_masses=gl_masses, glyco_charge=charges[idval], peptide_noglyco=peptide_noglyco, num_glyco_sites=num_glyco_sites)
-                        reshaped[c] = False
+                    theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=False,
+                                                                    acc_frag=kwargs['acc_frag'], nterm_mass = nterm_mass,
+                                                                    cterm_mass = cterm_mass, nm=m, glyco=True, glyco_val=glyco_lbl, gl_masses=gl_masses, glyco_charge=charges[idval], peptide_noglyco=peptide_noglyco, num_glyco_sites=num_glyco_sites)
+                    reshaped[c] = False
 
-                        theors_by_idx_history[theor_key] = (theor, theoretical_set, reshaped)
-                    else:
-                        theor, theoretical_set, reshaped = theors_by_idx_history[theor_key]
+                    theors_by_idx_history[theor_key] = (theor, theoretical_set, reshaped)
+                else:
+                    theor, theoretical_set, reshaped = theors_by_idx_history[theor_key]
 
 
                 theors_by_idx[idval] = (theor, theoretical_set, reshaped)

@@ -366,7 +366,7 @@ cdef tuple ctheor_spectrum_glyco(str peptide, double acc_frag, double nterm_mass
 
     pl = len(peptide) - 1
     n_types = len(types)
-    for charge in range(1, max(glyco_charge, maxcharge) + 1):
+    for charge in range(1, glyco_charge + 1):
         for i_type in range(n_types):
             ion_type = <str>PyTuple_GetItem(types, i_type)
 
