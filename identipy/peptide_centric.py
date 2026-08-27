@@ -386,7 +386,7 @@ def peptide_processor_glyco(peptide, best_res, global_data_local, **kwargs):
     seqm, aachange_pos, snp_label, m = peptide
 
     num_glyco_sites = seqm.count('}') + seqm.count('/') + seqm.count('|')
-    if num_glyco_sites:
+    if num_glyco_sites == 1:
 
         max_prec_acc_Da = kwargs.get('max_prec_acc_Da')
 

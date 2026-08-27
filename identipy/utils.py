@@ -2050,7 +2050,10 @@ def write_pepxml(inputfile, settings, results):
                                 else:
                                     tmp5 = etree.Element('mod_aminoacid_mass')
                                     tmp5.set('position', str(idx + 1 - ntermmod))
-                                    tmp5.set('mass', str(aa_mass.get(aminoacid)))
+                                    if not aminoacid.startswith('hexnac'):
+                                        tmp5.set('mass', str(aa_mass.get(aminoacid)))
+                                    else:
+                                        tmp5.set('mass', str(aa_mass.get(aminoacid) + candidate[12]))
                                     tmp4.append(copy(tmp5))
                         tmp3.append(copy(tmp4))
 
