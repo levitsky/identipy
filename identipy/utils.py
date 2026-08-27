@@ -2004,7 +2004,7 @@ def write_pepxml(inputfile, settings, results):
                         tmp3.set('tot_num_ions', str((len(sequence) - 1) * 2))
                         neutral_mass_theor = custom_mass(str(candidate[1]), aa_mass=aa_mass, nterm_mass=nterm_mass, cterm_mass=cterm_mass)
                         # neutral_mass_theor = cmass.fast_mass(sequence, aa_mass=aa_mass)
-                        tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor))
+                        tmp3.set('calc_neutral_pep_mass', str(neutral_mass_theor + candidate[12]))
                         tmp3.set('massdiff', str(candidate[4]['mzdiff']['Da'] - candidate[12]))
                         tmp3.set('num_tol_term', str(pept_ntts.get(sequence, {}).get(proteins[0], '?')))
                         tmp3.set('num_missed_cleavages', str(parser.num_sites(sequence, get_enzyme(enzyme))))
