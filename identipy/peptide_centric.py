@@ -453,9 +453,12 @@ def peptide_processor_glyco(peptide, best_res, global_data_local, **kwargs):
                 theor_key = str(glyco_lbl) + str(c)
                 if theor_key not in theors_by_idx_history:
 
-                    theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=False,
-                                                                    acc_frag=kwargs['acc_frag'], nterm_mass = nterm_mass,
-                                                                    cterm_mass = cterm_mass, nm=m, glyco=True, glyco_val=glyco_lbl, gl_masses=gl_masses, glyco_charge=charges[idval], peptide_noglyco=peptide_noglyco, num_glyco_sites=num_glyco_sites)
+                    if kwargs['acc_frag'] < 99:
+                        theor[c], theoretical_set[c] = theor_spectrum(seqm, maxcharge=c, aa_mass=kwargs['aa_mass'], reshape=False,
+                                                                        acc_frag=kwargs['acc_frag'], nterm_mass = nterm_mass,
+                                                                        cterm_mass = cterm_mass, nm=m, glyco=True, glyco_val=glyco_lbl, gl_masses=gl_masses, glyco_charge=charges[idval], peptide_noglyco=peptide_noglyco, num_glyco_sites=num_glyco_sites)
+                    else:
+                        theor[c], theoretical_set[c] = utils.prepare_ox_ions_theor(kwargs['acc_frag'])
                     reshaped[c] = False
 
                     theors_by_idx_history[theor_key] = (theor, theoretical_set, reshaped)
@@ -471,13 +474,7 @@ def peptide_processor_glyco(peptide, best_res, global_data_local, **kwargs):
         ind = cand_idx
         # reshaped = False
         idx_new = ind
-        # if idx_new and kwargs['prec_acc_Da']:
-        #     fulls_global_charge = fulls_global
-        #     nm_key = int(m / max_prec_acc_Da)
-        #     cur_idict = fulls_global_charge.get(nm_key, dict())
-        #     fc_max = max(theor.keys())
-        #     idx_new = RNHS_ultrafast(cur_idict, theoretical_set[fc_max], kwargs['min_matched'], best_res, ind, kwargs['max_v'])
-                
+
         use_ms2pip = kwargs.get('ms2pip_threshold', 0)
         if use_ms2pip:
             dict_i_predicted = kwargs['pred_i_dict']
@@ -594,13 +591,7 @@ def peptide_processor(peptide, best_res, global_data_local, **kwargs):
     ind = cand_idx
     # reshaped = False
     idx_new = ind
-    # if idx_new and kwargs['prec_acc_Da']:
-    #     fulls_global_charge = fulls_global
-    #     nm_key = int(m / max_prec_acc_Da)
-    #     cur_idict = fulls_global_charge.get(nm_key, dict())
-    #     fc_max = max(theor.keys())
-    #     idx_new = RNHS_ultrafast(cur_idict, theoretical_set[fc_max], kwargs['min_matched'], best_res, ind, kwargs['max_v'])
-            
+
     use_ms2pip = kwargs.get('ms2pip_threshold', 0)
     if use_ms2pip:
         dict_i_predicted = kwargs['pred_i_dict']
