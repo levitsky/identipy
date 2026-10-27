@@ -1,4 +1,5 @@
 import re
+import ast
 from pyteomics import mass, electrochem as ec, auxiliary as aux, fasta, mzml, parser, mgf
 import pandas as pd
 from itertools import combinations, islice
@@ -73,8 +74,8 @@ def prepare_ox_ions_theor(acc_frag):
         glyco_block_dict['NeuAc'] + h_mass - h2o_mass,
         glyco_block_dict['NeuGc'] + h_mass,
         glyco_block_dict['NeuGc'] + h_mass - h2o_mass,
-        glyco_block_dict['HexNAc'] + h_mass + glyco_block_dict['Hex'] +  + glyco_block_dict['NeuAc'],
-        glyco_block_dict['HexNAc'] + h_mass + glyco_block_dict['Hex'] +  + glyco_block_dict['NeuGc'],
+        glyco_block_dict['HexNAc'] + h_mass + glyco_block_dict['Hex'] + glyco_block_dict['NeuAc'],
+        glyco_block_dict['HexNAc'] + h_mass + glyco_block_dict['Hex'] + glyco_block_dict['NeuGc'],
     ])
 
     peaks = {}
@@ -1727,6 +1728,29 @@ def get_shifts_and_pime(settings):
         glycomasses = []
         glycolbls_str = []
 
+        if settings.get('search', 'allowed_glycans'):
+
+            def parse_glycan(glycan_string):
+                pattern = r'([A-Za-z]+)\((\d+)\)'
+                matches = re.findall(pattern, glycan_string)
+                out_dict = dict()
+                for monosaccharide, count in matches:
+                    if monosaccharide not in glyco_block_dict:
+                        logger.warning('monosaccharide %s is not supported', monosaccharide)
+                    else:
+                        out_dict[monosaccharide] = int(count)
+                return out_dict
+
+            allowed_glycans_set = set()
+            allowed_glycans = list()
+            for line_row in open(settings.get('search', 'allowed_glycans'), 'r').readlines():
+                glycan_dict = parse_glycan(line_row.strip())
+                allowed_glycans_set.add(str([glycan_dict.get(monosac, 0) for monosac in gl_labels]))
+            allowed_glycans = [ast.literal_eval(z) for z in allowed_glycans_set]
+            print(allowed_glycans)
+        else:
+            allowed_glycans = False
+
 
         possible_values = range(36)
         def get_combinations():
@@ -1735,7 +1759,7 @@ def get_shifts_and_pime(settings):
                     yield list(combo)
 
         cnt = 0
-        for cur_val in get_combinations():
+        for cur_val in (get_combinations() if allowed_glycans is False else allowed_glycans):
             # if cur_val[0] >= 1:
             if 1:
                 cur_mass = calc_mass_glyco(cur_val, gl_masses)
